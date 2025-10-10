@@ -1,49 +1,82 @@
 export interface Alarm {
   id: string;
   title: string;
-  time: string;
-  days: string[];
-  isActive: boolean;
-  sound: string;
-  volume: number;
-  snoozeMinutes: number;
-  smartWake: boolean;
-  userId: string;
+  time: string; // ISO string
+  timezone: string;
+  recurrenceRule?: string;
+  toneUrl?: string;
+  smartWakeWindow?: number;
+  linkedTaskId?: string;
+  enabled: boolean;
+  snoozeConfig?: SnoozeConfig;
   createdAt: string;
   updatedAt: string;
-  syncedAt?: string;
-  isDeleted: boolean;
+  userId: string;
 }
 
 export interface CreateAlarmData {
   title: string;
-  time: string;
-  days: string[];
-  sound?: string;
-  volume?: number;
-  snoozeMinutes?: number;
-  smartWake?: boolean;
+  time: string; // ISO string
+  timezone?: string;
+  recurrenceRule?: string;
+  toneUrl?: string;
+  smartWakeWindow?: number;
+  linkedTaskId?: string;
+  enabled?: boolean;
+  snoozeConfig?: SnoozeConfig;
 }
 
 export interface UpdateAlarmData {
   title?: string;
-  time?: string;
-  days?: string[];
-  isActive?: boolean;
-  sound?: string;
-  volume?: number;
-  snoozeMinutes?: number;
-  smartWake?: boolean;
+  time?: string; // ISO string
+  timezone?: string;
+  recurrenceRule?: string;
+  toneUrl?: string;
+  smartWakeWindow?: number;
+  linkedTaskId?: string;
+  enabled?: boolean;
+  snoozeConfig?: SnoozeConfig;
 }
 
 export interface SnoozeConfig {
-  enabled: boolean;
-  intervalMinutes: number;
+  duration: number; // minutes
   maxSnoozes: number;
+  snoozeCount?: number;
 }
 
-export interface SmartWakeConfig {
-  enabled: boolean;
-  windowMinutes: number;
-  gradualVolume: boolean;
+export interface Timer {
+  id: string;
+  title: string;
+  duration: number; // minutes
+  remainingTime: number; // seconds
+  isRunning: boolean;
+  isPaused: boolean;
+  isCompleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+}
+
+export interface CreateTimerData {
+  title: string;
+  duration: number; // minutes
+}
+
+export interface UpdateTimerData {
+  title?: string;
+  duration?: number;
+  isRunning?: boolean;
+  isPaused?: boolean;
+  remainingTime?: number;
+}
+
+export interface TimerSession {
+  id: string;
+  timerId: string;
+  startTime: string;
+  endTime?: string;
+  duration: number; // actual duration in seconds
+  isCompleted: boolean;
+  createdAt: string;
+  userId: string;
 }

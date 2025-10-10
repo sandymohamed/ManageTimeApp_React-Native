@@ -11,7 +11,7 @@ class ProjectService {
     isPublic?: boolean;
   }): Promise<PaginatedResponse<Project>> {
     try {
-      const response = await apiClient.get<ApiResponse<PaginatedResponse<Project>>>('/projects', {
+      const response = await apiClient.get<ApiResponse<{ data: Project[]; pagination: any }>>('/projects', {
         params,
       });
 
@@ -19,7 +19,10 @@ class ProjectService {
         throw new Error(response.error || 'Failed to get projects');
       }
 
-      return response.data;
+      return {
+        data: response.data.data,
+        pagination: response.data.pagination,
+      };
     } catch (error) {
       logger.error('Get projects error:', error);
       throw error;

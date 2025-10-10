@@ -15,7 +15,7 @@ interface TaskCreateScreenProps {
   route: any;
 }
 
-export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation }) => {
+export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   const paperTheme = useTheme();
@@ -30,8 +30,8 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation }
     priority: TaskPriority.MEDIUM,
     status: TaskStatus.TODO,
     dueDate: undefined,
-    projectId: undefined,
-    goalId: undefined,
+    projectId: route?.params?.projectId,
+    goalId: route?.params?.goalId,
     assigneeId: undefined,
     // tags: [],
     metadata: {},
@@ -220,7 +220,7 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation }
         <Card style={[styles.card, { backgroundColor: theme.colors.card }]}>
           <Card.Content>
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              {t('tasks.priority')}
+              Priority
             </Text>
             <View style={styles.priorityContainer}>
               {Object.values(TaskPriority).map((priority) => (
@@ -239,7 +239,7 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation }
                     iconColor={getPriorityColor(priority)}
                   />
                   <Text style={[styles.priorityText, { color: getPriorityColor(priority) }]}>
-                    {priority}
+                    {t(`tasks.priority.${priority.toLowerCase()}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -251,7 +251,7 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation }
         <Card style={[styles.card, { backgroundColor: theme.colors.card }]}>
           <Card.Content>
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              {t('tasks.status')}
+              Status
             </Text>
             <View style={styles.statusContainer}>
               {Object.values(TaskStatus).map((status) => (
@@ -270,7 +270,7 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation }
                     iconColor={getStatusColor(status)}
                   />
                   <Text style={[styles.statusText, { color: getStatusColor(status) }]}>
-                    {status}
+                    {t(`tasks.status.${status.toLowerCase()}`)}
                   </Text>
                 </TouchableOpacity>
               ))}

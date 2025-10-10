@@ -336,26 +336,26 @@ export const ProjectsScreen: React.FC<ProjectsScreenProps> = ({ navigation }) =>
       </View >
 
       {/* Project List */}
-      < FlatList
+      <FlatList
         data={filteredProjects}
         renderItem={renderProject}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          < RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
+          <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
         }
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
       />
 
       {/* Floating Action Button */}
-      < FAB
+      <FAB
         icon="plus"
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
         onPress={handleCreateProject}
         label={t('projects.addProject')}
       />
-    </View >
+    </View>
   );
 };
 
@@ -422,9 +422,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   projectName: {
     marginBottom: 4,
     fontWeight: '600',
+    flexShrink: 1,
   },
   projectDescription: {
     lineHeight: 18,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   projectActions: {
     flexDirection: 'row',

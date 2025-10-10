@@ -21,11 +21,18 @@ import { ProjectsScreen } from '@/screens/projects/ProjectsScreen';
 import { ProjectCreateScreen } from '@/screens/projects/ProjectCreateScreen';
 import { ProjectDetailScreen } from '@/screens/projects/ProjectDetailScreen';
 import { ProjectInviteScreen } from '@/screens/projects/ProjectInviteScreen';
+import { MilestoneCreateScreen } from '@/screens/projects/MilestoneCreateScreen';
 import { SettingsScreen } from '@/screens/settings/SettingsScreen';
+import { DashboardScreen } from '@/screens/dashboard/DashboardScreen';
+import { CalendarScreen } from '@/screens/calendar/CalendarScreen';
+import { RoutinesScreen } from '@/screens/routines/RoutinesScreen';
 
 export type MainTabParamList = {
+  Dashboard: undefined;
   Tasks: undefined;
+  Calendar: undefined;
   Projects: undefined;
+  Routines: undefined;
   Goals: undefined;
   Alarms: undefined;
   Analytics: undefined;
@@ -34,14 +41,17 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   MainTabs: undefined;
-  TaskCreate: undefined;
+  TaskCreate: { projectId?: string; goalId?: string };
   TaskEdit: { taskId: string };
   TaskDetail: { taskId: string };
   ProjectCreate: undefined;
   ProjectDetail: { projectId: string };
   ProjectEdit: { projectId: string };
   ProjectInvite: { projectId: string };
+  MilestoneCreate: { projectId: string };
   Settings: undefined;
+  Calendar: undefined;
+  Routines: undefined;
 };
 
 
@@ -61,8 +71,14 @@ const MainTabs: React.FC = () => {
           // Get subtitle based on route name
           const getSubtitle = (routeName: string) => {
             switch (routeName) {
+              case 'Dashboard':
+                return t('navigation.dashboard');
               case 'Tasks':
                 return t('navigation.tasks');
+              case 'Calendar':
+                return t('navigation.calendar');
+              case 'Routines':
+                return t('navigation.routines');
               case 'Alarms':
                 return t('navigation.alarms');
               default:
@@ -88,6 +104,13 @@ const MainTabs: React.FC = () => {
 
 
       <Tab.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{
+          title: t('navigation.dashboard'),
+        }}
+      />
+      <Tab.Screen
         name="Tasks"
         component={TasksScreen}
         options={{
@@ -95,10 +118,24 @@ const MainTabs: React.FC = () => {
         }}
       />
       <Tab.Screen
+        name="Calendar"
+        component={CalendarScreen}
+        options={{
+          title: t('navigation.calendar'),
+        }}
+      />
+      <Tab.Screen
         name="Projects"
         component={ProjectsScreen}
         options={{
           title: t('navigation.projects'),
+        }}
+      />
+      <Tab.Screen
+        name="Routines"
+        component={RoutinesScreen}
+        options={{
+          title: t('navigation.routines'),
         }}
       />
       <Tab.Screen
@@ -186,6 +223,14 @@ export const MainNavigator: React.FC = () => {
       <Stack.Screen 
         name="ProjectInvite" 
         component={ProjectInviteScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen 
+        name="MilestoneCreate" 
+        component={MilestoneCreateScreen}
         options={{
           headerShown: false,
           presentation: 'modal',

@@ -35,41 +35,41 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
     error,
     filter,
     searchQuery,
-    sortBy,
-    sortOrder,
     fetchTasks,
     refreshTasks,
     setFilter,
     setSearchQuery,
-    setSortBy,
-    setSortOrder,
     clearFilters,
-    resetToCustomOrder,
-    deleteTask,
     completeTask,
-    uncompleteTask,
+    deleteTask,
     updateTaskOrder,
-    setCurrentTask,
   } = useTaskStore();
 
-
-  const [refreshing, setRefreshing] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
-  const [sortMenuVisible, setSortMenuVisible] = useState(false);
-  const [dragging, setDragging] = useState(false);
-
   const [useFallback, setUseFallback] = useState(true); // Start with fallback
+  const [localTasks, setLocalTasks] = useState<Task[]>([]);
 
-
+  // Sync local tasks with store tasks
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+
+    setLocalTasks(filteredTasks);
+  }, [filteredTasks]);
+
+
+
+  // Test drag & drop availability
+  useEffect(() => {
+    if (DraggableFlatList) {
+      // Test if it works properly
+      setTimeout(() => {
+        setUseFallback(false);
+      }, 1000);
+    }
+  }, []);
 
   const handleRefresh = async () => {
-    setRefreshing(true);
     await refreshTasks();
-    setRefreshing(false);
   };
 
   const handleCreateTask = () => {
@@ -77,13 +77,16 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
   };
 
   const handleTaskPress = (task: Task) => {
-    setCurrentTask(task);
     navigation.navigate('TaskDetail', { taskId: task.id });
   };
 
-  const handleEditTask = (task: Task) => {
-    setCurrentTask(task);
-    navigation.navigate('TaskEdit', { taskId: task.id });
+  const handleCompleteTask = async (task: Task) => {
+    try {
+      await completeTask(task.id);
+      showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
+    } catch (error) {
+      showError(t('tasks.completeFailed', { title: task.title }));
+    }
   };
 
   const handleDeleteTask = async (task: Task) => {
@@ -94,91 +97,15 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
           await deleteTask(task.id);
           showSuccess(t('tasks.deletedSuccessfully', { title: task.title }));
         } catch (error) {
-          console.error('Failed to delete task:', error);
           showError(t('tasks.deleteFailed', { title: task.title }));
         }
       }
     );
   };
 
-
-  const handleToggleComplete = async (task: Task) => {
-    try {
-      if (task.status === TaskStatus.DONE) {
-        await uncompleteTask(task.id);
-        showSuccess(t('tasks.uncompletedSuccessfully', { title: task.title }));
-      } else {
-        await completeTask(task.id);
-        showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
-      }
-    } catch (error) {
-      console.error('Failed to toggle task completion:', error);
-      showError(t('tasks.completeFailed', { title: task.title }));
-    }
+  const handleEditTask = (task: Task) => {
+    navigation.navigate('TaskEdit', { taskId: task.id });
   };
-
-
-  const handleReorder = async (newTasks: Task[]) => {
-    try {
-      setDragging(false);
-      await updateTaskOrder(newTasks);
-      showSuccess(t('tasks.reorderedSuccessfully'));
-    } catch (error) {
-      console.error('Failed to reorder tasks:', error);
-      showError(t('tasks.reorderFailed'));
-    }
-  };
-
-  // const handleDragBegin = () => {
-  //   setDragging(true);
-  // };
-
-  // const handleDragEnd = () => {
-  //   setDragging(false);
-  // };
-
-  const getDueDateText = (dueDate?: string) => {
-    if (!dueDate) return null;
-    const date = new Date(dueDate);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return t('tasks.dueToday');
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return t('tasks.dueTomorrow');
-    } else {
-      return t('tasks.dueOn', { date: date.toLocaleDateString() });
-    }
-  };
-
-  // Sync local tasks with store tasks
-  // useEffect(() => {
-
-  //   setLocalTasks(filteredTasks);
-  // }, [filteredTasks]);
-
-  // // Test drag & drop availability
-  useEffect(() => {
-    if (DraggableFlatList) {
-      // Test if it works properly
-      setTimeout(() => {
-        setUseFallback(false);
-      }, 1000);
-    }
-  }, []);
-
-
-  // const handleCompleteTask = async (task: Task) => {
-  //   try {
-  //     await completeTask(task.id);
-  //     showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
-  //   } catch (error) {
-  //     showError(t('tasks.completeFailed', { title: task.title }));
-  //   }
-  // };
-
 
   const handleFilterChange = (key: keyof TaskFilter, value: any) => {
     setFilter({
@@ -196,7 +123,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
       }
 
       // Update local state immediately for smooth UX
-      // setLocalTasks(data);
+      setLocalTasks(data);
 
       // Then update the store
       await updateTaskOrder(data);
@@ -204,10 +131,31 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
     } catch (error) {
       showError(t('tasks.reorderFailed'));
       // Revert to original order
-      // setLocalTasks(filteredTasks);
+      setLocalTasks(filteredTasks);
     }
   };
 
+  // MANUAL REORDERING - More reliable alternative
+  const moveTask = async (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+
+    const newTasks = [...localTasks];
+    const [movedTask] = newTasks.splice(fromIndex, 1);
+    newTasks.splice(toIndex, 0, movedTask);
+
+    // Update local state immediately
+    setLocalTasks(newTasks);
+
+    try {
+      // Update store
+      await updateTaskOrder(newTasks);
+      showSuccess(t('tasks.reorderedSuccessfully'));
+    } catch (error) {
+      // Revert on error
+      setLocalTasks(filteredTasks);
+      showError(t('tasks.reorderFailed'));
+    }
+  };
 
   const getStatusIcon = (status: TaskStatus) => {
     switch (status) {
@@ -253,14 +201,14 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
             <View style={styles.mainContentRow}>
               {/* Status */}
               <TouchableOpacity
-                onPress={() => handleToggleComplete(task)}
+                onPress={() => handleCompleteTask(task)}
                 style={styles.statusContainer}
               >
                 <IconButton
                   icon={getStatusIcon(task.status)}
                   size={22}
                   iconColor={getStatusColor(task.status)}
-                />sssxxxxxxxxxxxxx
+                />sss
               </TouchableOpacity>
 
               {/* Text Content */}
@@ -348,7 +296,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
                   }]}
                   textStyle={[styles.chipText, { color: theme.colors.textSecondary }]}
                 >
-                  {getDueDateText(task.dueDate)}
+                  {new Date(task.dueDate).toLocaleDateString()}
                 </Chip>
               )}
             </View>
@@ -378,16 +326,9 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
 
   const renderQuickFilters = () => {
     const statusOptions = [
-
       { status: TaskStatus.TODO, label: 'Todo', icon: 'checkbox-blank-circle-outline', color: theme.colors.primary },
       { status: TaskStatus.IN_PROGRESS, label: 'Progress', icon: 'progress-clock', color: theme.colors.info },
       { status: TaskStatus.DONE, label: 'Done', icon: 'check-circle', color: theme.colors.success },
-
-      { status: TaskPriority.URGENT, label: 'Urgent', icon: 'alert-circle', color: theme.colors.error },
-      { status: TaskPriority.HIGH, label: 'High', icon: 'alert-circle', color: theme.colors.error },
-      { status: TaskPriority.MEDIUM, label: 'Medium', icon: 'alert-circle', color: theme.colors.error },
-      { status: TaskPriority.LOW, label: 'Low', icon: 'alert-circle', color: theme.colors.error },
-
     ];
 
     const isFilterActive = filter.status && filter.status.length > 0;
@@ -404,14 +345,13 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         )}
 
-        {statusOptions.map((option: any) => {
+        {statusOptions.map((option) => {
           const isActive = filter.status?.includes(option.status);
           return (
             <TouchableOpacity
               key={option.status}
               style={[styles.filterChip, isActive && styles.activeFilterChip]}
               onPress={() => {
-                console.log("filter***********", filter);
                 if (isActive) {
                   const newStatus = filter.status?.filter(s => s !== option.status) || [];
                   handleFilterChange('status', newStatus.length > 0 ? newStatus : undefined);
@@ -428,59 +368,30 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
             </TouchableOpacity>
           );
         })}
-
       </View>
     );
   };
-  const renderErrorState = () => (
-    <View style={styles.errorContainer}>
-      <Text variant="headlineSmall" style={[styles.errorTitle, { color: theme.colors.error }]}>
-        {t('common.error')}
-      </Text>
-      <Text variant="bodyMedium" style={[styles.errorMessage, { color: theme.colors.text }]}>
-        {error}
-      </Text>
-      <TouchableOpacity
-        onPress={handleRefresh}
-        style={[styles.retryButton, { backgroundColor: theme.colors.primary }]}
-      >
-        <Text style={[styles.retryButtonText, { color: theme.colors.onPrimary }]}>
-          {t('common.retry')}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  if (error) {
-    return renderErrorState();
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.colors.surface }]}>
         <View style={styles.headerTop}>
-          <Text variant="headlineSmall" style={[styles.headerTitle, { color: theme.colors.text }]}>
-            {t('tasks.myTasks')}
+          <Text variant="headlineMedium" style={[styles.headerTitle, { color: theme.colors.text }]}>
+            {t('navigation.myTasks')}
           </Text>
           <View style={styles.headerActions}>
             <IconButton
               icon="magnify"
               size={24}
-              iconColor={theme.colors.text}
+              iconColor={theme.colors.primary}
               onPress={() => setSearchVisible(!searchVisible)}
             />
             <IconButton
-              icon="filter"
+              icon="filter-variant"
               size={24}
-              iconColor={theme.colors.text}
+              iconColor={theme.colors.primary}
               onPress={() => setFilterVisible(!filterVisible)}
-            />
-            <IconButton
-              icon="sort"
-              size={24}
-              iconColor={theme.colors.text}
-              onPress={() => setSortMenuVisible(!sortMenuVisible)}
             />
           </View>
         </View>
@@ -511,79 +422,10 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
       {/* Quick Filters */}
       {filterVisible && renderQuickFilters()}
 
-      {/* Sort Menu */}
-      {sortMenuVisible && (
-        <View style={styles.quickFilters}>
-          <TouchableOpacity
-            style={[styles.filterChip, sortBy === 'createdAt' && styles.activeFilterChip]}
-            onPress={() => setSortBy('createdAt')}
-          >
-            <Text style={[styles.filterText, { color: theme.colors.text }]}>
-              {t('tasks.sort.createdAt')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterChip, sortBy === 'dueDate' && styles.activeFilterChip]}
-            onPress={() => setSortBy('dueDate')}
-          >
-            <Text style={[styles.filterText, { color: theme.colors.text }]}>
-              {t('tasks.sort.dueDate')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterChip, sortBy === 'priority' && styles.activeFilterChip]}
-            onPress={() => setSortBy('priority')}
-          >
-            <Text style={[styles.filterText, { color: theme.colors.text }]}>
-              {t('tasks.sort.priority')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterChip, sortBy === 'title' && styles.activeFilterChip]}
-            onPress={() => setSortBy('title')}
-          >
-            <Text style={[styles.filterText, { color: theme.colors.text }]}>
-              {t('tasks.sort.title')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterChip, sortBy === 'order' && styles.activeFilterChip]}
-            onPress={resetToCustomOrder}
-          >
-            <Text style={[styles.filterText, { color: theme.colors.text }]}>
-              {t('tasks.sort.custom')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterChip, sortOrder === 'asc' && styles.activeFilterChip]}
-            onPress={() => setSortOrder('asc')}
-          >
-            <Text style={[styles.filterText, { color: theme.colors.text }]}>
-              {t('tasks.sort.ascending')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterChip, sortOrder === 'desc' && styles.activeFilterChip]}
-            onPress={() => setSortOrder('desc')}
-          >
-            <Text style={[styles.filterText, { color: theme.colors.text }]}>
-              {t('tasks.sort.descending')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-
-      {isLoading && (
-        <View style={styles.emptyState}>
-          <Text variant="bodyLarge" style={[styles.emptyMessage, { color: theme.colors.text }]}>
-            {t('common.loading')}
-          </Text>
-        </View>)}
       {/* Task List - Use Fallback if drag & drop is problematic */}
       {useFallback ? (
         <FlatList
-          data={filteredTasks}
+          data={localTasks}
           renderItem={renderFallbackTask}
           keyExtractor={(item: Task) => item.id}
           contentContainerStyle={styles.listContent}
@@ -597,12 +439,10 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
         <View style={{ flex: 1 }}>
           {DraggableFlatList ? (
             <DraggableFlatList
-              data={filteredTasks}
+              data={localTasks}
               renderItem={renderTask}
               keyExtractor={(item: Task) => item.id}
               onDragEnd={handleDragEnd}
-              // onDragEnd={({ data }: { data: Task[] }) => handleReorder(data)}
-
               contentContainerStyle={styles.listContent}
               refreshControl={
                 <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
@@ -614,33 +454,17 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
               autoscrollSpeed={500}
             />
           ) : (
-            <>
-              <FlatList
-                data={filteredTasks}
-                renderItem={renderFallbackTask}
-                keyExtractor={(item: Task) => item.id}
-                contentContainerStyle={styles.listContent}
-                refreshControl={
-                  <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
-                }
-                ListEmptyComponent={renderEmptyState}
-                showsVerticalScrollIndicator={false}
-              />
-              <FlatList
-                data={filteredTasks}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => renderTask({ item, drag: () => { }, isActive: false })}
-                contentContainerStyle={styles.listContent}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={handleRefresh}
-                  />
-                }
-                ListEmptyComponent={renderEmptyState}
-                showsVerticalScrollIndicator={false}
-              />
-            </>
+            <FlatList
+              data={localTasks}
+              renderItem={renderFallbackTask}
+              keyExtractor={(item: Task) => item.id}
+              contentContainerStyle={styles.listContent}
+              refreshControl={
+                <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
+              }
+              ListEmptyComponent={renderEmptyState}
+              showsVerticalScrollIndicator={false}
+            />
           )}
         </View>
       )}
@@ -791,13 +615,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     gap: 8,
   },
   priorityChip: {
-    height: 35,
-    lineHeight: 10,
+    height: 28,
   },
   dateChip: {
-    height: 35,
-    lineHeight: 10,
-
+    height: 28,
   },
   chipText: {
     fontSize: 11,
@@ -812,45 +633,6 @@ const createStyles = (theme: any) => StyleSheet.create({
   emptyTitle: {
     marginTop: 16,
     textAlign: 'center',
-  },
-  // emptyState: {
-  //   flex: 1,
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  //   paddingVertical: 64,
-  // },
-  // emptyTitle: {
-  //   marginTop: 16,
-  //   marginBottom: 8,
-  //   textAlign: 'center',
-  // },
-  emptyMessage: {
-    textAlign: 'center',
-    paddingHorizontal: 32,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 64,
-  },
-  errorTitle: {
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  errorMessage: {
-    textAlign: 'center',
-    paddingHorizontal: 32,
-  },
-  retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-    marginTop: 16,
-  },
-  retryButtonText: {
-    fontWeight: '500',
   },
   fab: {
     position: 'absolute',
