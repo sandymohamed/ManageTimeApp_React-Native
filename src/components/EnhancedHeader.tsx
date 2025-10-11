@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, ViewStyle, StyleProp, TextStyle } from 'react-native';
 import { Appbar, Menu, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -15,6 +15,9 @@ interface EnhancedHeaderProps {
   onMenuPress?: () => void;
   onBackPress?: () => void;
   showBackButton?: boolean;
+  style?: StyleProp<ViewStyle>;
+  titleStyle?: StyleProp<TextStyle>;
+  subtitleStyle?: StyleProp<TextStyle>;
 }
 
 export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
@@ -26,6 +29,9 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
   onMenuPress,
   onBackPress,
   showBackButton = false,
+  style,
+  titleStyle,
+  subtitleStyle,
 }) => {
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
@@ -47,26 +53,28 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
   };
 
   return (
-    <Appbar.Header style={[styles.header, { backgroundColor: theme.colors.primary }]}>
+    <Appbar.Header style={[styles.header, { backgroundColor: theme.colors.primary }, style]} >
       {showBackButton && (
         <Appbar.BackAction
           onPress={handleBackPress}
           iconColor={theme.colors.onPrimary}
         />
       )}
-      
+
       <Appbar.Content
         title={title}
         subtitle={subtitle}
         titleStyle={[
           styles.title,
           { color: theme.colors.onPrimary },
-          isRTL && styles.rtlTitle
+          isRTL && styles.rtlTitle,
+          titleStyle,
         ]}
         subtitleStyle={[
           styles.subtitle,
           { color: theme.colors.onPrimary },
-          isRTL && styles.rtlSubtitle
+          isRTL && styles.rtlSubtitle,
+          subtitleStyle,
         ]}
       />
 

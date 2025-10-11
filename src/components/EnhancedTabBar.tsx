@@ -29,15 +29,32 @@ export const EnhancedTabBar: React.FC<EnhancedTabBarProps> = ({
 
   const tabs: TabItem[] = [
     {
+      name: 'Dashboard',
+      icon: 'home',
+      label: t('navigation.dashboard'),
+      badge: 3, 
+    },
+    {
       name: 'Tasks',
       icon: 'assignment',
       label: t('navigation.tasks'),
-      badge: 3, // Demo: 3 pending tasks
+      badge: 3, 
+    },
+    {
+      name: 'Calendar',
+      icon: 'calendar',
+      label: t('navigation.calendar'),
     },
     {
       name: 'Projects',
       icon: 'folder',
       label: t('navigation.projects'),
+    },
+    {
+      name: 'Routines',
+      icon: 'repeat',
+      label:  t('navigation.routines'),
+      badge: 1, 
     },
     {
       name: 'Goals',

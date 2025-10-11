@@ -11,7 +11,8 @@
     "test": "jest",
     "clean:android": "cd android && ./gradlew clean && cd ..",
     "clean:all": "npm run clean:android && npx react-native start --reset-cache",
-    "fresh-install": "npm install && npm run clean:all"
+    "fresh-install": "npm install && npm run clean:all",
+    "adb":"adb reverse tcp:8081 tcp:8081"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",

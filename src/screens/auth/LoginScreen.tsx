@@ -403,7 +403,7 @@ export const LoginScreen: React.FC = () => {
               <Card style={styles.card} elevation={4}>
                 <Card.Content style={styles.cardContent}>
                   <Text variant="titleLarge" style={styles.formTitle}>
-                    Account Login
+                    {t('auth.signIn')}
                   </Text>
 
                   {/* Email Input */}
@@ -554,11 +554,11 @@ export const LoginScreen: React.FC = () => {
                     {t('auth.signUp')}
                   </Button>
                 </View>
+                <View style={styles.languageSwitcher}>
+                  <LanguageSwitcher mode="button" showLabel={false} />
+                </View>
               </View>
 
-              <View style={styles.languageSwitcher}>
-                <LanguageSwitcher mode="button" showLabel={false} />
-              </View>
             </Animated.View>
 
             {/* Bottom Spacer */}
@@ -585,6 +585,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
+    paddingTop: theme.spacing.lg,
     paddingHorizontal: theme.spacing.xl,
     paddingBottom: theme.spacing.xl,
   },
@@ -636,10 +637,11 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: theme.spacing.md,
-  },
+   },
   input: {
     backgroundColor: theme.colors.surface,
   },
+  
   inputFocused: {
     backgroundColor: `${theme.colors.primary}08`,
   },

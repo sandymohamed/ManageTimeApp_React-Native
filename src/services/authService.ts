@@ -137,47 +137,6 @@ class AuthService {
         if (networkError.message?.includes('Network') || networkError.code === 'NETWORK_ERROR') {
           console.log('🌐 Network error detected, using mock data for testing...');
           
-          // Mock successful login for testing
-          const mockUser: User = {
-            id: '1',
-            email: credentials.email,
-            name: 'Test User',
-            avatar: undefined,
-            preferences: {
-              theme: 'light',
-              language: 'en',
-              notifications: {
-                push: true,
-                email: true,
-                inApp: true
-              },
-              reminders: {
-                taskDue: true,
-                goalDeadline: true,
-                projectUpdate: true
-              },
-              privacy: {
-                profileVisible: true,
-                activityVisible: true
-              },
-              timezone: 'UTC'
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isDeleted: false
-          };
-
-          const mockTokens = {
-            token: 'mock-access-token-' + Date.now(),
-            refreshToken: 'mock-refresh-token-' + Date.now()
-          };
-
-          console.log('✅ Using mock login data for testing');
-          return {
-            user: mockUser,
-            token: mockTokens.token,
-            refreshToken: mockTokens.refreshToken,
-          };
         }
         
         throw networkError;

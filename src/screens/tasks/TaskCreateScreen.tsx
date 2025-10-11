@@ -39,7 +39,10 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedTime, setSelectedTime] = useState<Date>(new Date());
+  const [hasTime, setHasTime] = useState(false);
 
   const handleSave = async () => {
     // Validate form
@@ -123,9 +126,47 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
 
     if (selectedDate) {
       setSelectedDate(selectedDate);
+      const combinedDateTime = new Date(selectedDate);
+      if (hasTime) {
+        combinedDateTime.setHours(selectedTime.getHours());
+        combinedDateTime.setMinutes(selectedTime.getMinutes());
+      }
       setFormData({
         ...formData,
-        dueDate: selectedDate.toISOString(),
+        dueDate: combinedDateTime.toISOString(),
+      });
+    }
+  };
+
+  const handleTimeChange = (event: any, selectedTime?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+
+    if (selectedTime) {
+      setSelectedTime(selectedTime);
+      const combinedDateTime = new Date(selectedDate);
+      combinedDateTime.setHours(selectedTime.getHours());
+      combinedDateTime.setMinutes(selectedTime.getMinutes());
+      setFormData({
+        ...formData,
+        dueDate: combinedDateTime.toISOString(),
+      });
+    }
+  };
+
+  const handleToggleTime = () => {
+    setHasTime(!hasTime);
+    if (!hasTime) {
+      // When enabling time, set to current time
+      setSelectedTime(new Date());
+    } else {
+      // When disabling time, remove time component
+      const dateOnly = new Date(selectedDate);
+      dateOnly.setHours(0, 0, 0, 0);
+      setFormData({
+        ...formData,
+        dueDate: dateOnly.toISOString(),
       });
     }
   };
@@ -288,7 +329,7 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
               <TouchableOpacity style={styles.dateButton} onPress={handleDatePress}>
                 <IconButton icon="calendar" size={20} iconColor={theme.colors.primary} />
                 <Text style={[styles.dateText, { color: theme.colors.text }]}>
-                  {formData.dueDate ? new Date(formData.dueDate).toLocaleDateString() : t('tasks.selectDate')}
+                  {formData.dueDate ? format(new Date(formData.dueDate), hasTime ? 'MMM d, yyyy h:mm a' : 'MMM d, yyyy') : t('tasks.selectDate')}
                 </Text>
               </TouchableOpacity>
               {formData.dueDate && (
@@ -300,6 +341,33 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
                 />
               )}
             </View>
+            
+            {/* Time Toggle */}
+            <TouchableOpacity
+              style={[styles.timeToggle, { backgroundColor: hasTime ? theme.colors.primaryContainer : theme.colors.surfaceVariant }]}
+              onPress={handleToggleTime}
+            >
+              <IconButton 
+                icon={hasTime ? "clock" : "clock-outline"} 
+                size={20} 
+                iconColor={hasTime ? theme.colors.primary : theme.colors.textSecondary} 
+              />
+              <Text style={[styles.timeToggleText, { color: hasTime ? theme.colors.primary : theme.colors.textSecondary }]}>
+                {hasTime ? t('task.hasTime') : t('task.addTime')}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Time Picker Button */}
+            {hasTime && (
+              <View style={styles.timeButton}>
+                <TouchableOpacity style={styles.timeButton} onPress={() => setShowTimePicker(true)}>
+                  <IconButton icon="clock" size={20} iconColor={theme.colors.primary} />
+                  <Text style={[styles.dateText, { color: theme.colors.text }]}>
+                    {format(selectedTime, 'h:mm a')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </Card.Content>
         </Card>
       </ScrollView>
@@ -345,6 +413,58 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
                   <Button
                     mode="contained"
                     onPress={handleDateConfirm}
+                    style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
+                  >
+                    {t('common.confirm')}
+                  </Button>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Time Picker Modal */}
+      {showTimePicker && (
+        <Modal
+          visible={showTimePicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowTimePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+              <View style={styles.modalHeader}>
+                <Text variant="headlineSmall" style={[styles.modalTitle, { color: theme.colors.text }]}>
+                  {t('tasks.selectTime')}
+                </Text>
+                <IconButton
+                  icon="close"
+                  size={24}
+                  iconColor={theme.colors.text}
+                  onPress={() => setShowTimePicker(false)}
+                />
+              </View>
+
+              <DateTimePicker
+                value={selectedTime}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handleTimeChange}
+                style={styles.datePicker}
+              />
+              {Platform.OS === 'ios' && (
+                <View style={styles.modalActions}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowTimePicker(false)}
+                    style={styles.modalButton}
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={() => setShowTimePicker(false)}
                     style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
                   >
                     {t('common.confirm')}
@@ -460,6 +580,30 @@ const createStyles = (theme: any) => StyleSheet.create({
   dateText: {
     marginLeft: 8,
     fontSize: 16,
+  },
+  timeToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  timeToggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  timeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    marginTop: 8,
   },
   // modal:
   modalOverlay: {

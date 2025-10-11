@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
-import { Text, Card, IconButton, Chip, useTheme } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
+import { Text, Card, IconButton, Chip, useTheme, FAB, Badge, Portal, Modal } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
+import { useNotification } from '@/contexts/NotificationContext';
 import { useTaskStore } from '@/store/taskStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addDays, subDays, isToday, isTomorrow, isYesterday, differenceInDays, differenceInHours, differenceInMinutes } from 'date-fns';
 
 interface CalendarScreenProps {
   navigation: any;
@@ -23,18 +24,35 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
+  const { showSuccess, showError } = useNotification();
 
-  const { tasks, fetchTasks } = useTaskStore();
+  const { tasks, fetchTasks, updateTask } = useTaskStore();
   const { projects, fetchProjects } = useProjectStore();
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     fetchTasks();
     fetchProjects();
   }, []);
+
+  // Get upcoming tasks for reminders
+  useEffect(() => {
+    const now = new Date();
+    const upcoming = tasks.filter(task => {
+      if (!task.dueDate || task.status === TaskStatus.DONE) return false;
+      const taskDate = new Date(task.dueDate);
+      const diffInHours = differenceInHours(taskDate, now);
+      return diffInHours >= 0 && diffInHours <= 24; // Next 24 hours
+    }).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
+    
+    setUpcomingTasks(upcoming);
+  }, [tasks]);
 
   const getTasksForDate = (date: Date) => {
     return tasks.filter(task => {
@@ -101,6 +119,42 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     }
   };
 
+  const getTimeUntilTask = (dueDate: string) => {
+    const now = new Date();
+    const taskDate = new Date(dueDate);
+    const diffInMinutes = differenceInMinutes(taskDate, now);
+    const diffInHours = differenceInHours(taskDate, now);
+    const diffInDays = differenceInDays(taskDate, now);
+
+    if (diffInMinutes < 0) return t('calendar.overdue');
+    if (diffInMinutes < 60) return `${diffInMinutes}m ${t('calendar.remaining')}`;
+    if (diffInHours < 24) return `${diffInHours}h ${t('calendar.remaining')}`;
+    if (diffInDays < 7) return `${diffInDays}d ${t('calendar.remaining')}`;
+    return format(taskDate, 'MMM d');
+  };
+
+  const handleTaskPress = (task: Task) => {
+    setSelectedTask(task);
+    setShowTaskModal(true);
+  };
+
+  const handleTaskComplete = async (task: Task) => {
+    try {
+      await updateTask(task.id, { 
+        status: task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE,
+        completedAt: task.status === TaskStatus.DONE ? undefined : new Date().toISOString()
+      });
+      showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
+    } catch (error) {
+      showError(t('tasks.completeFailed', { title: task.title }));
+    }
+  };
+
+  const getTaskTimeText = (dueDate: string) => {
+    const taskDate = new Date(dueDate);
+    return format(taskDate, 'h:mm a');
+  };
+
   const renderMonthView = () => {
     const { days, monthTasks } = getTasksForMonth(currentDate);
     const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -154,18 +208,28 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                 {/* Task indicators */}
                 <View style={styles.taskIndicators}>
                   {dayTasks.slice(0, 3).map((task, taskIndex) => (
-                    <View
+                    <TouchableOpacity
                       key={task.id}
+                      onPress={() => handleTaskPress(task)}
                       style={[
                         styles.taskIndicator,
                         { backgroundColor: getPriorityColor(task.priority) }
                       ]}
-                    />
+                    >
+                      <Text style={[styles.taskIndicatorText, { color: 'white' }]}>
+                        {task.title.charAt(0).toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
                   ))}
                   {dayTasks.length > 3 && (
-                    <Text variant="bodySmall" style={[styles.moreTasksText, { color: theme.colors.text }]}>
-                      +{dayTasks.length - 3}
-                    </Text>
+                    <TouchableOpacity
+                      style={[styles.moreTasksIndicator, { backgroundColor: theme.colors.surfaceVariant }]}
+                      onPress={() => setSelectedDate(day)}
+                    >
+                      <Text variant="bodySmall" style={[styles.moreTasksText, { color: theme.colors.text }]}>
+                        +{dayTasks.length - 3}
+                      </Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               </TouchableOpacity>
@@ -321,6 +385,43 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     );
   };
 
+  const renderUpcomingTasks = () => {
+    if (upcomingTasks.length === 0) return null;
+
+    return (
+      <Card style={[styles.upcomingCard, { backgroundColor: theme.colors.surface }]}>
+        <Card.Content>
+          <View style={styles.upcomingHeader}>
+            <Text variant="titleMedium" style={[styles.upcomingTitle, { color: theme.colors.text }]}>
+              {t('calendar.upcomingTasks')}
+            </Text>
+            <Badge style={[styles.upcomingBadge, { backgroundColor: theme.colors.primary }]}>
+              {upcomingTasks.length}
+            </Badge>
+          </View>
+          
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.upcomingScroll}>
+            {upcomingTasks.map((task) => (
+              <TouchableOpacity
+                key={task.id}
+                style={[styles.upcomingTaskItem, { backgroundColor: theme.colors.surfaceVariant }]}
+                onPress={() => handleTaskPress(task)}
+              >
+                <View style={[styles.upcomingTaskIndicator, { backgroundColor: getPriorityColor(task.priority) }]} />
+                <Text variant="bodySmall" style={[styles.upcomingTaskTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                  {task.title}
+                </Text>
+                <Text variant="bodySmall" style={[styles.upcomingTaskTime, { color: theme.colors.textSecondary }]}>
+                  {task.dueDate && getTimeUntilTask(task.dueDate)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Card.Content>
+      </Card>
+    );
+  };
+
   const renderSelectedDateTasks = () => {
     const selectedTasks = getTasksForDate(selectedDate);
     
@@ -335,18 +436,121 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
           
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectedTasksScroll}>
             {selectedTasks.map((task) => (
-              <View key={task.id} style={styles.selectedTaskItem}>
+              <TouchableOpacity
+                key={task.id}
+                style={[styles.selectedTaskItem, { backgroundColor: theme.colors.surfaceVariant }]}
+                onPress={() => handleTaskPress(task)}
+              >
                 <View style={[styles.selectedTaskIndicator, { backgroundColor: getPriorityColor(task.priority) }]} />
                 <Text variant="bodySmall" style={[styles.selectedTaskTitle, { color: theme.colors.text }]}>
                   {task.title}
                 </Text>
-              </View>
+                {task.dueDate && (
+                  <Text variant="bodySmall" style={[styles.selectedTaskTime, { color: theme.colors.textSecondary }]}>
+                    {getTaskTimeText(task.dueDate)}
+                  </Text>
+                )}
+              </TouchableOpacity>
             ))}
           </ScrollView>
         </Card.Content>
       </Card>
     );
   };
+
+  const renderTaskModal = () => (
+    <Portal>
+      <Modal
+        visible={showTaskModal}
+        onDismiss={() => setShowTaskModal(false)}
+        contentContainerStyle={[styles.taskModal, { backgroundColor: theme.colors.surface }]}
+      >
+        {selectedTask && (
+          <ScrollView style={styles.taskModalContent}>
+            <View style={styles.taskModalHeader}>
+              <Text variant="headlineSmall" style={[styles.taskModalTitle, { color: theme.colors.text }]}>
+                {selectedTask.title}
+              </Text>
+              <IconButton
+                icon="close"
+                size={24}
+                iconColor={theme.colors.text}
+                onPress={() => setShowTaskModal(false)}
+              />
+            </View>
+
+            {selectedTask.description && (
+              <Text variant="bodyMedium" style={[styles.taskModalDescription, { color: theme.colors.text }]}>
+                {selectedTask.description}
+              </Text>
+            )}
+
+            <View style={styles.taskModalDetails}>
+              <View style={styles.taskDetailRow}>
+                <Text variant="bodyMedium" style={[styles.taskDetailLabel, { color: theme.colors.textSecondary }]}>
+                  {t('task.priority')}
+                </Text>
+                <Chip
+                  mode="outlined"
+                  style={[styles.taskDetailChip, { borderColor: getPriorityColor(selectedTask.priority) }]}
+                  textStyle={{ color: getPriorityColor(selectedTask.priority) }}
+                >
+                  {t(`task.priority.${selectedTask.priority.toLowerCase()}`)}
+                </Chip>
+              </View>
+
+              <View style={styles.taskDetailRow}>
+                <Text variant="bodyMedium" style={[styles.taskDetailLabel, { color: theme.colors.textSecondary }]}>
+                  {t('task.status')}
+                </Text>
+                <Chip
+                  mode="outlined"
+                  style={[styles.taskDetailChip, { borderColor: getStatusColor(selectedTask.status) }]}
+                  textStyle={{ color: getStatusColor(selectedTask.status) }}
+                >
+                  {t(`task.status.${selectedTask.status.toLowerCase()}`)}
+                </Chip>
+              </View>
+
+              {selectedTask.dueDate && (
+                <View style={styles.taskDetailRow}>
+                  <Text variant="bodyMedium" style={[styles.taskDetailLabel, { color: theme.colors.textSecondary }]}>
+                    {t('task.dueDate')}
+                  </Text>
+                  <Text variant="bodyMedium" style={[styles.taskDetailValue, { color: theme.colors.text }]}>
+                    {format(new Date(selectedTask.dueDate), 'MMM d, yyyy h:mm a')}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.taskModalActions}>
+              <TouchableOpacity
+                style={[styles.taskActionButton, { backgroundColor: getStatusColor(selectedTask.status) }]}
+                onPress={() => handleTaskComplete(selectedTask)}
+              >
+                <Text style={[styles.taskActionText, { color: 'white' }]}>
+                  {selectedTask.status === TaskStatus.DONE ? t('task.markIncomplete') : t('task.markComplete')}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.taskActionButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => {
+                  setShowTaskModal(false);
+                  navigation.navigate('TaskEdit', { taskId: selectedTask.id });
+                }}
+              >
+                <Text style={[styles.taskActionText, { color: 'white' }]}>
+                  {t('task.edit')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        )}
+      </Modal>
+    </Portal>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -374,6 +578,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
               ? `${format(startOfWeek(selectedDate), 'MMM d')} - ${format(endOfWeek(selectedDate), 'MMM d')}`
               : format(selectedDate, 'MMMM d, yyyy')
             }
+            
           </Text>
           <IconButton
             icon="chevron-right"
@@ -390,7 +595,8 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             }}
           />
         </View>
-        
+        <Text>fffffffffffffff</Text>
+      </View>
         <View style={styles.viewModeSelector}>
           {(['month', 'week', 'day'] as const).map((mode) => (
             <Chip
@@ -410,15 +616,26 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             </Chip>
           ))}
         </View>
-      </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {renderUpcomingTasks()}
+        
         {viewMode === 'month' && renderMonthView()}
         {viewMode === 'week' && renderWeekView()}
         {viewMode === 'day' && renderDayView()}
         
         {viewMode !== 'day' && renderSelectedDateTasks()}
       </ScrollView>
+
+      {/* Floating Action Button */}
+      <FAB
+        icon="plus"
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        onPress={() => navigation.navigate('TaskCreate')}
+        label={t('tasks.addTask')}
+      />
+
+      {renderTaskModal()}
     </View>
   );
 };
@@ -618,5 +835,129 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   selectedTaskTitle: {
     fontWeight: '500',
+  },
+  selectedTaskTime: {
+    fontSize: 10,
+    fontWeight: '400',
+  },
+  // Upcoming tasks styles
+  upcomingCard: {
+    margin: 16,
+    marginBottom: 8,
+    elevation: 2,
+  },
+  upcomingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  upcomingTitle: {
+    fontWeight: '600',
+  },
+  upcomingBadge: {
+    marginLeft: 8,
+  },
+  upcomingScroll: {
+    marginTop: 8,
+  },
+  upcomingTaskItem: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginRight: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    minWidth: 140,
+  },
+  upcomingTaskIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginBottom: 4,
+  },
+  upcomingTaskTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  upcomingTaskTime: {
+    fontSize: 10,
+    fontWeight: '400',
+  },
+  // Task modal styles
+  taskModal: {
+    margin: 20,
+    maxHeight: '80%',
+    borderRadius: 16,
+  },
+  taskModalContent: {
+    padding: 20,
+  },
+  taskModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  taskModalTitle: {
+    flex: 1,
+    fontWeight: '600',
+  },
+  taskModalDescription: {
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  taskModalDetails: {
+    marginBottom: 20,
+  },
+  taskDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  taskDetailLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  taskDetailChip: {
+    height: 32,
+  },
+  taskDetailValue: {
+    fontSize: 14,
+    fontWeight: '400',
+  },
+  taskModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  taskActionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  taskActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Enhanced task indicators
+  taskIndicatorText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  moreTasksIndicator: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  // FAB
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0,
   },
 });

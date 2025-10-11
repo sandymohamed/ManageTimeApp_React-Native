@@ -357,11 +357,11 @@ export const useAuthStore = create<AuthStore>()(
           console.log('🚀 Starting login process...');
 
           // Test connection first
-          try {
-            await authService.testConnection();
-          } catch (connectionError) {
-            console.log('⚠️ Connection test failed, but proceeding with login...');
-          }
+          // try {
+          //   await authService.testConnection();
+          // } catch (connectionError) {
+          //   console.log('⚠️ Connection test failed, but proceeding with login...');
+          // }
 
           const response = await authService.login(credentials);
           const { user, token, refreshToken } = response;

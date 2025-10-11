@@ -118,6 +118,9 @@
     "enterTitle": "Enter task title",
     "enterDescription": "Enter task description",
     "selectDate": "Select due date",
+    "selectTime": "Select time",
+    "hasTime": "Has Time",
+    "addTime": "Add Time",
     "todo": "To Do",
     "inProgress": "In Progress",
     "completed": "Completed",
@@ -439,7 +442,17 @@
     "week": "Week",
     "day": "Day",
     "tasks": "tasks",
-    "noTasksForDay": "No tasks for this day"
+    "noTasksForDay": "No tasks for this day",
+    "upcomingTasks": "Upcoming Tasks",
+    "overdue": "Overdue",
+    "remaining": "remaining",
+    "addTask": "Add Task",
+    "markComplete": "Mark Complete",
+    "markIncomplete": "Mark Incomplete",
+    "edit": "Edit",
+    "priority": "Priority",
+    "status": "Status",
+    "dueDate": "Due Date"
   },
   "routines": {
     "myRoutines": "My Routines",
