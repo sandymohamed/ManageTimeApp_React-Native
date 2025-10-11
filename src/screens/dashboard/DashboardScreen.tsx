@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Dimensions } from 'react-native';
 import { Text, Card, ProgressBar, Chip, IconButton, useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
-import { Dimensions } from 'react-native';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTaskStore } from '@/store/taskStore';
@@ -29,7 +28,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   const { projects, fetchProjects } = useProjectStore();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [selectedPeriod, setSelectedPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [activeChart, setActiveChart] = useState<'progress' | 'priority'>('progress');
 
   useEffect(() => {
     fetchTasks();
@@ -83,8 +83,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
   // Get urgent tasks
   const getUrgentTasks = () => {
-    return tasks.filter(task => 
-      task.priority === TaskPriority.URGENT && 
+    return tasks.filter(task =>
+      task.priority === TaskPriority.URGENT &&
       task.status !== TaskStatus.DONE &&
       (!task.dueDate || new Date(task.dueDate) >= new Date())
     ).slice(0, 5);
@@ -128,17 +128,17 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         return taskDate.toDateString() === date.toDateString();
       });
       return {
-        date: format(date, 'MMM dd'),
+        date: format(date, ' dd'),
         completed: dayTasks.filter(task => task.status === TaskStatus.DONE).length,
         total: dayTasks.length
       };
     });
 
     const priorityDistribution = [
-      { name: 'Urgent', count: tasks.filter(t => t.priority === TaskPriority.URGENT).length, color: '#FF6B6B' },
-      { name: 'High', count: tasks.filter(t => t.priority === TaskPriority.HIGH).length, color: '#FFA726' },
-      { name: 'Medium', count: tasks.filter(t => t.priority === TaskPriority.MEDIUM).length, color: '#42A5F5' },
-      { name: 'Low', count: tasks.filter(t => t.priority === TaskPriority.LOW).length, color: '#66BB6A' },
+      { name: 'Urgent', count: tasks.filter(t => t.priority === TaskPriority.URGENT).length, color: '#FF4444', legendFontColor: theme.colors.text, legendFontSize: 12 },
+      { name: 'High', count: tasks.filter(t => t.priority === TaskPriority.HIGH).length, color: '#FF6B6B', legendFontColor: theme.colors.text, legendFontSize: 12 },
+      { name: 'Medium', count: tasks.filter(t => t.priority === TaskPriority.MEDIUM).length, color: '#42A5F5', legendFontColor: theme.colors.text, legendFontSize: 12 },
+      { name: 'Low', count: tasks.filter(t => t.priority === TaskPriority.LOW).length, color: '#66BB6A', legendFontColor: theme.colors.text, legendFontSize: 12 },
     ];
 
     return { last7Days, priorityDistribution };
@@ -154,8 +154,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     backgroundGradientFrom: theme.colors.surface,
     backgroundGradientTo: theme.colors.surface,
     decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(${theme.colors.primary.replace('#', '').match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(${theme.colors.text.replace('#', '').match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, ${opacity})`,
+    color: (opacity = 1) => `rgba(${theme.colors.primary.replace('#', '').match(/.{2}/g)?.map((hex: string) => parseInt(hex, 16)).join(', ')}, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(${theme.colors.text.replace('#', '').match(/.{2}/g)?.map((hex: string) => parseInt(hex, 16)).join(', ')}, ${opacity})`,
     style: {
       borderRadius: 16
     },
@@ -167,92 +167,140 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   };
 
   const renderProgressCard = () => (
-    <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+    <Card style={[styles.card, styles.elevatedCard]}>
       <Card.Content>
         <View style={styles.cardHeader}>
-          <Text variant="titleMedium" style={[styles.cardTitle, { color: theme.colors.text }]}>
-            {t('dashboard.progress')} - {t(`dashboard.${selectedPeriod}`)}
+          <Text variant="titleMedium" style={styles.cardTitle}>
+            {t('dashboard.progress')}
           </Text>
           <View style={styles.periodSelector}>
             {(['daily', 'weekly', 'monthly'] as const).map((period) => (
-              <Chip
+              <TouchableOpacity
                 key={period}
-                selected={selectedPeriod === period}
                 onPress={() => setSelectedPeriod(period)}
                 style={[
-                  styles.periodChip,
-                  selectedPeriod === period && { backgroundColor: theme.colors.primary }
-                ]}
-                textStyle={[
-                  styles.periodChipText,
-                  selectedPeriod === period && { color: theme.colors.onPrimary }
+                  styles.periodButton,
+                  selectedPeriod === period && styles.periodButtonActive
                 ]}
               >
-                {t(`dashboard.${period}`)}
-              </Chip>
+                <Text
+                  style={[
+                    styles.periodButtonText,
+                    selectedPeriod === period && styles.periodButtonTextActive
+                  ]}
+                >
+                  {t(`dashboard.${period}`)}
+                </Text>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
-        
+
         <View style={styles.progressContainer}>
-          <View style={styles.progressStats}>
-            <Text variant="headlineLarge" style={[styles.progressNumber, { color: theme.colors.primary }]}>
+          <View style={styles.progressCircle}>
+            <Text variant="headlineLarge" style={styles.progressNumber}>
               {Math.round(progressData.completionRate)}%
             </Text>
-            <Text variant="bodyMedium" style={[styles.progressLabel, { color: theme.colors.text }]}>
-              {progressData.completedTasks} / {progressData.totalTasks} {t('dashboard.tasksCompleted')}
+            <View style={styles.progressRing}>
+              <View
+                style={[
+                  styles.progressRingFill,
+                  {
+                    transform: [{ rotate: `${(progressData.completionRate / 100) * 360}deg` }],
+                    backgroundColor: theme.colors.primary
+                  }
+                ]}
+              />
+            </View>
+          </View>
+          <View style={styles.progressStats}>
+            <Text variant="titleLarge" style={styles.completedNumber}>
+              {progressData.completedTasks}
+            </Text>
+            <Text variant="bodyMedium" style={styles.progressLabel}>
+              {t('dashboard.tasksCompleted')}
+            </Text>
+            <ProgressBar
+              progress={progressData.completionRate / 100}
+              color={theme.colors.primary}
+              style={styles.progressBar}
+            />
+            <Text variant="bodySmall" style={styles.totalTasks}>
+              {progressData.totalTasks} {t('dashboard.totalTasks')}
             </Text>
           </View>
-          <ProgressBar
-            progress={progressData.completionRate / 100}
-            color={theme.colors.primary}
-            style={styles.progressBar}
-          />
         </View>
       </Card.Content>
     </Card>
   );
 
   const renderUrgentTasks = () => (
-    <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+    <Card style={[styles.card, styles.elevatedCard]}>
       <Card.Content>
         <View style={styles.cardHeader}>
-          <Text variant="titleMedium" style={[styles.cardTitle, { color: theme.colors.text }]}>
-            {t('dashboard.urgentTasks')}
-          </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Tasks')}>
-            <Text variant="bodyMedium" style={[styles.seeAllText, { color: theme.colors.primary }]}>
+          <View style={styles.titleWithIcon}>
+            <View style={[styles.iconContainer, { backgroundColor: '#FF444420' }]}>
+              <Text style={[styles.iconText, { color: '#FF4444' }]}>⚠️</Text>
+            </View>
+            <Text variant="titleMedium" style={styles.cardTitle}>
+              {t('dashboard.urgentTasks')}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Tasks', { filter: 'urgent' })}
+            style={styles.seeAllButton}
+          >
+            <Text variant="bodyMedium" style={styles.seeAllText}>
               {t('common.seeAll')}
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         {urgentTasks.length === 0 ? (
-          <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.colors.text }]}>
-            {t('dashboard.noUrgentTasks')}
-          </Text>
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyIcon, { color: theme.colors.surfaceVariant }]}>🎯</Text>
+            <Text variant="bodyMedium" style={styles.emptyText}>
+              {t('dashboard.noUrgentTasks')}
+            </Text>
+          </View>
         ) : (
-          urgentTasks.map((task) => (
-            <View key={task.id} style={styles.taskItem}>
-              <View style={[styles.priorityIndicator, { backgroundColor: '#FF6B6B' }]} />
+          urgentTasks.map((task, index) => (
+            <TouchableOpacity
+              key={task.id}
+              style={[
+                styles.taskItem,
+                index === urgentTasks.length - 1 && styles.lastTaskItem
+              ]}
+              onPress={() => navigation.navigate('TaskDetail', { taskId: task.id })}
+            >
+              <View style={[styles.priorityIndicator, { backgroundColor: '#FF4444' }]} />
               <View style={styles.taskContent}>
-                <Text variant="bodyMedium" style={[styles.taskTitle, { color: theme.colors.text }]}>
+                <Text variant="bodyMedium" style={styles.taskTitle} numberOfLines={1}>
                   {task.title}
                 </Text>
                 {task.dueDate && (
-                  <Text variant="bodySmall" style={[styles.taskDueDate, { color: theme.colors.text }]}>
-                    {format(new Date(task.dueDate), 'MMM dd, yyyy')}
-                  </Text>
+                  <View style={styles.dueDateContainer}>
+                    <Text style={[styles.dueDateIcon, { color: theme.colors.primary }]}>📅</Text>
+                    <Text variant="bodySmall" style={styles.taskDueDate}>
+                      {format(new Date(task.dueDate), 'MMM dd, yyyy')}
+                    </Text>
+                  </View>
                 )}
               </View>
               <Chip
                 mode="outlined"
-                textStyle={[styles.statusChip, { color: theme.colors.primary }]}
-                style={[styles.statusChipContainer, { borderColor: theme.colors.primary }]}
+                textStyle={styles.statusChip}
+                style={[
+                  styles.statusChipContainer,
+                  {
+                    borderColor: theme.colors.primary,
+                    backgroundColor: `${theme.colors.primary}10`
+                  }
+                ]}
               >
                 {t(`task.status.${task.status.toLowerCase()}`)}
               </Chip>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </Card.Content>
@@ -261,48 +309,73 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
   const renderWeeklyTasks = () => {
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(new Date()), i));
-    
+
     return (
-      <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+      <Card style={[styles.card, styles.elevatedCard]}>
         <Card.Content>
           <View style={styles.cardHeader}>
-            <Text variant="titleMedium" style={[styles.cardTitle, { color: theme.colors.text }]}>
-              {t('dashboard.thisWeekTasks')}
-            </Text>
+            <View style={styles.titleWithIcon}>
+              <View style={[styles.iconContainer, { backgroundColor: `${theme.colors.primary}20` }]}>
+                <Text style={[styles.iconText, { color: theme.colors.primary }]}>📅</Text>
+              </View>
+              <Text variant="titleMedium" style={styles.cardTitle}>
+                {t('dashboard.thisWeekTasks')}
+              </Text>
+            </View>
           </View>
-          
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.weeklyScrollView}>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.weeklyScrollContent}
+          >
             {weekDays.map((day, index) => {
               const dayKey = format(day, 'yyyy-MM-dd');
               const dayTasks = weeklyTasks[dayKey] || [];
               const completedTasks = dayTasks.filter(task => task.status === TaskStatus.DONE).length;
-              const isToday = day.toDateString() === new Date().toDateString();
-              
+              const isCurrentDay = day.toDateString() === new Date().toDateString();
+
               return (
-                <View key={dayKey} style={[styles.dayCard, isToday && { backgroundColor: theme.colors.primaryContainer }]}>
-                  <Text variant="bodySmall" style={[styles.dayName, { color: theme.colors.text }]}>
+                <TouchableOpacity
+                  key={dayKey}
+                  style={[
+                    styles.dayCard,
+                    isCurrentDay && styles.currentDayCard
+                  ]}
+                  onPress={() => navigation.navigate('Tasks', { filter: 'day', date: dayKey })}
+                >
+                  <Text variant="bodySmall" style={[
+                    styles.dayName,
+                    isCurrentDay && styles.currentDayText
+                  ]}>
                     {format(day, 'EEE')}
                   </Text>
-                  <Text variant="titleMedium" style={[styles.dayNumber, { color: theme.colors.text }]}>
+                  <Text variant="titleMedium" style={[
+                    styles.dayNumber,
+                    isCurrentDay && styles.currentDayText
+                  ]}>
                     {format(day, 'd')}
                   </Text>
                   <View style={styles.dayStats}>
-                    <Text variant="bodySmall" style={[styles.dayTaskCount, { color: theme.colors.text }]}>
+                    <Text variant="bodySmall" style={[
+                      styles.dayTaskCount,
+                      isCurrentDay && styles.currentDayText
+                    ]}>
                       {completedTasks}/{dayTasks.length}
                     </Text>
                     <View style={[styles.dayProgress, { backgroundColor: theme.colors.surfaceVariant }]}>
-                      <View 
+                      <View
                         style={[
-                          styles.dayProgressFill, 
-                          { 
-                            backgroundColor: theme.colors.primary,
-                            width: dayTasks.length > 0 ? `${(completedTasks / dayTasks.length) * 100}%` : '0%'
+                          styles.dayProgressFill,
+                          {
+                            backgroundColor: isCurrentDay ? theme.colors.onPrimary : theme.colors.primary,
+                            width: dayTasks.length > 0 ? `${Math.max((completedTasks / dayTasks.length) * 100, 5)}%` : '0%'
                           }
-                        ]} 
+                        ]}
                       />
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
@@ -312,62 +385,122 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   };
 
   const renderAnalytics = () => (
-    <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+    <Card style={[styles.card, styles.elevatedCard]}>
       <Card.Content>
-        <Text variant="titleMedium" style={[styles.cardTitle, { color: theme.colors.text }]}>
-          {t('dashboard.analytics')}
-        </Text>
-        
+        <View style={styles.cardHeader}>
+          <View style={styles.titleWithIcon}>
+            <View style={[styles.iconContainer, { backgroundColor: `${theme.colors.secondary}20` }]}>
+              <Text style={[styles.iconText, { color: theme.colors.secondary }]}>📊</Text>
+            </View>
+            <Text variant="titleMedium" style={styles.cardTitle}>
+              {t('dashboard.analytics')}
+            </Text>
+          </View>
+          <View style={styles.chartSelector}>
+            <TouchableOpacity
+              onPress={() => setActiveChart('progress')}
+              style={[
+                styles.chartSelectorButton,
+                activeChart === 'progress' && styles.chartSelectorButtonActive
+              ]}
+            >
+              <Text style={[
+                styles.chartSelectorText,
+                activeChart === 'progress' && styles.chartSelectorTextActive
+              ]}>
+                Progress
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setActiveChart('priority')}
+              style={[
+                styles.chartSelectorButton,
+                activeChart === 'priority' && styles.chartSelectorButtonActive
+              ]}
+            >
+              <Text style={[
+                styles.chartSelectorText,
+                activeChart === 'priority' && styles.chartSelectorTextActive
+              ]}>
+                Priority
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.chartsContainer}>
-          <View style={styles.chartContainer}>
-            <Text variant="bodyMedium" style={[styles.chartTitle, { color: theme.colors.text }]}>
-              {t('dashboard.last7Days')}
-            </Text>
-            <LineChart
-              data={{
-                labels: analytics.last7Days.map(d => d.date),
-                datasets: [{
-                  data: analytics.last7Days.map(d => d.completed),
-                  color: (opacity = 1) => `rgba(${theme.colors.primary.replace('#', '').match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, ${opacity})`,
-                  strokeWidth: 2
-                }]
-              }}
-              width={screenWidth - 80}
-              height={200}
-              chartConfig={chartConfig}
-              bezier
-              style={styles.chart}
-            />
-          </View>
-          
-          <View style={styles.chartContainer}>
-            <Text variant="bodyMedium" style={[styles.chartTitle, { color: theme.colors.text }]}>
-              {t('dashboard.priorityDistribution')}
-            </Text>
-            <PieChart
-              data={analytics.priorityDistribution.filter(item => item.count > 0)}
-              width={screenWidth - 80}
-              height={200}
-              chartConfig={chartConfig}
-              accessor="count"
-              backgroundColor="transparent"
-              paddingLeft="15"
-              style={styles.chart}
-            />
-          </View>
+          {activeChart === 'progress' ? (
+            <View style={styles.chartContainer}>
+              <Text variant="bodyMedium" style={styles.chartTitle}>
+                {t('dashboard.last7Days')}
+              </Text>
+              <LineChart
+                data={{
+                  labels: analytics.last7Days.map(d => d.date),
+                  datasets: [{
+                    data: analytics.last7Days.map(d => d.completed),
+                    color: (opacity = 1) => theme.colors.primary,
+                    strokeWidth: 3,
+
+                  }]
+                }}
+                width={screenWidth - 35}
+                height={220}
+                chartConfig={chartConfig}
+                bezier
+                style={styles.chart}
+                withVerticalLines={false}
+                withHorizontalLines={false}
+                withShadow={true}
+              />
+            </View>
+          ) : (
+            <View style={styles.chartContainer}>
+              <Text variant="bodyMedium" style={styles.chartTitle}>
+                {t('dashboard.priorityDistribution')}
+              </Text>
+              <PieChart
+                data={analytics.priorityDistribution.filter(item => item.count > 0)}
+                width={screenWidth - 35}
+                height={220}
+                chartConfig={chartConfig}
+                accessor="count"
+                backgroundColor="transparent"
+                paddingLeft="15"
+                style={styles.chart}
+                absolute
+              />
+              <View style={styles.legendContainer}>
+                {analytics.priorityDistribution.map((item, index) => (
+                  <View key={index} style={styles.legendItem}>
+                    <View style={[styles.legendColor, { backgroundColor: item.color }]} />
+                    <Text variant="bodySmall" style={styles.legendText}>
+                      {item.name}: {item.count}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
         </View>
       </Card.Content>
     </Card>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={styles.container}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
         }
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
       >
         {renderProgressCard()}
         {renderUrgentTasks()}
@@ -381,106 +514,228 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: theme.colors.background,
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     padding: 16,
+    paddingBottom: 32,
   },
   card: {
-    marginBottom: 16,
-    elevation: 2,
+    marginBottom: 20,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface,
+  },
+  elevatedCard: {
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
+  },
+  titleWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconText: {
+    fontSize: 16,
   },
   cardTitle: {
-    fontWeight: '600',
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  seeAllButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   seeAllText: {
-    fontWeight: '500',
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
   periodSelector: {
     flexDirection: 'row',
-    gap: 8,
+    backgroundColor: theme.colors.surfaceVariant,
+    borderRadius: 12,
+    padding: 4,
   },
-  periodChip: {
-    height: 32,
+  periodButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
-  periodChipText: {
+  periodButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  periodButtonText: {
     fontSize: 12,
+    fontWeight: '500',
+    color: theme.colors.text,
+  },
+  periodButtonTextActive: {
+    color: theme.colors.onPrimary,
   },
   progressContainer: {
-    gap: 16,
-  },
-  progressStats: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 24,
+  },
+  progressCircle: {
+    width: 100,
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  progressRing: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
+    borderWidth: 8,
+    borderColor: theme.colors.surfaceVariant,
+  },
+  progressRingFill: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
+    borderWidth: 8,
+    borderLeftColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderRightColor: 'currentColor',
+    borderTopColor: 'currentColor',
+    transformOrigin: 'center',
   },
   progressNumber: {
     fontWeight: '700',
-    fontSize: 48,
+    fontSize: 24,
+    color: theme.colors.text,
+  },
+  progressStats: {
+    flex: 1,
+    gap: 8,
+  },
+  completedNumber: {
+    fontWeight: '700',
+    fontSize: 32,
+    color: theme.colors.primary,
   },
   progressLabel: {
-    marginTop: 4,
+    color: theme.colors.text,
+    opacity: 0.8,
   },
   progressBar: {
-    height: 8,
-    borderRadius: 4,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.surfaceVariant,
+  },
+  totalTasks: {
+    color: theme.colors.text,
+    opacity: 0.6,
   },
   taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
+    paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.surfaceVariant,
+    borderBottomColor: `${theme.colors.surfaceVariant}80`,
+  },
+  lastTaskItem: {
+    borderBottomWidth: 0,
   },
   priorityIndicator: {
     width: 4,
-    height: 40,
+    height: 32,
     borderRadius: 2,
     marginRight: 12,
   },
   taskContent: {
     flex: 1,
+    gap: 4,
   },
   taskTitle: {
-    fontWeight: '500',
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  dueDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dueDateIcon: {
+    fontSize: 12,
   },
   taskDueDate: {
-    marginTop: 2,
+    color: theme.colors.text,
     opacity: 0.7,
   },
   statusChip: {
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: '500',
+    color: theme.colors.primary,
   },
   statusChipContainer: {
-    height: 28,
+    height: 24,
+    borderWidth: 1,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 12,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    opacity: 0.5,
   },
   emptyText: {
     textAlign: 'center',
-    paddingVertical: 20,
+    color: theme.colors.text,
     opacity: 0.7,
   },
-  weeklyScrollView: {
-    marginTop: 8,
+  weeklyScrollContent: {
+    paddingHorizontal: 4,
   },
   dayCard: {
     alignItems: 'center',
     padding: 12,
     marginRight: 8,
     borderRadius: 12,
-    minWidth: 60,
+    minWidth: 70,
     backgroundColor: theme.colors.surfaceVariant,
   },
+  currentDayCard: {
+    backgroundColor: theme.colors.primary,
+  },
   dayName: {
-    fontWeight: '500',
-    opacity: 0.7,
+    fontWeight: '600',
+    color: theme.colors.text,
+    opacity: 0.8,
   },
   dayNumber: {
-    fontWeight: '600',
+    fontWeight: '700',
+    color: theme.colors.text,
     marginTop: 4,
+  },
+  currentDayText: {
+    color: theme.colors.onPrimary,
+    opacity: 1,
   },
   dayStats: {
     marginTop: 8,
@@ -488,8 +743,11 @@ const createStyles = (theme: any) => StyleSheet.create({
     width: '100%',
   },
   dayTaskCount: {
-    fontSize: 12,
-    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.text,
+    opacity: 0.8,
+    marginBottom: 6,
   },
   dayProgress: {
     height: 4,
@@ -502,16 +760,61 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: 2,
   },
   chartsContainer: {
-    gap: 24,
+    gap: 16,
   },
   chartContainer: {
     alignItems: 'center',
   },
   chartTitle: {
-    marginBottom: 12,
-    fontWeight: '500',
+    marginBottom: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
   },
   chart: {
     borderRadius: 16,
+    marginVertical: 8,
+  },
+  chartSelector: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.surfaceVariant,
+    borderRadius: 8,
+    padding: 2,
+  },
+  chartSelectorButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  chartSelectorButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  chartSelectorText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: theme.colors.text,
+  },
+  chartSelectorTextActive: {
+    color: theme.colors.onPrimary,
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendText: {
+    color: theme.colors.text,
+    fontSize: 12,
   },
 });

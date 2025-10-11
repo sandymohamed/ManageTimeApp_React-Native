@@ -81,6 +81,12 @@
   "tasks": {
     "title": "Tasks",
     "myTasks": "My Tasks",
+    "status": {
+      "todo": "To Do",
+      "in_progress": "In Progress",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    },
     "addTask": "Add Task",
     "editTask": "Edit Task",
     "deleteTask": "Delete Task",
@@ -88,7 +94,6 @@
     "description": "Description",
     "dueDate": "Due Date",
     "priority": "Priority",
-    "status": "Status",
     "project": "Project",
     "goal": "Goal",
     "assignee": "Assignee",
@@ -170,19 +175,7 @@
     "total": "Total",
     "completionRate": "Completion Rate",
     "priorityBreakdown": "Priority Breakdown",
-    "overdueTasks": "Overdue Tasks",
-    "status": {
-      "todo": "To Do",
-      "inProgress": "In Progress",
-      "done": "Done",
-      "cancelled": "Cancelled"
-    },
-    "priority": {
-      "urgent": "Urgent",
-      "high": "High",
-      "medium": "Medium",
-      "low": "Low"
-    }
+    "overdueTasks": "Overdue Tasks"
   },
   "projects": {
     "title": "Projects",
@@ -212,7 +205,6 @@
     "selectStartDate": "Select start date",
     "selectEndDate": "Select end date",
     "members": "members",
-    "createdOn": "Created on {{date}}",
     "sortByName": "Sort by Name",
     "sortByCreated": "Sort by Created",
     "sortByUpdated": "Sort by Updated",
@@ -242,7 +234,6 @@
     "sendInvite": "Send Invite",
     "memberInvitedSuccessfully": "Member invited successfully",
     "inviteMemberError": "Failed to invite member",
-    "dates": "Project Dates",
     "memberRemovedSuccessfully": "Member removed successfully",
     "removeMemberError": "Failed to remove member",
     "memberRoleUpdatedSuccessfully": "Member role updated successfully",
@@ -261,9 +252,7 @@
     "noMilestone": "No Milestone",
     "unknownMilestone": "Unknown Milestone",
     "projectInformation": "Project Information",
-    "dates": "Project Dates",
-    "members": "Members",
-    "createdOn": "Created on {{date}}"
+    "dates": "Project Dates"
   },
   "milestones": {
     "title": "Milestones",
@@ -275,9 +264,7 @@
     "milestoneInformation": "Milestone Information",
     "startDate": "Start Date",
     "endDate": "End Date",
-    "noMilestones": "No milestones found",
     "noMilestonesDescription": "Create your first milestone to organize project tasks",
-    "createMilestone": "Create Milestone",
     "milestoneCreated": "Milestone created successfully",
     "milestoneUpdated": "Milestone updated successfully",
     "milestoneDeleted": "Milestone deleted successfully",
@@ -439,6 +426,7 @@
     "weekly": "Weekly",
     "monthly": "Monthly",
     "tasksCompleted": "tasks completed",
+    "totalTasks": "total tasks",
     "urgentTasks": "Urgent Tasks",
     "noUrgentTasks": "No urgent tasks",
     "thisWeekTasks": "This Week's Tasks",

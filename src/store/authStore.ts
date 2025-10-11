@@ -507,11 +507,12 @@ export const useAuthStore = create<AuthStore>()(
         } catch (error: any) {
           console.log('❌ Token refresh failed:', error);
           
-          // If refresh fails due to invalid token, logout user immediately
+          // If refresh fails due to invalid/expired token, logout user immediately
           if (error.message?.includes('Invalid refresh token') || 
+              error.message?.includes('Refresh token expired') ||
               error.message?.includes('401') ||
               error.message?.includes('Unauthorized')) {
-            console.log('🚪 Invalid refresh token detected, logging out user...');
+            console.log('🚪 Invalid/expired refresh token detected, logging out user...');
             await get().logout();
             return; // Don't throw error, just logout
           }
@@ -565,7 +566,7 @@ export const useAuthStore = create<AuthStore>()(
               } catch (refreshError) {
                 console.log('❌ Token refresh failed during init:', refreshError);
                 // Only clear tokens if it's a network error, not an auth error
-                if (refreshError.message?.includes('Network')) {
+                if (typeof refreshError === 'object' && refreshError !== null && 'message' in refreshError && typeof (refreshError as any).message === 'string' && (refreshError as any).message.includes('Network')) {
                   console.log('🌐 Network error during refresh, keeping tokens for retry');
                 } else {
                   await tokenService.clearTokens();

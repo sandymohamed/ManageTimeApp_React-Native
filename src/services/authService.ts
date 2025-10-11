@@ -259,9 +259,19 @@ class AuthService {
         
         throw networkError;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('❌ AuthService: Token refresh error:', error);
       logger.error('Token refresh error:', error);
+      
+      // Provide more specific error messages
+      if (error.message?.includes('Refresh token expired')) {
+        throw new Error('Your session has expired. Please login again.');
+      } else if (error.message?.includes('Invalid refresh token')) {
+        throw new Error('Invalid session. Please login again.');
+      } else if (error.message?.includes('401')) {
+        throw new Error('Authentication failed. Please login again.');
+      }
+      
       throw error;
     }
   }

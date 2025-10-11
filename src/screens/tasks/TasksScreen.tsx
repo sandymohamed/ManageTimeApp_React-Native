@@ -20,9 +20,15 @@ import { showDeleteConfirmation } from '@/components/ConfirmationDialog';
 
 interface TasksScreenProps {
   navigation: any;
+  route?: {
+    params?: {
+      filter?: 'urgent' | 'day';
+      date?: string;
+    };
+  };
 }
 
-export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
+export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
   const customTheme = useCustomTheme();
   const { showSuccess, showError } = useNotification();
@@ -65,6 +71,28 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation }) => {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  // Handle route parameters for filtering
+  useEffect(() => {
+    if (route?.params) {
+      const { filter, date } = route.params;
+      
+      if (filter === 'urgent') {
+        setFilter({ priority: [TaskPriority.URGENT] });
+      } else if (filter === 'day' && date) {
+        const filterDate = new Date(date);
+        const startOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate());
+        const endOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate(), 23, 59, 59);
+        
+        setFilter({ 
+          dueDate: {
+            from: startOfDay,
+            to: endOfDay
+          }
+        });
+      }
+    }
+  }, [route?.params, setFilter]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
