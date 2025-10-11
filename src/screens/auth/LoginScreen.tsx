@@ -263,8 +263,8 @@ export const LoginScreen: React.FC = () => {
   const navigation = useNavigation();
 
   const { login, isLoading, error, clearError } = useAuthStore();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('sandysawy@gmail.com');
+  const [password, setPassword] = useState('Sandy@123');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);

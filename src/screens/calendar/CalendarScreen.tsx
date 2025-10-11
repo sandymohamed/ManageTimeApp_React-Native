@@ -141,8 +141,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const handleTaskComplete = async (task: Task) => {
     try {
       await updateTask(task.id, { 
-        status: task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE,
-        completedAt: task.status === TaskStatus.DONE ? undefined : new Date().toISOString()
+        status: task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE
       });
       showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
     } catch (error) {
@@ -595,7 +594,6 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             }}
           />
         </View>
-        <Text>fffffffffffffff</Text>
       </View>
         <View style={styles.viewModeSelector}>
           {(['month', 'week', 'day'] as const).map((mode) => (
