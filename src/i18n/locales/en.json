@@ -508,6 +508,8 @@
     "invalidEmail": "Please enter a valid email address",
     "passwordTooShort": "Password must be at least 6 characters",
     "passwordsDoNotMatch": "Passwords do not match",
-    "endDateAfterStartDate": "End date must be after start date"
+    "endDateAfterStartDate": "End date must be after start date",
+    "dueDateInPast": "Due date cannot be in the past",
+    "pleaseFixErrors": "Please fix the errors above"
   }
 }

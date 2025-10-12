@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   StyleSheet,
-  Animated,
   TouchableOpacity,
   Dimensions,
   ScrollView

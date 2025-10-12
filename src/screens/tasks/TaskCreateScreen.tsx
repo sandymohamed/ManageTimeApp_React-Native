@@ -9,6 +9,7 @@ import { useNotification } from '@/contexts/NotificationContext';
 import { useTaskStore } from '@/store/taskStore';
 import { TaskPriority, TaskStatus, CreateTaskData } from '@/types/task';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { format } from 'date-fns';
 
 interface TaskCreateScreenProps {
   navigation: any;
@@ -24,6 +25,8 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
   const theme = customTheme.theme;
   const { createTask, isLoading } = useTaskStore();
 
+  console.log("navigation, route", navigation, route);
+  
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
@@ -45,6 +48,9 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
   const [hasTime, setHasTime] = useState(false);
 
   const handleSave = async () => {
+    // Clear previous errors
+    setErrors({});
+    
     // Validate form
     const newErrors: Record<string, string> = {};
 
@@ -52,14 +58,22 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
       newErrors.title = t('validation.titleRequired');
     }
 
+    if (formData.dueDate) {
+      const dueDate = new Date(formData.dueDate);
+      const now = new Date();
+      if (dueDate < now) {
+        newErrors.dueDate = t('validation.dueDateInPast');
+      }
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      showError(t('validation.pleaseFixErrors'));
       return;
     }
 
     try {
-      console.log("formData", formData);
-
+      console.log("Creating task with data:", formData);
       await createTask(formData);
       showSuccess(t('tasks.createdSuccessfully', { title: formData.title }));
       navigation.goBack();
@@ -131,10 +145,18 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
         combinedDateTime.setHours(selectedTime.getHours());
         combinedDateTime.setMinutes(selectedTime.getMinutes());
       }
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         dueDate: combinedDateTime.toISOString(),
-      });
+      }));
+      // Clear date error if it exists
+      if (errors.dueDate) {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.dueDate;
+          return newErrors;
+        });
+      }
     }
   };
 
@@ -148,10 +170,18 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
       const combinedDateTime = new Date(selectedDate);
       combinedDateTime.setHours(selectedTime.getHours());
       combinedDateTime.setMinutes(selectedTime.getMinutes());
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         dueDate: combinedDateTime.toISOString(),
-      });
+      }));
+      // Clear date error if it exists
+      if (errors.dueDate) {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.dueDate;
+          return newErrors;
+        });
+      }
     }
   };
 
@@ -160,22 +190,34 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
     if (!hasTime) {
       // When enabling time, set to current time
       setSelectedTime(new Date());
+      const combinedDateTime = new Date(selectedDate);
+      combinedDateTime.setHours(new Date().getHours());
+      combinedDateTime.setMinutes(new Date().getMinutes());
+      setFormData(prev => ({
+        ...prev,
+        dueDate: combinedDateTime.toISOString(),
+      }));
     } else {
       // When disabling time, remove time component
       const dateOnly = new Date(selectedDate);
       dateOnly.setHours(0, 0, 0, 0);
-      setFormData({
-        ...formData,
+      setFormData(prev => ({
+        ...prev,
         dueDate: dateOnly.toISOString(),
-      });
+      }));
     }
   };
 
   const handleDateConfirm = () => {
-    setFormData({
-      ...formData,
-      dueDate: selectedDate.toISOString(),
-    });
+    const combinedDateTime = new Date(selectedDate);
+    if (hasTime) {
+      combinedDateTime.setHours(selectedTime.getHours());
+      combinedDateTime.setMinutes(selectedTime.getMinutes());
+    }
+    setFormData(prev => ({
+      ...prev,
+      dueDate: combinedDateTime.toISOString(),
+    }));
     setShowDatePicker(false);
   };
 
@@ -226,7 +268,17 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
             <TextInput
               mode="outlined"
               value={formData.title}
-              onChangeText={(text) => setFormData({ ...formData, title: text })}
+              onChangeText={(text) => {
+                setFormData(prev => ({ ...prev, title: text }));
+                // Clear title error when user starts typing
+                if (errors.title) {
+                  setErrors(prev => {
+                    const newErrors = { ...prev };
+                    delete newErrors.title;
+                    return newErrors;
+                  });
+                }
+              }}
               placeholder={t('tasks.enterTitle')}
               error={!!errors.title}
               style={styles.input}
@@ -367,6 +419,13 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
                   </Text>
                 </TouchableOpacity>
               </View>
+            )}
+
+            {/* Error display for due date */}
+            {errors.dueDate && (
+              <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error, marginTop: 8 }]}>
+                {errors.dueDate}
+              </Text>
             )}
           </Card.Content>
         </Card>

@@ -50,7 +50,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       const diffInHours = differenceInHours(taskDate, now);
       return diffInHours >= 0 && diffInHours <= 24; // Next 24 hours
     }).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
-    
+
     setUpcomingTasks(upcoming);
   }, [tasks]);
 
@@ -65,12 +65,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const getTasksForWeek = (startDate: Date) => {
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
     const weekTasks: { [key: string]: Task[] } = {};
-    
+
     weekDays.forEach(day => {
       const dayKey = format(day, 'yyyy-MM-dd');
       weekTasks[dayKey] = getTasksForDate(day);
     });
-    
+
     return { weekDays, weekTasks };
   };
 
@@ -79,15 +79,15 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     const monthEnd = endOfMonth(date);
     const calendarStart = startOfWeek(monthStart);
     const calendarEnd = endOfWeek(monthEnd);
-    
+
     const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
     const monthTasks: { [key: string]: Task[] } = {};
-    
+
     days.forEach(day => {
       const dayKey = format(day, 'yyyy-MM-dd');
       monthTasks[dayKey] = getTasksForDate(day);
     });
-    
+
     return { days, monthTasks };
   };
 
@@ -140,7 +140,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
 
   const handleTaskComplete = async (task: Task) => {
     try {
-      await updateTask(task.id, { 
+      await updateTask(task.id, {
         status: task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE
       });
       showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
@@ -157,7 +157,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const renderMonthView = () => {
     const { days, monthTasks } = getTasksForMonth(currentDate);
     const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    
+
     return (
       <View style={styles.monthView}>
         {/* Week day headers */}
@@ -170,7 +170,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             </View>
           ))}
         </View>
-        
+
         {/* Calendar grid */}
         <View style={styles.calendarGrid}>
           {days.map((day, index) => {
@@ -179,7 +179,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isToday = isSameDay(day, new Date());
             const isSelected = isSameDay(day, selectedDate);
-            
+
             return (
               <TouchableOpacity
                 key={dayKey}
@@ -203,7 +203,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                 >
                   {format(day, 'd')}
                 </Text>
-                
+
                 {/* Task indicators */}
                 <View style={styles.taskIndicators}>
                   {dayTasks.slice(0, 3).map((task, taskIndex) => (
@@ -242,7 +242,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const renderWeekView = () => {
     const weekStart = startOfWeek(selectedDate);
     const { weekDays, weekTasks } = getTasksForWeek(weekStart);
-    
+
     return (
       <View style={styles.weekView}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -251,7 +251,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             const dayTasks = weekTasks[dayKey] || [];
             const isToday = isSameDay(day, new Date());
             const isSelected = isSameDay(day, selectedDate);
-            
+
             return (
               <TouchableOpacity
                 key={dayKey}
@@ -283,7 +283,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                 >
                   {format(day, 'd')}
                 </Text>
-                
+
                 {/* Task count */}
                 <Text
                   variant="bodySmall"
@@ -310,15 +310,15 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       const priorityOrder = { [TaskPriority.URGENT]: 4, [TaskPriority.HIGH]: 3, [TaskPriority.MEDIUM]: 2, [TaskPriority.LOW]: 1 };
       const aPriority = priorityOrder[a.priority] || 0;
       const bPriority = priorityOrder[b.priority] || 0;
-      
+
       if (aPriority !== bPriority) {
         return bPriority - aPriority;
       }
-      
+
       if (a.dueDate && b.dueDate) {
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
       }
-      
+
       return 0;
     });
 
@@ -327,7 +327,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
         <Text variant="headlineSmall" style={[styles.dayViewTitle, { color: theme.colors.text }]}>
           {format(selectedDate, 'EEEE, MMMM d, yyyy')}
         </Text>
-        
+
         {sortedTasks.length === 0 ? (
           <Card style={[styles.emptyCard, { backgroundColor: theme.colors.surface }]}>
             <Card.Content style={styles.emptyCardContent}>
@@ -351,24 +351,25 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                       </Text>
                     )}
                   </View>
-                  <View style={styles.taskBadges}>
-                    <Chip
-                      mode="outlined"
-                      textStyle={[styles.priorityChip, { color: getPriorityColor(task.priority) }]}
-                      style={[styles.priorityChipContainer, { borderColor: getPriorityColor(task.priority) }]}
-                    >
-                      {t(`task.priority.${task.priority.toLowerCase()}`)}
-                    </Chip>
-                    <Chip
-                      mode="outlined"
-                      textStyle={[styles.statusChip, { color: getStatusColor(task.status) }]}
-                      style={[styles.statusChipContainer, { borderColor: getStatusColor(task.status) }]}
-                    >
-                      {t(`task.status.${task.status.toLowerCase()}`)}
-                    </Chip>
-                  </View>
                 </View>
-                
+                <View style={styles.taskBadges}>
+                  <Chip
+                    mode="outlined"
+                    textStyle={[styles.priorityChip, { color: getPriorityColor(task.priority) }]}
+                    style={[styles.priorityChipContainer, { borderColor: getPriorityColor(task.priority) }]}
+                  >
+                    {t(`task.priority.${task.priority.toLowerCase()}`)}
+                  </Chip>
+                  <Chip
+                    mode="outlined"
+                    textStyle={[styles.statusChip, { color: getStatusColor(task.status) }]}
+                    style={[styles.statusChipContainer, { borderColor: getStatusColor(task.status) }]}
+                  >
+                    {t(`task.status.${task.status.toLowerCase()}`)}
+                  </Chip>
+                </View>
+
+
                 {task.dueDate && (
                   <View style={styles.taskTimeContainer}>
                     <Text variant="bodySmall" style={[styles.taskTime, { color: theme.colors.text }]}>
@@ -398,7 +399,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
               {upcomingTasks.length}
             </Badge>
           </View>
-          
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.upcomingScroll}>
             {upcomingTasks.map((task) => (
               <TouchableOpacity
@@ -423,16 +424,16 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
 
   const renderSelectedDateTasks = () => {
     const selectedTasks = getTasksForDate(selectedDate);
-    
+
     if (selectedTasks.length === 0) return null;
-    
+
     return (
       <Card style={[styles.selectedDateCard, { backgroundColor: theme.colors.surface }]}>
         <Card.Content>
           <Text variant="titleMedium" style={[styles.selectedDateTitle, { color: theme.colors.text }]}>
             {format(selectedDate, 'MMM d')} - {selectedTasks.length} {t('calendar.tasks')}
           </Text>
-          
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectedTasksScroll}>
             {selectedTasks.map((task) => (
               <TouchableOpacity
@@ -532,12 +533,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                   {selectedTask.status === TaskStatus.DONE ? t('task.markIncomplete') : t('task.markComplete')}
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.taskActionButton, { backgroundColor: theme.colors.primary }]}
                 onPress={() => {
                   setShowTaskModal(false);
-                  navigation.navigate('TaskEdit', { taskId: selectedTask.id });
+                  navigation.getParent()?.navigate('TaskEdit', { taskId: selectedTask.id });
                 }}
               >
                 <Text style={[styles.taskActionText, { color: 'white' }]}>
@@ -571,13 +572,13 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             }}
           />
           <Text variant="titleLarge" style={[styles.headerTitle, { color: theme.colors.text }]}>
-            {viewMode === 'month' 
+            {viewMode === 'month'
               ? format(currentDate, 'MMMM yyyy')
               : viewMode === 'week'
-              ? `${format(startOfWeek(selectedDate), 'MMM d')} - ${format(endOfWeek(selectedDate), 'MMM d')}`
-              : format(selectedDate, 'MMMM d, yyyy')
+                ? `${format(startOfWeek(selectedDate), 'MMM d')} - ${format(endOfWeek(selectedDate), 'MMM d')}`
+                : format(selectedDate, 'MMMM d, yyyy')
             }
-            
+
           </Text>
           <IconButton
             icon="chevron-right"
@@ -595,33 +596,34 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
           />
         </View>
       </View>
-        <View style={styles.viewModeSelector}>
-          {(['month', 'week', 'day'] as const).map((mode) => (
-            <Chip
-              key={mode}
-              selected={viewMode === mode}
-              onPress={() => setViewMode(mode)}
-              style={[
-                styles.viewModeChip,
-                viewMode === mode && { backgroundColor: theme.colors.primary }
-              ]}
-              textStyle={[
-                styles.viewModeChipText,
-                viewMode === mode && { color: theme.colors.onPrimary }
-              ]}
-            >
-              {t(`calendar.${mode}`)}
-            </Chip>
-          ))}
-        </View>
+
+      <View style={styles.viewModeSelector}>
+        {(['month', 'week', 'day'] as const).map((mode) => (
+          <Chip
+            key={mode}
+            selected={viewMode === mode}
+            onPress={() => setViewMode(mode)}
+            style={[
+              styles.viewModeChip,
+              viewMode === mode && { backgroundColor: theme.colors.primary }
+            ]}
+            textStyle={[
+              styles.viewModeChipText,
+              viewMode === mode && { color: theme.colors.onPrimary }
+            ]}
+          >
+            {t(`calendar.${mode}`)}
+          </Chip>
+        ))}
+      </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {renderUpcomingTasks()}
-        
+
         {viewMode === 'month' && renderMonthView()}
         {viewMode === 'week' && renderWeekView()}
         {viewMode === 'day' && renderDayView()}
-        
+
         {viewMode !== 'day' && renderSelectedDateTasks()}
       </ScrollView>
 
@@ -629,8 +631,8 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       <FAB
         icon="plus"
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-        onPress={() => navigation.navigate('TaskCreate')}
-        label={t('tasks.addTask')}
+        onPress={() => navigation.getParent()?.navigate('TaskCreate')}
+
       />
 
       {renderTaskModal()}
@@ -661,6 +663,10 @@ const createStyles = (theme: any) => StyleSheet.create({
   viewModeSelector: {
     flexDirection: 'row',
     gap: 8,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 8,
   },
   viewModeChip: {
     height: 32,
@@ -790,18 +796,23 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   priorityChip: {
     fontSize: 10,
+    lineHeight: 10
+
   },
   priorityChipContainer: {
     height: 24,
   },
   statusChip: {
     fontSize: 10,
+    lineHeight: 10
+
   },
   statusChipContainer: {
-    height: 24,
+    height: 26,
   },
   taskTimeContainer: {
     marginTop: 8,
+    height: 26,
   },
   taskTime: {
     fontWeight: '500',
