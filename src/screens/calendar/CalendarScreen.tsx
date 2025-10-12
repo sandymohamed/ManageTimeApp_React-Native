@@ -63,7 +63,9 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   };
 
   const getTasksForWeek = (startDate: Date) => {
-    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
+    // Ensure we start from the beginning of the week (Sunday)
+    const weekStart = startOfWeek(startDate, { weekStartsOn: 0 });
+    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
     const weekTasks: { [key: string]: Task[] } = {};
 
     weekDays.forEach(day => {
@@ -77,8 +79,9 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const getTasksForMonth = (date: Date) => {
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
-    const calendarStart = startOfWeek(monthStart);
-    const calendarEnd = endOfWeek(monthEnd);
+    // Ensure week starts on Sunday (0) for consistent 7-day layout
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
 
     const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
     const monthTasks: { [key: string]: Task[] } = {};
@@ -158,6 +161,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     const { days, monthTasks } = getTasksForMonth(currentDate);
     const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+    // Group days into weeks (7 days per week)
+    const weeks: Date[][] = [];
+    for (let i = 0; i < days.length; i += 7) {
+      weeks.push(days.slice(i, i + 7));
+    }
+
     return (
       <View style={styles.monthView}>
         {/* Week day headers */}
@@ -171,76 +180,82 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
           ))}
         </View>
 
-        {/* Calendar grid */}
+        {/* Calendar grid - Render by weeks to ensure 7 days per row */}
         <View style={styles.calendarGrid}>
-          {days.map((day, index) => {
-            const dayKey = format(day, 'yyyy-MM-dd');
-            const dayTasks = monthTasks[dayKey] || [];
-            const isCurrentMonth = isSameMonth(day, currentDate);
-            const isToday = isSameDay(day, new Date());
-            const isSelected = isSameDay(day, selectedDate);
+          {weeks.map((week, weekIndex) => (
+            <View key={`week-${weekIndex}`} style={styles.weekRow}>
+              {week.map((day, dayIndex) => {
+                const dayKey = format(day, 'yyyy-MM-dd');
+                const dayTasks = monthTasks[dayKey] || [];
+                const isCurrentMonth = isSameMonth(day, currentDate);
+                const isToday = isSameDay(day, new Date());
+                const isSelected = isSameDay(day, selectedDate);
 
-            return (
-              <TouchableOpacity
-                key={dayKey}
-                style={[
-                  styles.dayCell,
-                  !isCurrentMonth && styles.dayCellOtherMonth,
-                  isToday && styles.dayCellToday,
-                  isSelected && styles.dayCellSelected,
-                ]}
-                onPress={() => setSelectedDate(day)}
-              >
-                <Text
-                  variant="bodyMedium"
-                  style={[
-                    styles.dayNumber,
-                    { color: theme.colors.text },
-                    !isCurrentMonth && { opacity: 0.3 },
-                    isToday && { color: theme.colors.primary, fontWeight: 'bold' },
-                    isSelected && { color: theme.colors.onPrimary }
-                  ]}
-                >
-                  {format(day, 'd')}
-                </Text>
-
-                {/* Task indicators */}
-                <View style={styles.taskIndicators}>
-                  {dayTasks.slice(0, 3).map((task, taskIndex) => (
-                    <TouchableOpacity
-                      key={task.id}
-                      onPress={() => handleTaskPress(task)}
+                return (
+                  <TouchableOpacity
+                    key={dayKey}
+                    style={[
+                      styles.dayCell,
+                      !isCurrentMonth && styles.dayCellOtherMonth,
+                      isToday && styles.dayCellToday,
+                      isSelected && styles.dayCellSelected,
+                    ]}
+                    onPress={() => setSelectedDate(day)}
+                  >
+                    <Text
+                      variant="bodyMedium"
                       style={[
-                        styles.taskIndicator,
-                        { backgroundColor: getPriorityColor(task.priority) }
+                        styles.dayNumber,
+                        { color: theme.colors.text },
+                        !isCurrentMonth && { opacity: 0.3 },
+                        isToday && { color: theme.colors.primary, fontWeight: 'bold' },
+                        isSelected && { color: theme.colors.onPrimary }
                       ]}
                     >
-                      <Text style={[styles.taskIndicatorText, { color: 'white' }]}>
-                        {task.title.charAt(0).toUpperCase()}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                  {dayTasks.length > 3 && (
-                    <TouchableOpacity
-                      style={[styles.moreTasksIndicator, { backgroundColor: theme.colors.surfaceVariant }]}
-                      onPress={() => setSelectedDate(day)}
-                    >
-                      <Text variant="bodySmall" style={[styles.moreTasksText, { color: theme.colors.text }]}>
-                        +{dayTasks.length - 3}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+                      {format(day, 'd')}
+                    </Text>
+
+                    {/* Task indicators */}
+                    <View style={styles.taskIndicators}>
+                      {dayTasks.slice(0, 3).map((task, taskIndex) => (
+                        <TouchableOpacity
+                          key={task.id}
+                          onPress={() => handleTaskPress(task)}
+                          style={[
+                            styles.taskIndicator,
+                            { backgroundColor: getPriorityColor(task.priority) }
+                          ]}
+                        >
+                          <Text style={[styles.taskIndicatorText, { color: 'white' }]}>
+                            {task.title.charAt(0).toUpperCase()}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                      {dayTasks.length > 3 && (
+                        <TouchableOpacity
+                          style={[styles.moreTasksIndicator, { backgroundColor: theme.colors.surfaceVariant }]}
+                          onPress={() => setSelectedDate(day)}
+                        >
+                          <Text variant="bodySmall" style={[styles.moreTasksText, { color: theme.colors.text }]}>
+                            +{dayTasks.length - 3}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
         </View>
       </View>
     );
   };
 
+  
+
   const renderWeekView = () => {
-    const weekStart = startOfWeek(selectedDate);
+    const weekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
     const { weekDays, weekTasks } = getTasksForWeek(weekStart);
 
     return (
@@ -575,7 +590,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             {viewMode === 'month'
               ? format(currentDate, 'MMMM yyyy')
               : viewMode === 'week'
-                ? `${format(startOfWeek(selectedDate), 'MMM d')} - ${format(endOfWeek(selectedDate), 'MMM d')}`
+                ? `${format(startOfWeek(selectedDate, { weekStartsOn: 0 }), 'MMM d')} - ${format(endOfWeek(selectedDate, { weekStartsOn: 0 }), 'MMM d')}`
                 : format(selectedDate, 'MMMM d, yyyy')
             }
 
@@ -685,26 +700,47 @@ const createStyles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
   },
   weekDayHeader: {
-    width: dayWidth,
+    flex: 1, // Use flex: 1 instead of fixed width
     alignItems: 'center',
     paddingVertical: 8,
   },
+   weekRow: {
+    flexDirection: 'row',
+    width: '100%',
+  },
+  // weekDayHeader: {
+  //   width: dayWidth,
+  //   alignItems: 'center',
+  //   paddingVertical: 8,
+  // },
   weekDayText: {
     fontWeight: '500',
     opacity: 0.7,
   },
   calendarGrid: {
+    width: '100%',
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   dayCell: {
-    width: dayWidth,
+    flex: 1, // Use flex: 1 to evenly distribute space
     height: 80,
     padding: 4,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: theme.colors.surfaceVariant,
     justifyContent: 'space-between',
   },
+  // dayCell: {
+  //   width: dayWidth,
+  //   height: 80,
+  //   padding: 4,
+  //   paddingVertical: 8,
+
+  //   borderWidth: 1,
+  //   borderColor: theme.colors.surfaceVariant,
+  //   justifyContent: 'space-between',
+  // },
   dayCellOtherMonth: {
     opacity: 0.3,
   },
@@ -796,19 +832,19 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   priorityChip: {
     fontSize: 10,
-    lineHeight: 10
+    lineHeight: 12
 
   },
   priorityChipContainer: {
-    height: 24,
+    height: 28,
   },
   statusChip: {
     fontSize: 10,
-    lineHeight: 10
+    lineHeight: 12
 
   },
   statusChipContainer: {
-    height: 26,
+    height: 28,
   },
   taskTimeContainer: {
     marginTop: 8,
