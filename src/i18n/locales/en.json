@@ -423,6 +423,25 @@
     "lastYear": "Last Year",
     "nextYear": "Next Year"
   },
+  "analytics": {
+    "title": "Analytics",
+    "loading": "Loading analytics...",
+    "noData": "No Data Available",
+    "noDataDescription": "Start creating tasks and projects to see your analytics here.",
+    "tasksCompleted": "Tasks Completed",
+    "productivityScore": "Productivity Score",
+    "productivityDescription": "Based on task and project completion",
+    "timeTracked": "Time Tracked",
+    "timeDescription": "Total hours tracked",
+    "activeProjects": "Active Projects",
+    "taskProgress": "Task Progress",
+    "projectProgress": "Project Progress",
+    "dailyProductivity": "Daily Productivity",
+    "taskStatus": "Task Status",
+    "taskPriority": "Task Priority",
+    "categoryBreakdown": "Category Breakdown",
+    "insights": "Insights"
+  },
   "dashboard": {
     "progress": "Progress",
     "daily": "Daily",

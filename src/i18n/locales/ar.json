@@ -336,12 +336,22 @@
   },
   "analytics": {
     "title": "التحليلات",
-    "overview": "نظرة عامة",
-    "productivity": "الإنتاجية",
-    "timeTracking": "تتبع الوقت",
-    "reports": "التقارير",
+    "loading": "جاري تحميل التحليلات...",
     "noData": "لا توجد بيانات متاحة",
-    "noDataDescription": "أكمل بعض المهام لرؤية التحليلات"
+    "noDataDescription": "ابدأ بإنشاء المهام والمشاريع لرؤية تحليلاتك هنا.",
+    "tasksCompleted": "المهام المكتملة",
+    "productivityScore": "نقاط الإنتاجية",
+    "productivityDescription": "بناءً على إكمال المهام والمشاريع",
+    "timeTracked": "الوقت المتتبع",
+    "timeDescription": "إجمالي الساعات المتتبعة",
+    "activeProjects": "المشاريع النشطة",
+    "taskProgress": "تقدم المهام",
+    "projectProgress": "تقدم المشاريع",
+    "dailyProductivity": "الإنتاجية اليومية",
+    "taskStatus": "حالة المهام",
+    "taskPriority": "أولوية المهام",
+    "categoryBreakdown": "توزيع الفئات",
+    "insights": "الرؤى"
   },
   "profile": {
     "title": "الملف الشخصي",
