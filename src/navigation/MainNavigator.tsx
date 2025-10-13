@@ -20,6 +20,10 @@ import { TaskCreateScreen } from '@/screens/tasks/TaskCreateScreen';
 import { TaskEditScreen } from '@/screens/tasks/TaskEditScreen';
 import { TaskDetailScreen } from '@/screens/tasks/TaskDetailScreen';
 import { GoalsScreen } from '@/screens/goals/GoalsScreen';
+import { GoalCreateScreen } from '@/screens/goals/GoalCreateScreen';
+import { GoalEditScreen } from '@/screens/goals/GoalEditScreen';
+import { GoalDetailScreen } from '@/screens/goals/GoalDetailScreen';
+import { GoalAnalyticsScreen } from '@/screens/goals/GoalAnalyticsScreen';
 import { AlarmsScreen } from '@/screens/alarms/AlarmsScreen';
 import { AnalyticsScreen } from '@/screens/analytics/AnalyticsScreen';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
@@ -58,6 +62,10 @@ export type RootStackParamList = {
   ProjectEdit: { projectId: string };
   ProjectInvite: { projectId: string };
   MilestoneCreate: { projectId: string };
+  GoalCreate: undefined;
+  GoalEdit: { goalId: string };
+  GoalDetail: { goalId: string };
+  GoalAnalytics: { goalId: string };
   Settings: undefined;
 };
 
@@ -390,6 +398,36 @@ export const MainNavigator: React.FC = () => {
         options={{
           headerShown: false,
           presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="GoalCreate"
+        component={GoalCreateScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="GoalEdit"
+        component={GoalEditScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="GoalDetail"
+        component={GoalDetailScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="GoalAnalytics"
+        component={GoalAnalyticsScreen}
+        options={{
+          headerShown: false,
         }}
       />
       <Stack.Screen
