@@ -17,13 +17,22 @@ interface GoalState {
   categoryFilter: string[];
   sortBy: 'createdAt' | 'updatedAt' | 'title' | 'targetDate' | 'progress' | 'priority';
   sortOrder: 'asc' | 'desc';
+  
+  // Pagination
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
 interface GoalActions {
   // Data fetching
-  fetchGoals: () => Promise<void>;
+  fetchGoals: (page?: number, limit?: number) => Promise<void>;
   fetchGoal: (id: string) => Promise<void>;
   refreshGoals: () => Promise<void>;
+  loadMoreGoals: () => Promise<void>;
 
   // CRUD operations
   createGoal: (data: CreateGoalData) => Promise<void>;
@@ -88,26 +97,40 @@ export const useGoalStore = create<GoalStore>()(
       categoryFilter: [],
       sortBy: 'createdAt',
       sortOrder: 'desc',
+      
+      // Pagination
+      currentPage: 1,
+      totalPages: 0,
+      totalItems: 0,
+      itemsPerPage: 20,
+      hasNextPage: false,
+      hasPreviousPage: false,
 
       // Data fetching
-      fetchGoals: async () => {
+      fetchGoals: async (page = 1, limit = 20) => {
         try {
           set({ isLoading: true, error: null });
 
-          const response = await goalService.getGoals();
+          const response = await goalService.getGoals({
+            page,
+            limit,
+            search: get().searchQuery,
+            status: get().statusFilter.length > 0 ? get().statusFilter.join(',') : undefined,
+          });
+          
           console.log('Fetch goals response:', response);
           const goals = response.data || [];
-          console.log('Fetch goals response:', goals);
-
-          /**
-           * The console:
-           * Get goals response: {success: true, data: Array(2), pagination: {…}}data: (2) [{…}, {…}]pagination: {page: 1, limit: 20, total: 2, totalPages: 1}success: true[[Prototype]]: Object
-goalStore.ts:98 Fetch goals response: (2) [{…}, {…}]0: {id: '374e7994-32b5-4e5b-a9ad-cec05041154b', userId: 'ddc1ba7f-71c7-43cd-8c53-f8ab056638b0', title: 'Learn music', description: 'Guitar', status: 'DRAFT', priority: 'MEDIUM', category: 'Hobbies', targetDate: '2026-04-30T13:12:00.000Z', completedAt: null, progress: 0, …}1: {id: '3965c771-cf43-4368-91fa-c998b37bb88c', userId: 'ddc1ba7f-71c7-43cd-8c53-f8ab056638b0', title: 'Learning french', description: 'Learning read and write', status: 'PAUSED', priority: 'MEDIUM', category: 'Learning', targetDate: '2026-01-31T14:09:00.000Z', completedAt: null, progress: 0, …}length: 2[[Prototype]]: Array(0)
-goalStore.ts:100 Fetch goals response: []length: 0[[Prototype]]: Array(0)
-           */
+          const pagination = response.pagination;
+          
           set({
-            goals: goals,
-            filteredGoals: goals,
+            goals: page === 1 ? goals : [...get().goals, ...goals],
+            filteredGoals: page === 1 ? goals : [...get().filteredGoals, ...goals],
+            currentPage: pagination.page,
+            totalPages: pagination.totalPages,
+            totalItems: pagination.total,
+            itemsPerPage: pagination.limit,
+            hasNextPage: pagination.page < pagination.totalPages,
+            hasPreviousPage: pagination.page > 1,
             isLoading: false,
           });
 
@@ -142,7 +165,14 @@ goalStore.ts:100 Fetch goals response: []length: 0[[Prototype]]: Array(0)
       },
 
       refreshGoals: async () => {
-        await get().fetchGoals();
+        await get().fetchGoals(1, get().itemsPerPage);
+      },
+
+      loadMoreGoals: async () => {
+        const { currentPage, hasNextPage, isLoading } = get();
+        if (hasNextPage && !isLoading) {
+          await get().fetchGoals(currentPage + 1, get().itemsPerPage);
+        }
       },
 
       // CRUD operations
@@ -289,33 +319,17 @@ goalStore.ts:100 Fetch goals response: []length: 0[[Prototype]]: Array(0)
       // Milestone management
       createMilestone: async (goalId: string, data: CreateMilestoneData) => {
         try {
-          // This would need to be implemented in the goalService
-          // For now, we'll update the goal locally
-          const goal = get().goals.find(g => g.id === goalId);
-          if (!goal) return;
-
-          const newMilestone: Milestone = {
-            id: `milestone_${Date.now()}`,
-            goalId,
-            title: data.title,
-            description: data.description,
-            status: MilestoneStatus.TODO,
-            targetDate: data.targetDate,
-            order: data.order || goal.milestones.length,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isDeleted: false,
-          };
-
-          const updatedGoal = {
-            ...goal,
-            milestones: [...goal.milestones, newMilestone],
-            updatedAt: new Date().toISOString(),
-          };
+          const milestone = await goalService.createMilestone(goalId, data);
 
           set((state) => ({
-            goals: state.goals.map(g => g.id === goalId ? updatedGoal : g),
-            currentGoal: state.currentGoal?.id === goalId ? updatedGoal : state.currentGoal,
+            goals: state.goals.map(g => 
+              g.id === goalId 
+                ? { ...g, milestones: [...g.milestones, milestone] }
+                : g
+            ),
+            currentGoal: state.currentGoal?.id === goalId 
+              ? { ...state.currentGoal, milestones: [...state.currentGoal.milestones, milestone] }
+              : state.currentGoal,
           }));
 
           get().applyFilters();
@@ -327,24 +341,17 @@ goalStore.ts:100 Fetch goals response: []length: 0[[Prototype]]: Array(0)
 
       updateMilestone: async (goalId: string, milestoneId: string, data: UpdateMilestoneData) => {
         try {
-          const goal = get().goals.find(g => g.id === goalId);
-          if (!goal) return;
-
-          const updatedMilestones = goal.milestones.map(m =>
-            m.id === milestoneId
-              ? { ...m, ...data, updatedAt: new Date().toISOString() }
-              : m
-          );
-
-          const updatedGoal = {
-            ...goal,
-            milestones: updatedMilestones,
-            updatedAt: new Date().toISOString(),
-          };
+          const milestone = await goalService.updateMilestone(goalId, milestoneId, data);
 
           set((state) => ({
-            goals: state.goals.map(g => g.id === goalId ? updatedGoal : g),
-            currentGoal: state.currentGoal?.id === goalId ? updatedGoal : state.currentGoal,
+            goals: state.goals.map(g => 
+              g.id === goalId 
+                ? { ...g, milestones: g.milestones.map(m => m.id === milestoneId ? milestone : m) }
+                : g
+            ),
+            currentGoal: state.currentGoal?.id === goalId 
+              ? { ...state.currentGoal, milestones: state.currentGoal.milestones.map(m => m.id === milestoneId ? milestone : m) }
+              : state.currentGoal,
           }));
 
           get().applyFilters();
@@ -356,20 +363,17 @@ goalStore.ts:100 Fetch goals response: []length: 0[[Prototype]]: Array(0)
 
       deleteMilestone: async (goalId: string, milestoneId: string) => {
         try {
-          const goal = get().goals.find(g => g.id === goalId);
-          if (!goal) return;
-
-          const updatedMilestones = goal.milestones.filter(m => m.id !== milestoneId);
-
-          const updatedGoal = {
-            ...goal,
-            milestones: updatedMilestones,
-            updatedAt: new Date().toISOString(),
-          };
+          await goalService.deleteMilestone(goalId, milestoneId);
 
           set((state) => ({
-            goals: state.goals.map(g => g.id === goalId ? updatedGoal : g),
-            currentGoal: state.currentGoal?.id === goalId ? updatedGoal : state.currentGoal,
+            goals: state.goals.map(g => 
+              g.id === goalId 
+                ? { ...g, milestones: g.milestones.filter(m => m.id !== milestoneId) }
+                : g
+            ),
+            currentGoal: state.currentGoal?.id === goalId 
+              ? { ...state.currentGoal, milestones: state.currentGoal.milestones.filter(m => m.id !== milestoneId) }
+              : state.currentGoal,
           }));
 
           get().applyFilters();
@@ -381,35 +385,26 @@ goalStore.ts:100 Fetch goals response: []length: 0[[Prototype]]: Array(0)
 
       completeMilestone: async (goalId: string, milestoneId: string) => {
         try {
-          const goal = get().goals.find(g => g.id === goalId);
-          if (!goal) return;
-
-          const updatedMilestones = goal.milestones.map(m =>
-            m.id === milestoneId
-              ? {
-                ...m,
-                status: MilestoneStatus.DONE,
-                completedAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              }
-              : m
-          );
-
-          // Calculate new progress based on completed milestones
-          const completedMilestones = updatedMilestones.filter(m => m.status === MilestoneStatus.DONE).length;
-          const newProgress = goal.milestones.length > 0 ? Math.round((completedMilestones / goal.milestones.length) * 100) : goal.progress;
-
-          const updatedGoal = {
-            ...goal,
-            milestones: updatedMilestones,
-            progress: newProgress,
-            updatedAt: new Date().toISOString(),
-          };
+          const milestone = await goalService.completeMilestone(goalId, milestoneId);
 
           set((state) => ({
-            goals: state.goals.map(g => g.id === goalId ? updatedGoal : g),
-            currentGoal: state.currentGoal?.id === goalId ? updatedGoal : state.currentGoal,
+            goals: state.goals.map(g => 
+              g.id === goalId 
+                ? { ...g, milestones: g.milestones.map(m => m.id === milestoneId ? milestone : m) }
+                : g
+            ),
+            currentGoal: state.currentGoal?.id === goalId 
+              ? { ...state.currentGoal, milestones: state.currentGoal.milestones.map(m => m.id === milestoneId ? milestone : m) }
+              : state.currentGoal,
           }));
+
+          // Calculate and update goal progress based on completed milestones
+          const goal = get().goals.find(g => g.id === goalId);
+          if (goal) {
+            const completedMilestones = goal.milestones.filter(m => m.status === MilestoneStatus.DONE).length;
+            const newProgress = goal.milestones.length > 0 ? Math.round((completedMilestones / goal.milestones.length) * 100) : goal.progress;
+            get().updateGoalProgress(goalId, newProgress);
+          }
 
           get().applyFilters();
         } catch (error: any) {

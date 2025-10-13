@@ -1,5 +1,5 @@
 import {apiClient} from './apiClient';
-import {Goal, CreateGoalData, UpdateGoalData, AIPlanRequest, GeneratedPlan} from '@/types/goal';
+import {Goal, CreateGoalData, UpdateGoalData, AIPlanRequest, GeneratedPlan, Milestone, CreateMilestoneData, UpdateMilestoneData} from '@/types/goal';
 import {ApiResponse, PaginatedResponse} from '@/types';
 import {logger} from '@/utils/logger';
 
@@ -9,9 +9,9 @@ class GoalService {
     limit?: number;
     search?: string;
     status?: string;
-  }): Promise<PaginatedResponse<Goal>> {
+  }): Promise<ApiResponse<Goal[]>> {
     try {
-      const response = await apiClient.get<ApiResponse<PaginatedResponse<Goal>>>('/goals', {
+      const response = await apiClient.get<ApiResponse<Goal[]>>('/goals', {
         params,
       });
 
@@ -20,7 +20,7 @@ class GoalService {
         throw new Error(response.error || 'Failed to get goals');
       }
 
-      return response.data;
+      return response;
     } catch (error) {
       logger.error('Get goals error:', error);
       throw error;
@@ -123,6 +123,141 @@ class GoalService {
       return response.data;
     } catch (error) {
       logger.error('Search goals error:', error);
+      throw error;
+    }
+  }
+
+  // Milestone management
+  async getMilestones(goalId: string): Promise<Milestone[]> {
+    try {
+      const response = await apiClient.get<ApiResponse<Milestone[]>>(`/goals/${goalId}/milestones`);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get milestones');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error('Get milestones error:', error);
+      throw error;
+    }
+  }
+
+  async createMilestone(goalId: string, data: CreateMilestoneData): Promise<Milestone> {
+    try {
+      const response = await apiClient.post<ApiResponse<Milestone>>(`/goals/${goalId}/milestones`, data);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create milestone');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error('Create milestone error:', error);
+      throw error;
+    }
+  }
+
+  async updateMilestone(goalId: string, milestoneId: string, data: UpdateMilestoneData): Promise<Milestone> {
+    try {
+      const response = await apiClient.put<ApiResponse<Milestone>>(`/goals/${goalId}/milestones/${milestoneId}`, data);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update milestone');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error('Update milestone error:', error);
+      throw error;
+    }
+  }
+
+  async deleteMilestone(goalId: string, milestoneId: string): Promise<void> {
+    try {
+      const response = await apiClient.delete<ApiResponse<void>>(`/goals/${goalId}/milestones/${milestoneId}`);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to delete milestone');
+      }
+    } catch (error) {
+      logger.error('Delete milestone error:', error);
+      throw error;
+    }
+  }
+
+  async completeMilestone(goalId: string, milestoneId: string): Promise<Milestone> {
+    try {
+      const response = await apiClient.post<ApiResponse<Milestone>>(`/goals/${goalId}/milestones/${milestoneId}/complete`);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to complete milestone');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error('Complete milestone error:', error);
+      throw error;
+    }
+  }
+
+  // Goal actions
+  async completeGoal(id: string): Promise<Goal> {
+    try {
+      const response = await apiClient.post<ApiResponse<Goal>>(`/goals/${id}/complete`);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to complete goal');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error('Complete goal error:', error);
+      throw error;
+    }
+  }
+
+  async pauseGoal(id: string): Promise<Goal> {
+    try {
+      const response = await apiClient.post<ApiResponse<Goal>>(`/goals/${id}/pause`);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to pause goal');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error('Pause goal error:', error);
+      throw error;
+    }
+  }
+
+  async resumeGoal(id: string): Promise<Goal> {
+    try {
+      const response = await apiClient.post<ApiResponse<Goal>>(`/goals/${id}/resume`);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to resume goal');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error('Resume goal error:', error);
+      throw error;
+    }
+  }
+
+  async cancelGoal(id: string): Promise<Goal> {
+    try {
+      const response = await apiClient.post<ApiResponse<Goal>>(`/goals/${id}/cancel`);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to cancel goal');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error('Cancel goal error:', error);
       throw error;
     }
   }

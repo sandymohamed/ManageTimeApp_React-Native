@@ -24,6 +24,7 @@ import { GoalCreateScreen } from '@/screens/goals/GoalCreateScreen';
 import { GoalEditScreen } from '@/screens/goals/GoalEditScreen';
 import { GoalDetailScreen } from '@/screens/goals/GoalDetailScreen';
 import { GoalAnalyticsScreen } from '@/screens/goals/GoalAnalyticsScreen';
+import { MilestoneManagementScreen } from '@/screens/goals/MilestoneManagementScreen';
 import { AlarmsScreen } from '@/screens/alarms/AlarmsScreen';
 import { AnalyticsScreen } from '@/screens/analytics/AnalyticsScreen';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
@@ -66,6 +67,7 @@ export type RootStackParamList = {
   GoalEdit: { goalId: string };
   GoalDetail: { goalId: string };
   GoalAnalytics: { goalId: string };
+  MilestoneManagement: { goalId: string };
   Settings: undefined;
 };
 
@@ -79,14 +81,17 @@ const SwipeableTabBar: React.FC<any> = ({ state, descriptors, navigation }) => {
   const [scrollPosition, setScrollPosition] = useState(0);
   const [maxScroll, setMaxScroll] = useState(0);
 
+  console.log('state', state);
+  console.log('descriptors', descriptors);
+  console.log('navigation', navigation);
   const tabConfig = [
     { key: 'Dashboard', icon: 'view-dashboard', label: t('navigation.dashboard') || 'Dashboard' },
     { key: 'Tasks', icon: 'checkbox-marked-circle-outline', label: t('navigation.tasks') || 'Tasks' },
     { key: 'Calendar', icon: 'calendar', label: t('navigation.calendar') || 'Calendar' },
     { key: 'Routines', icon: 'repeat', label: t('navigation.routines') || 'Routines' },
     { key: 'Goals', icon: 'flag', label: t('navigation.goals') || 'Goals' },
-    { key: 'Alarms', icon: 'alarm', label: t('navigation.alarms') || 'Alarms' },
     { key: 'Projects', icon: 'file-tree', label: t('navigation.projects') || 'Projects' },
+    { key: 'Alarms', icon: 'alarm', label: t('navigation.alarms') || 'Alarms' },
     { key: 'Analytics', icon: 'chart-bar', label: t('navigation.analytics') || 'Analytics' },
     { key: 'Profile', icon: 'account', label: t('navigation.profile') || 'Profile' },
   ];
@@ -141,6 +146,7 @@ const SwipeableTabBar: React.FC<any> = ({ state, descriptors, navigation }) => {
             const route = state.routes.find((r: any) => r.name === tab.key);
             if (!route) return null;
 
+            console.log(' state.index === index', state.index, index);
             const { options } = descriptors[route.key];
             const isFocused = state.index === index;
 
@@ -270,15 +276,6 @@ const MainTabs: React.FC = () => {
       />
 
       <Tab.Screen
-        name="Projects"
-        component={ProjectsScreen}
-        options={{
-          title: t('navigation.projects') || 'Projects',
-          tabBarLabel: t('navigation.projects') || 'Projects',
-        }}
-      />
-
-      <Tab.Screen
         name="Routines"
         component={RoutinesScreen}
         options={{
@@ -286,13 +283,22 @@ const MainTabs: React.FC = () => {
           tabBarLabel: t('navigation.routines') || 'Routines',
         }}
       />
-
+  
       <Tab.Screen
         name="Goals"
         component={GoalsScreen}
         options={{
           title: t('navigation.goals') || 'Goals',
           tabBarLabel: t('navigation.goals') || 'Goals',
+        }}
+      />
+  
+      <Tab.Screen
+        name="Projects"
+        component={ProjectsScreen}
+        options={{
+          title: t('navigation.projects') || 'Projects',
+          tabBarLabel: t('navigation.projects') || 'Projects',
         }}
       />
 
@@ -426,6 +432,13 @@ export const MainNavigator: React.FC = () => {
       <Stack.Screen
         name="GoalAnalytics"
         component={GoalAnalyticsScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="MilestoneManagement"
+        component={MilestoneManagementScreen}
         options={{
           headerShown: false,
         }}

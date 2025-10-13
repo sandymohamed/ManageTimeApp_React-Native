@@ -407,7 +407,14 @@
           "aiPlanningDescription": "Generate an AI-powered plan with milestones and tasks for this goal.",
           "generatePlan": "Generate Plan",
           "aiPlanGenerated": "AI plan generated successfully",
-          "aiPlanError": "Failed to generate AI plan"
+          "aiPlanError": "Failed to generate AI plan",
+          "editDetails": "Edit Details",
+          "viewAnalytics": "View Analytics",
+          "manageMilestones": "Manage Milestones",
+          "deleteMilestone": "Delete Milestone",
+          "deleteMilestoneConfirmation": "Are you sure you want to delete milestone '{title}'? This action cannot be undone.",
+          "addFirstMilestone": "Add First Milestone",
+          "selectDate": "Select Date"
         },
   "alarms": {
     "title": "Alarms",

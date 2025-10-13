@@ -69,6 +69,7 @@ export interface UpdateGoalData {
   category?: string;
   targetDate?: string;
   progress?: number;
+  completedAt?: string;
 }
 
 export interface CreateMilestoneData {
