@@ -13,6 +13,7 @@ import { theme } from '@/utils/theme';
 import { EnhancedHeader } from '@/components/EnhancedHeader';
 import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { ModalNavigator } from './ModalNavigator';
 
 // Import screens
 import { TasksScreen } from '@/screens/tasks/TasksScreen';
@@ -26,6 +27,8 @@ import { GoalDetailScreen } from '@/screens/goals/GoalDetailScreen';
 import { GoalAnalyticsScreen } from '@/screens/goals/GoalAnalyticsScreen';
 import { MilestoneManagementScreen } from '@/screens/goals/MilestoneManagementScreen';
 import { AlarmsScreen } from '@/screens/alarms/AlarmsScreen';
+import { AlarmCreateScreen } from '@/screens/alarms/AlarmCreateScreen';
+import { AlarmEditScreen } from '@/screens/alarms/AlarmEditScreen';
 import { AnalyticsScreen } from '@/screens/analytics/AnalyticsScreen';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
 import { ProjectsScreen } from '@/screens/projects/ProjectsScreen';
@@ -68,6 +71,8 @@ export type RootStackParamList = {
   GoalDetail: { goalId: string };
   GoalAnalytics: { goalId: string };
   MilestoneManagement: { goalId: string };
+  AlarmCreate: undefined;
+  AlarmEdit: { alarmId: string };
   Settings: undefined;
 };
 
@@ -441,6 +446,22 @@ export const MainNavigator: React.FC = () => {
         component={MilestoneManagementScreen}
         options={{
           headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="AlarmCreate"
+        component={AlarmCreateScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="AlarmEdit"
+        component={AlarmEditScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
         }}
       />
       <Stack.Screen

@@ -63,7 +63,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
-  const [dragging, setDragging] = useState(false);
+  // const [dragging, setDragging] = useState(false);
 
   const [useFallback, setUseFallback] = useState(true); // Start with fallback
 
@@ -91,8 +91,11 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
           }
         });
       }
+    } else {
+      // Clear filters when navigating from tab bar (no specific parameters)
+      clearFilters();
     }
-  }, [route?.params, setFilter]);
+  }, [route?.params, setFilter, clearFilters]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -122,7 +125,6 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
           await deleteTask(task.id);
           showSuccess(t('tasks.deletedSuccessfully', { title: task.title }));
         } catch (error) {
-          console.error('Failed to delete task:', error);
           showError(t('tasks.deleteFailed', { title: task.title }));
         }
       }
@@ -140,30 +142,21 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
         showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
       }
     } catch (error) {
-      console.error('Failed to toggle task completion:', error);
       showError(t('tasks.completeFailed', { title: task.title }));
     }
   };
 
 
-  const handleReorder = async (newTasks: Task[]) => {
-    try {
-      setDragging(false);
-      await updateTaskOrder(newTasks);
-      showSuccess(t('tasks.reorderedSuccessfully'));
-    } catch (error) {
-      console.error('Failed to reorder tasks:', error);
-      showError(t('tasks.reorderFailed'));
-    }
-  };
-
-  // const handleDragBegin = () => {
-  //   setDragging(true);
+  // const handleReorder = async (newTasks: Task[]) => {
+  //   try {
+  //     setDragging(false);
+  //     await updateTaskOrder(newTasks);
+  //     showSuccess(t('tasks.reorderedSuccessfully'));
+  //   } catch (error) {
+  //     showError(t('tasks.reorderFailed'));
+  //   }
   // };
-
-  // const handleDragEnd = () => {
-  //   setDragging(false);
-  // };
+ 
 
   const getDueDateText = (dueDate?: string) => {
     if (!dueDate) return null;
@@ -180,12 +173,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
       return t('tasks.dueOn', { date: date.toLocaleDateString() });
     }
   };
-
-  // Sync local tasks with store tasks
-  // useEffect(() => {
-
-  //   setLocalTasks(filteredTasks);
-  // }, [filteredTasks]);
+ 
 
   // // Test drag & drop availability
   useEffect(() => {
@@ -196,16 +184,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
       }, 1000);
     }
   }, []);
-
-
-  // const handleCompleteTask = async (task: Task) => {
-  //   try {
-  //     await completeTask(task.id);
-  //     showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
-  //   } catch (error) {
-  //     showError(t('tasks.completeFailed', { title: task.title }));
-  //   }
-  // };
+ 
 
 
   const handleFilterChange = (key: keyof TaskFilter, value: any) => {
@@ -222,9 +201,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
         console.warn('Invalid drag data');
         return;
       }
-
-      // Update local state immediately for smooth UX
-      // setLocalTasks(data);
+ 
 
       // Then update the store
       await updateTaskOrder(data);
@@ -288,7 +265,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
                   icon={getStatusIcon(task.status)}
                   size={22}
                   iconColor={getStatusColor(task.status)}
-                />sssxxxxxxxxxxxxx
+                />
               </TouchableOpacity>
 
               {/* Text Content */}
@@ -412,9 +389,9 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
       { status: TaskStatus.DONE, label: 'Done', icon: 'check-circle', color: theme.colors.success },
 
       { status: TaskPriority.URGENT, label: 'Urgent', icon: 'alert-circle', color: theme.colors.error },
-      { status: TaskPriority.HIGH, label: 'High', icon: 'alert-circle', color: theme.colors.error },
-      { status: TaskPriority.MEDIUM, label: 'Medium', icon: 'alert-circle', color: theme.colors.error },
-      { status: TaskPriority.LOW, label: 'Low', icon: 'alert-circle', color: theme.colors.error },
+      { status: TaskPriority.HIGH, label: 'High', icon: 'arrow-up-bold', color: theme.colors.high },
+      { status: TaskPriority.MEDIUM, label: 'Medium', icon: 'format-float-center', color: theme.colors.medium },
+      { status: TaskPriority.LOW, label: 'Low', icon: 'arrow-down-bold', color: theme.colors.low },
 
     ];
 
@@ -427,7 +404,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
             style={[styles.filterChip, styles.clearFilterChip]}
             onPress={clearFilters}
           >
-            <IconButton icon="close" size={16} iconColor={theme.colors.error} />
+            <IconButton icon="close" size={12} style={{ padding: 0, margin:0 }}  iconColor={theme.colors.error} />
             <Text style={[styles.filterText, { color: theme.colors.error }]}>Clear All</Text>
           </TouchableOpacity>
         )}
@@ -439,7 +416,6 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
               key={option.status}
               style={[styles.filterChip, isActive && styles.activeFilterChip]}
               onPress={() => {
-                console.log("filter***********", filter);
                 if (isActive) {
                   const newStatus = filter.status?.filter(s => s !== option.status) || [];
                   handleFilterChange('status', newStatus.length > 0 ? newStatus : undefined);
@@ -449,7 +425,11 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
                 }
               }}
             >
-              <IconButton icon={option.icon} size={16} iconColor={isActive ? theme.colors.primary : option.color} />
+              <IconButton
+               icon={option.icon}
+                size={12} 
+                style={{ padding: 0, margin:0 }} 
+               iconColor={isActive ? theme.colors.primary : option.color} />
               <Text style={[styles.filterText, { color: isActive ? theme.colors.primary : option.color }]}>
                 {option.label}
               </Text>
@@ -601,13 +581,6 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
         </View>
       )}
 
-
-      {isLoading && (
-        <View style={styles.emptyState}>
-          <Text variant="bodyLarge" style={[styles.emptyMessage, { color: theme.colors.text }]}>
-            {t('common.loading')}
-          </Text>
-        </View>)}
       {/* Task List - Use Fallback if drag & drop is problematic */}
       {useFallback ? (
         <FlatList
@@ -678,7 +651,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
         icon="plus"
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
         onPress={handleCreateTask}
-        label={t('tasks.addTask')}
+        // label={t('tasks.addTask')}
       />
     </View>
   );
@@ -719,21 +692,26 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   quickFilters: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
+    paddingHorizontal: 6,
     paddingVertical: 12,
-    gap: 8,
+    gap: 4,
     flexWrap: 'wrap',
   },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
     borderRadius: 20,
     backgroundColor: theme.colors.surfaceVariant,
+    borderWidth: 1.2,
+    borderColor: theme.colors.outline,
   },
   activeFilterChip: {
-    backgroundColor: theme.colors.primaryContainer,
+    backgroundColor: theme.colors.surface,
+    color: theme.colors.onSurface, 
+    borderWidth: 1.2,
+    borderColor: theme.colors.primary,
   },
   clearFilterChip: {
     backgroundColor: theme.colors.errorContainer,
@@ -741,7 +719,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   filterText: {
     fontSize: 12,
     fontWeight: '500',
-    marginLeft: 4,
+    margin: 0,
   },
   listContent: {
     padding: 12,

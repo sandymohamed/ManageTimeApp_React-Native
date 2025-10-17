@@ -12,7 +12,7 @@
     "clean:android": "cd android && ./gradlew clean && cd ..",
     "clean:all": "npm run clean:android && npx react-native start --reset-cache",
     "fresh-install": "npm install && npm run clean:all",
-    "adb":"adb reverse tcp:8081 tcp:8081"
+    "adb": "adb reverse tcp:8081 tcp:8081"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
@@ -34,6 +34,7 @@
     "react-native-keychain": "^10.0.0",
     "react-native-localize": "^3.5.2",
     "react-native-paper": "^5.14.5",
+    "react-native-push-notification": "^8.1.1",
     "react-native-reanimated": "^3.15.0",
     "react-native-safe-area-context": "^5.6.1",
     "react-native-screens": "^4.16.0",
@@ -58,6 +59,7 @@
     "@react-native/typescript-config": "0.81.4",
     "@types/jest": "^29.5.13",
     "@types/react": "^19.1.0",
+    "@types/react-native-push-notification": "^8.1.4",
     "@types/react-native-vector-icons": "^6.4.18",
     "@types/react-test-renderer": "^19.1.0",
     "babel-plugin-module-resolver": "^5.0.2",

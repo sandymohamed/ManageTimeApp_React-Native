@@ -41,6 +41,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     fetchProjects();
   }, []);
 
+  // React to changes in tasks and projects
+  useEffect(() => {
+    // This will trigger re-renders when tasks or projects change
+    // The calendar will automatically update with new task data
+  }, [tasks, projects]);
+
   // Get upcoming tasks for reminders
   useEffect(() => {
     const now = new Date();

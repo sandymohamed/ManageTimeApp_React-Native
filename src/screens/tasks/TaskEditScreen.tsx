@@ -9,6 +9,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { TaskPriority, TaskStatus, UpdateTaskData } from '@/types/task';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
 
 
 interface TaskEditScreenProps {
@@ -50,7 +51,11 @@ export const TaskEditScreen: React.FC<TaskEditScreenProps> = ({ navigation, rout
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedTime, setSelectedTime] = useState<Date>(new Date());
+  const [hasTime, setHasTime] = useState(false);
+
 
   useEffect(() => {
     if (task) {
@@ -110,18 +115,84 @@ export const TaskEditScreen: React.FC<TaskEditScreenProps> = ({ navigation, rout
 
     if (selectedDate) {
       setSelectedDate(selectedDate);
-      setFormData({
-        ...formData,
-        dueDate: selectedDate.toISOString(),
-      });
+      const combinedDateTime = new Date(selectedDate);
+      if (hasTime) {
+        combinedDateTime.setHours(selectedTime.getHours());
+        combinedDateTime.setMinutes(selectedTime.getMinutes());
+      }
+      setFormData(prev => ({
+        ...prev,
+        dueDate: combinedDateTime.toISOString(),
+      }));
+      // Clear date error if it exists
+      if (errors.dueDate) {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.dueDate;
+          return newErrors;
+        });
+      }
+    }
+  };
+
+  const handleTimeChange = (event: any, selectedTime?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
+
+    if (selectedTime) {
+      setSelectedTime(selectedTime);
+      const combinedDateTime = new Date(selectedDate);
+      combinedDateTime.setHours(selectedTime.getHours());
+      combinedDateTime.setMinutes(selectedTime.getMinutes());
+      setFormData(prev => ({
+        ...prev,
+        dueDate: combinedDateTime.toISOString(),
+      }));
+      // Clear date error if it exists
+      if (errors.dueDate) {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.dueDate;
+          return newErrors;
+        });
+      }
+    }
+  };
+
+  const handleToggleTime = () => {
+    setHasTime(!hasTime);
+    if (!hasTime) {
+      // When enabling time, set to current time
+      setSelectedTime(new Date());
+      const combinedDateTime = new Date(selectedDate);
+      combinedDateTime.setHours(new Date().getHours());
+      combinedDateTime.setMinutes(new Date().getMinutes());
+      setFormData(prev => ({
+        ...prev,
+        dueDate: combinedDateTime.toISOString(),
+      }));
+    } else {
+      // When disabling time, remove time component
+      const dateOnly = new Date(selectedDate);
+      dateOnly.setHours(0, 0, 0, 0);
+      setFormData(prev => ({
+        ...prev,
+        dueDate: dateOnly.toISOString(),
+      }));
     }
   };
 
   const handleDateConfirm = () => {
-    setFormData({
-      ...formData,
-      dueDate: selectedDate.toISOString(),
-    });
+    const combinedDateTime = new Date(selectedDate);
+    if (hasTime) {
+      combinedDateTime.setHours(selectedTime.getHours());
+      combinedDateTime.setMinutes(selectedTime.getMinutes());
+    }
+    setFormData(prev => ({
+      ...prev,
+      dueDate: combinedDateTime.toISOString(),
+    }));
     setShowDatePicker(false);
   };
 
@@ -277,11 +348,11 @@ export const TaskEditScreen: React.FC<TaskEditScreenProps> = ({ navigation, rout
                 >
                   <IconButton
                     icon={getPriorityIcon(priority)}
-                    size={20}
-                    iconColor={getPriorityColor(priority)}
+                    size={12}
+                    style={{ padding: 0, margin: 0 }} iconColor={getPriorityColor(priority)}
                   />
                   <Text style={[styles.priorityText, { color: getPriorityColor(priority) }]}>
-                    {priority}
+                    {t(`tasks.priority_options.${priority.toLowerCase()}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -300,7 +371,7 @@ export const TaskEditScreen: React.FC<TaskEditScreenProps> = ({ navigation, rout
                 <TouchableOpacity
                   key={status}
                   style={[
-                    styles.statusOption,
+                    styles.priorityOption,
                     formData.status === status && styles.selectedStatus,
                     { borderColor: getStatusColor(status) }
                   ]}
@@ -308,10 +379,10 @@ export const TaskEditScreen: React.FC<TaskEditScreenProps> = ({ navigation, rout
                 >
                   <IconButton
                     icon={getStatusIcon(status)}
-                    size={20}
-                    iconColor={getStatusColor(status)}
+                    size={12}
+                    style={{ padding: 0, margin: 0 }} iconColor={getStatusColor(status)}
                   />
-                  <Text style={[styles.statusText, { color: getStatusColor(status) }]}>
+                  <Text style={[styles.priorityText, { color: getStatusColor(status) }]}>
                     {status}
                   </Text>
                 </TouchableOpacity>
@@ -330,7 +401,9 @@ export const TaskEditScreen: React.FC<TaskEditScreenProps> = ({ navigation, rout
               <TouchableOpacity style={styles.dateButton} onPress={handleDatePress}>
                 <IconButton icon="calendar" size={20} iconColor={theme.colors.primary} />
                 <Text style={[styles.dateText, { color: theme.colors.text }]}>
-                  {formData.dueDate ? new Date(formData.dueDate).toLocaleDateString() : t('tasks.selectDate')}
+                  {formData.dueDate ? format(new Date(formData.dueDate), hasTime ? 'MMM d, yyyy h:mm a' : 'MMM d, yyyy') : t('tasks.selectDate')}
+
+                  {/* {formData.dueDate ? new Date(formData.dueDate).toLocaleDateString() : t('tasks.selectDate')} */}
                 </Text>
               </TouchableOpacity>
               {formData.dueDate && (
@@ -342,6 +415,34 @@ export const TaskEditScreen: React.FC<TaskEditScreenProps> = ({ navigation, rout
                 />
               )}
             </View>
+
+
+            {/* Time Picker Button */}
+            {hasTime && (
+              <View >
+                <TouchableOpacity style={styles.timeButton} onPress={() => setShowTimePicker(true)}>
+                  <IconButton icon="clock" size={20} iconColor={theme.colors.primary} />
+                  <Text style={[styles.dateText, { color: theme.colors.text }]}>
+                    {format(selectedTime, 'h:mm a')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {/* Time Toggle */}
+            <TouchableOpacity
+              style={[styles.timeToggle, { backgroundColor: hasTime ? theme.colors.primaryContainer : theme.colors.surfaceVariant }]}
+              onPress={handleToggleTime}
+            >
+              <IconButton
+                icon={hasTime ? "clock" : "clock-outline"}
+                size={20}
+                iconColor={hasTime ? theme.colors.primary : theme.colors.textSecondary}
+              />
+              <Text style={[styles.timeToggleText, { color: hasTime ? theme.colors.primary : theme.colors.textSecondary }]}>
+                {hasTime ? t('tasks.hasTime') : t('tasks.addTime')}
+              </Text>
+            </TouchableOpacity>
+
           </Card.Content>
         </Card>
       </ScrollView>
@@ -398,6 +499,57 @@ export const TaskEditScreen: React.FC<TaskEditScreenProps> = ({ navigation, rout
           </View>
         </Modal>
       )}
+      {/* Time Picker Modal */}
+      {showTimePicker && (
+        <Modal
+          visible={showTimePicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowTimePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+              <View style={styles.modalHeader}>
+                <Text variant="headlineSmall" style={[styles.modalTitle, { color: theme.colors.text }]}>
+                  {t('tasks.selectTime')}
+                </Text>
+                <IconButton
+                  icon="close"
+                  size={24}
+                  iconColor={theme.colors.text}
+                  onPress={() => setShowTimePicker(false)}
+                />
+              </View>
+
+              <DateTimePicker
+                value={selectedTime}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handleTimeChange}
+                style={styles.datePicker}
+              />
+              {Platform.OS === 'ios' && (
+                <View style={styles.modalActions}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowTimePicker(false)}
+                    style={styles.modalButton}
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={() => setShowTimePicker(false)}
+                    style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
+                  >
+                    {t('common.confirm')}
+                  </Button>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };
@@ -441,50 +593,39 @@ const createStyles = (theme: any) => StyleSheet.create({
   priorityContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   priorityOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 0,
+    paddingVertical: 2,
     borderRadius: 20,
     borderWidth: .3,
     backgroundColor: theme.colors.surfaceVariant,
   },
   selectedPriority: {
-    backgroundColor: theme.colors.primaryContainer,
+    // backgroundColor: theme.colors.primaryContainer,
+    backgroundColor: theme.colors.background,
     borderWidth: 1.5,
-
   },
   priorityText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '500',
-    marginLeft: 4,
+    margin: 0,
+    paddingEnd: 8,
   },
   statusContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  statusOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: .3,
-    backgroundColor: theme.colors.surfaceVariant,
-  },
+
   selectedStatus: {
     backgroundColor: theme.colors.primaryContainer,
     borderWidth: 1.5,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
+
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -494,8 +635,8 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
     borderRadius: 12,
     backgroundColor: theme.colors.surfaceVariant,
     marginRight: 8,
@@ -504,6 +645,33 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
   },
+  timeToggle: {
+    width: '80%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  timeToggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 2,
+  },
+  timeButton: {
+    width: '80%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    marginTop: 8,
+  },
+  // modal:
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',

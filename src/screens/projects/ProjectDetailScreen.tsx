@@ -523,7 +523,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
                                   style={[styles.statusChip, { backgroundColor: getTaskStatusColor(task.status) + '20' }]}
                                   textStyle={{ color: getTaskStatusColor(task.status) }}
                                 >
-                                  {t(`tasks.status.${task.status.toLowerCase()}`)}
+                                  {t(`tasks.status_options.${task.status.toLowerCase()}`)}
                                 </Chip>
                                 <Chip
                                   style={[styles.priorityChip, { backgroundColor: getTaskPriorityColor(task.priority) + '20' }]}

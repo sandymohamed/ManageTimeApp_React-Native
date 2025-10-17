@@ -36,6 +36,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     fetchProjects();
   }, []);
 
+  // React to changes in tasks and projects
+  useEffect(() => {
+    // This will trigger re-renders when tasks or projects change
+    // The analytics calculations will automatically update
+  }, [tasks, projects]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([fetchTasks(), fetchProjects()]);

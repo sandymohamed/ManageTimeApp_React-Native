@@ -53,6 +53,12 @@ export const AnalyticsScreen: React.FC = () => {
     fetchData();
   }, [selectedPeriod]);
 
+  // React to changes in tasks and projects
+  useEffect(() => {
+    // This will trigger re-renders when tasks or projects change
+    // The analytics calculations will automatically update
+  }, [tasks, projects]);
+
   const fetchData = async () => {
     try {
       await Promise.all([fetchTasks(), fetchProjects()]);

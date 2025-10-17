@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { Alarm, CreateAlarmData, UpdateAlarmData, Timer, CreateTimerData, UpdateTimerData } from '@/types/alarm';
 import { alarmService } from '@/services/alarmService';
+import { notificationService } from '@/services/notificationService';
+import { timerNotificationService } from '@/services/timerNotificationService';
 
 interface AlarmState {
   // State
@@ -77,6 +79,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         pagination: response.pagination,
         loading: false,
       });
+      
+      // Schedule all enabled alarms
+      notificationService.scheduleAllAlarms(response.data);
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch alarms',
@@ -144,6 +149,12 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         alarms: [alarm, ...state.alarms],
         loading: false,
       }));
+      
+      // Schedule the new alarm if enabled
+      if (alarm.enabled) {
+        notificationService.scheduleAlarm(alarm);
+      }
+      
       return alarm;
     } catch (error) {
       set({
@@ -162,6 +173,13 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         alarms: state.alarms.map((a) => (a.id === id ? alarm : a)),
         loading: false,
       }));
+      
+      // Reschedule the alarm if it was updated
+      notificationService.cancelAlarm(id);
+      if (alarm.enabled) {
+        notificationService.scheduleAlarm(alarm);
+      }
+      
       return alarm;
     } catch (error) {
       set({
@@ -180,6 +198,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         alarms: state.alarms.filter((a) => a.id !== id),
         loading: false,
       }));
+      
+      // Cancel the scheduled alarm
+      notificationService.cancelAlarm(id);
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to delete alarm',
@@ -201,6 +222,12 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       set((state) => ({
         alarms: state.alarms.map((a) => (a.id === id ? updatedAlarm : a)),
       }));
+      
+      // Reschedule or cancel alarm based on new enabled state
+      notificationService.cancelAlarm(id);
+      if (updatedAlarm.enabled) {
+        notificationService.scheduleAlarm(updatedAlarm);
+      }
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to toggle alarm',
@@ -386,6 +413,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         activeTimer: updatedTimer,
       }));
 
+      // Show timer start notification
+      timerNotificationService.showTimerStartNotification(updatedTimer);
+
       // Start countdown
       console.log('Starting timer:', updatedTimer.title, 'with remaining time:', updatedTimer.remainingTime);
       get().startCountdown();
@@ -431,6 +461,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         timers: state.timers.map((t) => (t.id === id ? updatedTimer : t)),
         activeTimer: state.activeTimer?.id === id ? updatedTimer : state.activeTimer,
       }));
+
+      // Show timer pause notification
+      timerNotificationService.showTimerPauseNotification(updatedTimer);
 
       // Stop countdown when pausing
       get().stopCountdown();
@@ -478,6 +511,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         timers: state.timers.map((t) => (t.id === id ? updatedTimer : t)),
         activeTimer: state.activeTimer?.id === id ? null : state.activeTimer,
       }));
+
+      // Show timer stop notification
+      timerNotificationService.showTimerStopNotification(updatedTimer);
 
       // Stop countdown when stopping
       get().stopCountdown();
@@ -627,6 +663,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
     if (activeTimer && activeTimer.remainingTime <= 0) {
       // Timer completed - show alert and stop timer
       console.log(`Timer "${activeTimer.title}" completed!`);
+      
+      // Show timer completion notification
+      timerNotificationService.showTimerCompletionNotification(activeTimer);
       
       // Stop the timer
       get().stopTimer(activeTimer.id);

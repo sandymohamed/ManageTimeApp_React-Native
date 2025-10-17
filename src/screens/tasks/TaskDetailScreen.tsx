@@ -39,7 +39,7 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ navigation, 
 
   const handleDelete = () => {
     if (!task) return;
-    
+
     showDeleteConfirmation(
       task.title,
       async () => {
@@ -82,17 +82,17 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ navigation, 
       case TaskStatus.TODO: return 'circle-outline';
       case TaskStatus.IN_PROGRESS: return 'clock-outline';
       case TaskStatus.DONE: return 'check-circle';
-      case TaskStatus.CANCELLED: return 'close-circle';
+      case TaskStatus.ARCHIVED: return 'archive-outline';
       default: return 'help-circle';
     }
   };
 
   const getStatusColor = (status: TaskStatus) => {
     switch (status) {
-      case TaskStatus.DONE: return theme.colors.completed;
-      case TaskStatus.IN_PROGRESS: return theme.colors.inProgress;
-      case TaskStatus.CANCELLED: return theme.colors.cancelled;
-      default: return theme.colors.pending;
+      case TaskStatus.DONE: return theme.colors.completed || '#16a34a';
+      case TaskStatus.IN_PROGRESS: return theme.colors.inProgress || '#2563eb';
+      case TaskStatus.ARCHIVED: return theme.colors.archived || '#6b7280';
+      default: return theme.colors.pending || '#d97706';
     }
   };
 
@@ -171,7 +171,7 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ navigation, 
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
               {t('tasks.taskInfo')}
             </Text>
-            
+
             <View style={styles.infoRow}>
               <IconButton icon="flag" size={20} iconColor={getPriorityColor(task.priority)} />
               <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
@@ -252,7 +252,7 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ navigation, 
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
               {t('tasks.actions')}
             </Text>
-            
+
             <View style={styles.actionsContainer}>
               <Button
                 mode="contained"
@@ -263,7 +263,7 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ navigation, 
               >
                 {task.status === TaskStatus.DONE ? t('tasks.markIncomplete') : t('tasks.markComplete')}
               </Button>
-              
+
               <Button
                 mode="outlined"
                 icon="pencil"
@@ -272,7 +272,7 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ navigation, 
               >
                 {t('tasks.edit')}
               </Button>
-              
+
               <Button
                 mode="outlined"
                 icon="delete"

@@ -18,15 +18,13 @@ interface TaskCreateScreenProps {
 
 export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
-  const { isRTL } = useLanguage();
-  const paperTheme = useTheme();
   const customTheme = useCustomTheme();
   const { showSuccess, showError } = useNotification();
   const theme = customTheme.theme;
   const { createTask, isLoading } = useTaskStore();
 
   console.log("navigation, route", navigation, route);
-  
+
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
@@ -50,7 +48,7 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
   const handleSave = async () => {
     // Clear previous errors
     setErrors({});
-    
+
     // Validate form
     const newErrors: Record<string, string> = {};
 
@@ -90,9 +88,9 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
   const getPriorityIcon = (priority: TaskPriority) => {
     switch (priority) {
       case TaskPriority.URGENT: return 'alert';
-      case TaskPriority.HIGH: return 'arrow-up';
+      case TaskPriority.HIGH: return 'arrow-up-bold';
       case TaskPriority.MEDIUM: return 'minus';
-      case TaskPriority.LOW: return 'arrow-down';
+      case TaskPriority.LOW: return 'arrow-down-bold';
       default: return 'flag';
     }
   };
@@ -313,7 +311,7 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
         <Card style={[styles.card, { backgroundColor: theme.colors.card }]}>
           <Card.Content>
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Priority
+            {t('tasks.priority')}
             </Text>
             <View style={styles.priorityContainer}>
               {Object.values(TaskPriority).map((priority) => (
@@ -328,11 +326,12 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
                 >
                   <IconButton
                     icon={getPriorityIcon(priority)}
-                    size={20}
+                    size={12}
+                    style={{ padding: 0, margin: 0 }}
                     iconColor={getPriorityColor(priority)}
                   />
                   <Text style={[styles.priorityText, { color: getPriorityColor(priority) }]}>
-                    {t(`tasks.priority.${priority.toLowerCase()}`)}
+                    {t(`tasks.priority_options.${priority.toLowerCase()}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -344,14 +343,14 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
         <Card style={[styles.card, { backgroundColor: theme.colors.card }]}>
           <Card.Content>
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Status
+            {t('tasks.status')}
             </Text>
             <View style={styles.statusContainer}>
               {Object.values(TaskStatus).map((status) => (
                 <TouchableOpacity
                   key={status}
                   style={[
-                    styles.statusOption,
+                    styles.priorityOption,
                     formData.status === status && styles.selectedStatus,
                     { borderColor: getStatusColor(status) }
                   ]}
@@ -359,11 +358,12 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
                 >
                   <IconButton
                     icon={getStatusIcon(status)}
-                    size={20}
+                    size={12}
+                    style={{ padding: 0, margin: 0 }}
                     iconColor={getStatusColor(status)}
                   />
-                  <Text style={[styles.statusText, { color: getStatusColor(status) }]}>
-                    {t(`tasks.status.${status.toLowerCase()}`)}
+                  <Text style={[styles.priorityText, { color: getStatusColor(status) }]}>
+                    {t(`tasks.status_options.${status.toLowerCase()}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -393,21 +393,6 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
                 />
               )}
             </View>
-            
-            {/* Time Toggle */}
-            <TouchableOpacity
-              style={[styles.timeToggle, { backgroundColor: hasTime ? theme.colors.primaryContainer : theme.colors.surfaceVariant }]}
-              onPress={handleToggleTime}
-            >
-              <IconButton 
-                icon={hasTime ? "clock" : "clock-outline"} 
-                size={20} 
-                iconColor={hasTime ? theme.colors.primary : theme.colors.textSecondary} 
-              />
-              <Text style={[styles.timeToggleText, { color: hasTime ? theme.colors.primary : theme.colors.textSecondary }]}>
-                {hasTime ? t('task.hasTime') : t('task.addTime')}
-              </Text>
-            </TouchableOpacity>
 
             {/* Time Picker Button */}
             {hasTime && (
@@ -420,6 +405,21 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
                 </TouchableOpacity>
               </View>
             )}
+            {/* Time Toggle */}
+            <TouchableOpacity
+              style={[styles.timeToggle, { backgroundColor: hasTime ? theme.colors.primaryContainer : theme.colors.surfaceVariant }]}
+              onPress={handleToggleTime}
+            >
+              <IconButton
+                icon={hasTime ? "clock" : "clock-outline"}
+                size={20}
+                iconColor={hasTime ? theme.colors.primary : theme.colors.textSecondary}
+              />
+              <Text style={[styles.timeToggleText, { color: hasTime ? theme.colors.primary : theme.colors.textSecondary }]}>
+                {hasTime ? t('tasks.hasTime') : t('tasks.addTime')}
+              </Text>
+            </TouchableOpacity>
+
 
             {/* Error display for due date */}
             {errors.dueDate && (
@@ -577,13 +577,13 @@ const createStyles = (theme: any) => StyleSheet.create({
   priorityContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   priorityOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 0,
+    paddingVertical: 2,
     borderRadius: 20,
     borderWidth: .3,
     backgroundColor: theme.colors.surfaceVariant,
@@ -594,33 +594,22 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderWidth: 1.5,
   },
   priorityText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '500',
-    marginLeft: 4,
+    margin: 0,
+    paddingEnd: 8,
   },
   statusContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  statusOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: theme.colors.surfaceVariant,
-    borderWidth: .3,
-  },
+ 
   selectedStatus: {
     borderWidth: 1.5,
     backgroundColor: theme.colors.background,
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
+ 
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
