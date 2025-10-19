@@ -304,7 +304,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
                   }
                 ]}
               >
-                {t(`task.status.${task.status.toLowerCase()}`)}
+                {t(`tasks.status_options.${task.status.toLowerCase()}`)}
               </Chip>
             </TouchableOpacity>
           ))
@@ -693,13 +693,16 @@ const createStyles = (theme: any) => StyleSheet.create({
     opacity: 0.7,
   },
   statusChip: {
+    height: 26,
+    lineHeight: 8,
     fontSize: 11,
     fontWeight: '500',
     color: theme.colors.primary,
   },
   statusChipContainer: {
-    height: 24,
+
     borderWidth: 1,
+
   },
   emptyState: {
     alignItems: 'center',

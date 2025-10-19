@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Modal } from 'react-native';
 import { Text, Button, TextInput, Card, Chip, IconButton, useTheme, } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
@@ -30,7 +30,8 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
     description: '',
     priority: TaskPriority.MEDIUM,
     status: TaskStatus.TODO,
-    dueDate: undefined,
+    dueDate: route?.params?.dueDate,
+    dueTime: route?.params?.dueTime,
     projectId: route?.params?.projectId,
     goalId: route?.params?.goalId,
     assigneeId: undefined,
@@ -44,6 +45,20 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTime, setSelectedTime] = useState<Date>(new Date());
   const [hasTime, setHasTime] = useState(false);
+
+  // Initialize form data from route parameters
+  useEffect(() => {
+    if (route?.params?.dueDate) {
+      setSelectedDate(new Date(route.params.dueDate));
+    }
+    if (route?.params?.dueTime) {
+      setHasTime(true);
+      const [hours, minutes] = route.params.dueTime.split(':');
+      const timeDate = new Date();
+      timeDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+      setSelectedTime(timeDate);
+    }
+  }, [route?.params]);
 
   const handleSave = async () => {
     // Clear previous errors
@@ -138,14 +153,11 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
 
     if (selectedDate) {
       setSelectedDate(selectedDate);
-      const combinedDateTime = new Date(selectedDate);
-      if (hasTime) {
-        combinedDateTime.setHours(selectedTime.getHours());
-        combinedDateTime.setMinutes(selectedTime.getMinutes());
-      }
+      // Set only the date part (without time)
+      const dateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
       setFormData(prev => ({
         ...prev,
-        dueDate: combinedDateTime.toISOString(),
+        dueDate: dateOnly.toISOString(),
       }));
       // Clear date error if it exists
       if (errors.dueDate) {
@@ -165,12 +177,11 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
 
     if (selectedTime) {
       setSelectedTime(selectedTime);
-      const combinedDateTime = new Date(selectedDate);
-      combinedDateTime.setHours(selectedTime.getHours());
-      combinedDateTime.setMinutes(selectedTime.getMinutes());
+      // Set only the time part in HH:mm format
+      const timeString = `${selectedTime.getHours().toString().padStart(2, '0')}:${selectedTime.getMinutes().toString().padStart(2, '0')}`;
       setFormData(prev => ({
         ...prev,
-        dueDate: combinedDateTime.toISOString(),
+        dueTime: timeString,
       }));
       // Clear date error if it exists
       if (errors.dueDate) {
@@ -188,33 +199,27 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
     if (!hasTime) {
       // When enabling time, set to current time
       setSelectedTime(new Date());
-      const combinedDateTime = new Date(selectedDate);
-      combinedDateTime.setHours(new Date().getHours());
-      combinedDateTime.setMinutes(new Date().getMinutes());
+      const now = new Date();
+      const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
       setFormData(prev => ({
         ...prev,
-        dueDate: combinedDateTime.toISOString(),
+        dueTime: timeString,
       }));
     } else {
       // When disabling time, remove time component
-      const dateOnly = new Date(selectedDate);
-      dateOnly.setHours(0, 0, 0, 0);
       setFormData(prev => ({
         ...prev,
-        dueDate: dateOnly.toISOString(),
+        dueTime: undefined,
       }));
     }
   };
 
   const handleDateConfirm = () => {
-    const combinedDateTime = new Date(selectedDate);
-    if (hasTime) {
-      combinedDateTime.setHours(selectedTime.getHours());
-      combinedDateTime.setMinutes(selectedTime.getMinutes());
-    }
+    // Set only the date part (without time)
+    const dateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
     setFormData(prev => ({
       ...prev,
-      dueDate: combinedDateTime.toISOString(),
+      dueDate: dateOnly.toISOString(),
     }));
     setShowDatePicker(false);
   };
@@ -223,7 +228,9 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
     setFormData({
       ...formData,
       dueDate: undefined,
+      dueTime: undefined,
     });
+    setHasTime(false);
   };
 
 

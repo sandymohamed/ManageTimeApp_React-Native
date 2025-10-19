@@ -19,6 +19,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   dueDate?: string;
+  dueTime?: string; // Time in HH:mm format
   completedAt?: string;
   projectId?: string;
   goalId?: string;
@@ -61,6 +62,7 @@ export interface CreateTaskData {
   priority?: TaskPriority;
   status?: TaskStatus;
   dueDate?: string;
+  dueTime?: string; // Time in HH:mm format
   projectId?: string;
   goalId?: string;
   milestoneId?: string;
@@ -76,6 +78,7 @@ export interface UpdateTaskData {
   priority?: TaskPriority;
   status?: TaskStatus;
   dueDate?: string;
+  dueTime?: string; // Time in HH:mm format
   projectId?: string;
   goalId?: string;
   assigneeId?: string;

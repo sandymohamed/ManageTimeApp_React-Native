@@ -326,21 +326,50 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
 
   const renderDayView = () => {
     const dayTasks = getTasksForDate(selectedDate);
-    const sortedTasks = dayTasks.sort((a, b) => {
-      // Sort by priority first, then by due time
-      const priorityOrder = { [TaskPriority.URGENT]: 4, [TaskPriority.HIGH]: 3, [TaskPriority.MEDIUM]: 2, [TaskPriority.LOW]: 1 };
-      const aPriority = priorityOrder[a.priority] || 0;
-      const bPriority = priorityOrder[b.priority] || 0;
+    
+    // Create time slots for the day (6 AM to 11 PM)
+    interface TimeSlot {
+      hour: number;
+      time: string;
+      displayTime: string;
+      tasks: Task[];
+    }
+    
+    const timeSlots: TimeSlot[] = [];
+    for (let hour = 6; hour <= 23; hour++) {
+      timeSlots.push({
+        hour,
+        time: `${hour.toString().padStart(2, '0')}:00`,
+        displayTime: hour === 0 ? '12:00 AM' : hour < 12 ? `${hour}:00 AM` : hour === 12 ? '12:00 PM' : `${hour - 12}:00 PM`,
+        tasks: []
+      });
+    }
 
-      if (aPriority !== bPriority) {
-        return bPriority - aPriority;
+    // Group tasks by time slots
+    dayTasks.forEach(task => {
+      let taskHour = 6; // Default to 6 AM if no time specified
+      
+      if (task.dueTime) {
+        // Parse dueTime (HH:mm format)
+        const [hours] = task.dueTime.split(':');
+        taskHour = parseInt(hours, 10);
+      } else if (task.dueDate) {
+        // Fallback to dueDate time
+        const taskDate = new Date(task.dueDate);
+        taskHour = taskDate.getHours();
       }
 
-      if (a.dueDate && b.dueDate) {
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-      }
+      // Find the appropriate time slot
+      const slotIndex = Math.max(0, Math.min(timeSlots.length - 1, taskHour - 6));
+      timeSlots[slotIndex].tasks.push(task);
+    });
 
-      return 0;
+    // Sort tasks within each time slot by priority
+    timeSlots.forEach(slot => {
+      slot.tasks.sort((a, b) => {
+        const priorityOrder = { [TaskPriority.URGENT]: 4, [TaskPriority.HIGH]: 3, [TaskPriority.MEDIUM]: 2, [TaskPriority.LOW]: 1 };
+        return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
+      });
     });
 
     return (
@@ -349,59 +378,77 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
           {format(selectedDate, 'EEEE, MMMM d, yyyy')}
         </Text>
 
-        {sortedTasks.length === 0 ? (
-          <Card style={[styles.emptyCard, { backgroundColor: theme.colors.surface }]}>
-            <Card.Content style={styles.emptyCardContent}>
-              <Text variant="bodyLarge" style={[styles.emptyText, { color: theme.colors.text }]}>
-                {t('calendar.noTasksForDay')}
-              </Text>
-            </Card.Content>
-          </Card>
-        ) : (
-          sortedTasks.map((task) => (
-            <Card key={task.id} style={[styles.taskCard, { backgroundColor: theme.colors.surface }]}>
-              <Card.Content>
-                <View style={styles.taskCardHeader}>
-                  <View style={styles.taskTitleContainer}>
-                    <Text variant="titleMedium" style={[styles.taskTitle, { color: theme.colors.text }]}>
-                      {task.title}
-                    </Text>
-                    {task.description && (
-                      <Text variant="bodyMedium" style={[styles.taskDescription, { color: theme.colors.text }]}>
-                        {task.description}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-                <View style={styles.taskBadges}>
-                  <Chip
-                    mode="outlined"
-                    textStyle={[styles.priorityChip, { color: getPriorityColor(task.priority) }]}
-                    style={[styles.priorityChipContainer, { borderColor: getPriorityColor(task.priority) }]}
+        <ScrollView style={styles.timeSlotsContainer} showsVerticalScrollIndicator={false}>
+          {timeSlots.map((slot, index) => (
+            <View key={slot.time} style={styles.timeSlot}>
+              <View style={styles.timeSlotHeader}>
+                <Text variant="bodyMedium" style={[styles.timeSlotTime, { color: theme.colors.textSecondary }]}>
+                  {slot.displayTime}
+                </Text>
+                <View style={[styles.timeSlotLine, { backgroundColor: theme.colors.outline }]} />
+              </View>
+              
+              <View style={styles.timeSlotContent}>
+                {slot.tasks.length === 0 ? (
+                  <TouchableOpacity
+                    style={[styles.emptyTimeSlot, { backgroundColor: theme.colors.surfaceVariant }]}
+                    onPress={() => {
+                      // Create a date with the selected date and the slot's hour
+                      const taskDate = new Date(selectedDate);
+                      taskDate.setHours(slot.hour, 0, 0, 0);
+                      
+                      navigation.getParent()?.navigate('TaskCreate', {
+                        dueDate: taskDate.toISOString(),
+                        dueTime: slot.time
+                      });
+                    }}
                   >
-                    {t(`task.priority.${task.priority.toLowerCase()}`)}
-                  </Chip>
-                  <Chip
-                    mode="outlined"
-                    textStyle={[styles.statusChip, { color: getStatusColor(task.status) }]}
-                    style={[styles.statusChipContainer, { borderColor: getStatusColor(task.status) }]}
-                  >
-                    {t(`task.status.${task.status.toLowerCase()}`)}
-                  </Chip>
-                </View>
-
-
-                {task.dueDate && (
-                  <View style={styles.taskTimeContainer}>
-                    <Text variant="bodySmall" style={[styles.taskTime, { color: theme.colors.text }]}>
-                      {format(new Date(task.dueDate), 'h:mm a')}
+                    <IconButton
+                      icon="plus"
+                      size={16}
+                      iconColor={theme.colors.primary}
+                      style={styles.addTaskIcon}
+                    />
+                    <Text variant="bodySmall" style={[styles.emptyTimeSlotText, { color: theme.colors.primary }]}>
+                      Add task
                     </Text>
-                  </View>
+                  </TouchableOpacity>
+                ) : (
+                  slot.tasks.map((task) => (
+                    <TouchableOpacity
+                      key={task.id}
+                      style={[
+                        styles.timeSlotTask,
+                        { 
+                          backgroundColor: getPriorityColor(task.priority) + '20',
+                          borderLeftColor: getPriorityColor(task.priority),
+                        }
+                      ]}
+                      onPress={() => handleTaskPress(task)}
+                    >
+                      <View style={styles.timeSlotTaskContent}>
+                        <Text variant="bodyMedium" style={[styles.timeSlotTaskTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                          {task.title}
+                        </Text>
+                        {task.description && (
+                          <Text variant="bodySmall" style={[styles.timeSlotTaskDescription, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                            {task.description}
+                          </Text>
+                        )}
+                        <View style={styles.timeSlotTaskBadges}>
+                          <View style={[styles.timeSlotTaskPriority, { backgroundColor: getPriorityColor(task.priority) }]} />
+                          <Text variant="bodySmall" style={[styles.timeSlotTaskStatus, { color: getStatusColor(task.status) }]}>
+                            {t(`tasks.status_options.${task.status.toLowerCase()}`)}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))
                 )}
-              </Card.Content>
-            </Card>
-          ))
-        )}
+              </View>
+            </View>
+          ))}
+        </ScrollView>
       </View>
     );
   };
@@ -516,20 +563,20 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                   style={[styles.taskDetailChip, { borderColor: getPriorityColor(selectedTask.priority) }]}
                   textStyle={{ color: getPriorityColor(selectedTask.priority) }}
                 >
-                  {t(`task.priority.${selectedTask.priority.toLowerCase()}`)}
+                  {t(`tasks.priority_options.${selectedTask.priority.toLowerCase()}`)}
                 </Chip>
               </View>
 
               <View style={styles.taskDetailRow}>
                 <Text variant="bodyMedium" style={[styles.taskDetailLabel, { color: theme.colors.textSecondary }]}>
-                  {t('task.status')}
+                  {t('tasks.status')}
                 </Text>
                 <Chip
                   mode="outlined"
                   style={[styles.taskDetailChip, { borderColor: getStatusColor(selectedTask.status) }]}
                   textStyle={{ color: getStatusColor(selectedTask.status) }}
                 >
-                  {t(`task.status.${selectedTask.status.toLowerCase()}`)}
+                  {t(`tasks.status.${selectedTask.status.toLowerCase()}`)}
                 </Chip>
               </View>
 
@@ -1010,5 +1057,93 @@ const createStyles = (theme: any) => StyleSheet.create({
     margin: 16,
     right: 0,
     bottom: 0,
+  },
+  
+  // Time Slot Styles (Google Calendar-like)
+  timeSlotsContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  timeSlot: {
+    minHeight: 60,
+    marginBottom: 8,
+  },
+  timeSlotHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  timeSlotTime: {
+    fontSize: 12,
+    fontWeight: '500',
+    width: 60,
+    textAlign: 'right',
+    marginRight: 12,
+  },
+  timeSlotLine: {
+    flex: 1,
+    height: 1,
+    opacity: 0.3,
+  },
+  timeSlotContent: {
+    marginLeft: 72, // Align with time labels
+    minHeight: 40,
+  },
+  emptyTimeSlot: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    borderStyle: 'dashed',
+  },
+  emptyTimeSlotText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  addTaskIcon: {
+    margin: 0,
+    padding: 0,
+  },
+  timeSlotTask: {
+    marginBottom: 4,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    padding: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  timeSlotTaskContent: {
+    flex: 1,
+  },
+  timeSlotTaskTitle: {
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  timeSlotTaskDescription: {
+    marginBottom: 8,
+    lineHeight: 16,
+  },
+  timeSlotTaskBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timeSlotTaskPriority: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  timeSlotTaskStatus: {
+    fontSize: 11,
+    fontWeight: '500',
   },
 });
