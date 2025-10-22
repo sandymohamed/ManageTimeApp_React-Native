@@ -1175,7 +1175,7 @@ export const GoalsScreen: React.FC<GoalsScreenProps> = ({ navigation }) => {
                   mode="outlined"
                   compact
                   style={[styles.chip, { backgroundColor: theme.colors.surfaceVariant }]}
-                  textStyle={[styles.chipText,{ color: theme.colors.textSecondary }]}
+                  textStyle={[styles.chipText, { color: theme.colors.textSecondary }]}
                 >
                   {goal.category}
                 </Chip>
@@ -1447,7 +1447,7 @@ export const GoalsScreen: React.FC<GoalsScreenProps> = ({ navigation }) => {
           </Text>
         </View>
         <View style={styles.headerActions}>
-         
+
           {/* Search and Filters */}
           <View style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]}>
             <Searchbar
@@ -1623,7 +1623,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   chipText: {
     fontSize: 10,
     fontWeight: '600',
-    lineHeight:10
+    lineHeight: 10
   },
   goalDescription: {
     marginBottom: 16,
@@ -1669,7 +1669,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
-  
+
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',

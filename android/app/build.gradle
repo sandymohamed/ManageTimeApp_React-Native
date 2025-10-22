@@ -120,6 +120,8 @@ dependencies {
     implementation project(':react-native-screens')
     implementation project(':react-native-svg')
 
+    implementation project(':react-native-sound')
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {

@@ -842,7 +842,7 @@ export const GoalEditScreen: React.FC<GoalEditScreenProps> = ({ navigation, rout
           style={styles.sectionIcon}
         />
         <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-          {t('goals.priority')}
+          {t('goals.priorities')}
         </Text>
       </View>
       <SegmentedButtons

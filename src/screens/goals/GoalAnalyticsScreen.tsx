@@ -533,7 +533,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, Dimensions, TouchableOpacity } from 'react-native';
 import {
   Text,
   Card,
@@ -567,8 +567,6 @@ interface GoalAnalyticsScreenProps {
 
 export const GoalAnalyticsScreen: React.FC<GoalAnalyticsScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
-  const { isRTL } = useLanguage();
-  const paperTheme = useTheme();
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
@@ -580,13 +578,13 @@ export const GoalAnalyticsScreen: React.FC<GoalAnalyticsScreenProps> = ({ naviga
   const [timeRange, setTimeRange] = useState('month');
   const [refreshing, setRefreshing] = useState(false);
 
-  const timeRanges = [
-    { value: 'week', label: t('analytics.week'), icon: 'calendar-week' },
-    { value: 'month', label: t('analytics.month'), icon: 'calendar-month' },
-    { value: 'quarter', label: t('analytics.quarter'), icon: 'calendar-blank' },
-    { value: 'year', label: t('analytics.year'), icon: 'calendar-year' },
-    { value: 'all', label: t('analytics.all'), icon: 'calendar' },
-  ];
+  // const timeRanges = [
+  //   { value: 'week', label: t('analytics.week'), icon: 'calendar-week' },
+  //   { value: 'month', label: t('analytics.month'), icon: 'calendar-month' },
+  //   { value: 'quarter', label: t('analytics.quarter'), icon: 'calendar-blank' },
+  //   { value: 'year', label: t('analytics.year'), icon: 'calendar-year' },
+  //   { value: 'all', label: t('analytics.all'), icon: 'calendar' },
+  // ];
 
   const screenWidth = Dimensions.get('window').width;
 
@@ -602,9 +600,12 @@ export const GoalAnalyticsScreen: React.FC<GoalAnalyticsScreenProps> = ({ naviga
 
   const loadAnalytics = async () => {
     try {
+      console.log('Loading analytics for timeRange:', timeRange);
       const data = await getGoalAnalytics(route.params.goalId, timeRange);
+      console.log('Analytics data:', data);
       setAnalytics(data);
     } catch (error: any) {
+      console.error('Analytics error:', error);
       showError(error.message || t('goals.analyticsError'));
     }
   };
@@ -668,7 +669,7 @@ export const GoalAnalyticsScreen: React.FC<GoalAnalyticsScreenProps> = ({ naviga
               <View style={styles.cardTitleContainer}>
                 <IconButton
                   icon="chart-line"
-                  size={20}
+                  size={12}
                   iconColor={progressColor}
                   style={styles.cardIcon}
                 />
@@ -746,11 +747,11 @@ export const GoalAnalyticsScreen: React.FC<GoalAnalyticsScreenProps> = ({ naviga
               <Text variant="headlineMedium" style={[styles.streakText, { color: '#FF9800' }]}>
                 {analytics.streak}
               </Text>
-            </View>
             <View style={styles.streakBadge}>
               <Badge size={24} style={[styles.streakBadge, { backgroundColor: analytics.streak > 0 ? '#FF9800' : theme.colors.textDisabled }]}>
                 {analytics.streak > 0 ? '🔥' : '💤'}
               </Badge>
+            </View>
             </View>
             <Text variant="bodySmall" style={[styles.streakSubtext, { color: theme.colors.textSecondary }]}>
               {t('goals.daysInARow')}
@@ -866,89 +867,120 @@ export const GoalAnalyticsScreen: React.FC<GoalAnalyticsScreenProps> = ({ naviga
     );
   };
 
-  const renderProgressChart = () => {
-    // Enhanced mock data with more realistic progression
-    const progressData = analytics?.progressHistory || [
-      { week: 'Week 1', progress: 0 },
-      { week: 'Week 2', progress: 15 },
-      { week: 'Week 3', progress: 35 },
-      { week: 'Week 4', progress: analytics?.progress || 60 },
-    ];
+  // const renderProgressChart = () => {
+  //   // Use real progress history data from analytics
+  //   const progressData = analytics?.progressHistory || [];
+  //   console.log('Progress chart data:', progressData);
+    
+  //   // If no data, show a message
+  //   if (progressData.length === 0) {
+  //     return (
+  //       <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+  //         <Card.Content>
+  //           <View style={styles.chartHeader}>
+  //             <View style={styles.chartTitleContainer}>
+  //               <IconButton
+  //                 icon="chart-line"
+  //                 size={24}
+  //                 iconColor={theme.colors.primary}
+  //                 style={styles.chartIcon}
+  //               />
+  //               <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.text }]}>
+  //                 {t('goals.progressOverTime')} 
+  //               </Text>
+  //             </View>
+  //             <Chip
+  //               mode="outlined"
+  //               style={[styles.chartChip, { backgroundColor: theme.colors.surfaceVariant }]}
+  //               textStyle={{ color: theme.colors.textSecondary }}
+  //             >
+  //               {timeRange}
+  //             </Chip>
+  //           </View>
+  //           <View style={[styles.noDataContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
+  //             <Text variant="bodyMedium" style={[styles.noDataText, { color: theme.colors.textSecondary }]}>
+  //               {t('goals.noProgressData')}
+  //             </Text>
+  //           </View>
+  //         </Card.Content>
+  //       </Card>
+  //     );
+  //   }
 
-    const data = {
-      labels: progressData.map((item: { week: string, progress: number }) => item.week),
-      datasets: [
-        {
-          data: progressData.map((item: { week: string, progress: number }) => item.progress),
-          color: (opacity = 1) => theme.colors.primary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-          strokeWidth: 3,
-        },
-      ],
-    };
+  //   const data = {
+  //     labels: progressData.map((item: { week: string, progress: number }) => item.week),
+  //     datasets: [
+  //       {
+  //         data: progressData.map((item: { week: string, progress: number }) => item.progress),
+  //         color: (opacity = 1) => theme.colors.primary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
+  //         strokeWidth: 3,
+  //       },
+  //     ],
+  //   };
 
-    const chartConfig = {
-      backgroundColor: theme.colors.surface,
-      backgroundGradientFrom: theme.colors.surface,
-      backgroundGradientTo: theme.colors.surface,
-      decimalPlaces: 0,
-      color: (opacity = 1) => theme.colors.primary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-      labelColor: (opacity = 1) => theme.colors.text + Math.round(opacity * 255).toString(16).padStart(2, '0'),
-      style: {
-        borderRadius: 16,
-      },
-      propsForDots: {
-        r: '6',
-        strokeWidth: '2',
-        stroke: theme.colors.primary,
-        fill: theme.colors.surface,
-      },
-      propsForBackgroundLines: {
-        stroke: theme.colors.surfaceVariant,
-        strokeWidth: 1,
-      },
-    };
+  //   const chartConfig = {
+  //     backgroundColor: theme.colors.surface,
+  //     backgroundGradientFrom: theme.colors.surface,
+  //     backgroundGradientTo: theme.colors.surface,
+  //     decimalPlaces: 0,
+  //     color: (opacity = 1) => theme.colors.primary + Math.round(opacity * 255).toString(16).padStart(2, '0'),
+  //     labelColor: (opacity = 1) => theme.colors.text + Math.round(opacity * 255).toString(16).padStart(2, '0'),
+  //     style: {
+  //       borderRadius: 16,
+  //     },
+  //     propsForDots: {
+  //       r: '6',
+  //       strokeWidth: '2',
+  //       stroke: theme.colors.primary,
+  //       fill: theme.colors.surface,
+  //     },
+  //     propsForBackgroundLines: {
+  //       stroke: theme.colors.surfaceVariant,
+  //       strokeWidth: 1,
+  //     },
+  //   };
 
-    return (
-      <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
-        <Card.Content>
-          <View style={styles.chartHeader}>
-            <View style={styles.chartTitleContainer}>
-              <IconButton
-                icon="chart-line"
-                size={24}
-                iconColor={theme.colors.primary}
-                style={styles.chartIcon}
-              />
-              <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.text }]}>
-                {t('goals.progressOverTime')}
-              </Text>
-            </View>
-            <Chip
-              mode="outlined"
-              style={[styles.chartChip, { backgroundColor: theme.colors.surfaceVariant }]}
-              textStyle={{ color: theme.colors.textSecondary }}
-            >
-              {timeRange}
-            </Chip>
-          </View>
-          <View style={styles.chartContainer}>
-            <LineChart
-              data={data}
-              width={screenWidth - 80}
-              height={220}
-              chartConfig={chartConfig}
-              bezier
-              style={styles.lineChart}
-              withVerticalLines={false}
-              withHorizontalLines={true}
-              withInnerLines={true}
-              withOuterLines={true}
-            />
-          </View>
-        </Card.Content>
-      </Card>
-    );
-  };
+  //   return (
+  //     <Card style={[styles.chartCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
+  //       <Card.Content>
+  //         <View style={styles.chartHeader}>
+  //           <View style={styles.chartTitleContainer}>
+  //             <IconButton
+  //               icon="chart-line"
+  //               size={12}
+  //               iconColor={theme.colors.primary}
+  //               style={styles.chartIcon}
+  //             />
+  //             <Text variant="titleLarge" style={[styles.chartTitle, { color: theme.colors.text }]}>
+  //               {t('goals.progressOverTime')} 
+  //             </Text>
+  //           </View>
+  //           <Chip
+  //             mode="outlined"
+  //             style={[styles.chartChip, { backgroundColor: theme.colors.surfaceVariant }]}
+  //             textStyle={{ color: theme.colors.textSecondary }}
+  //           >
+  //             {timeRange}
+  //           </Chip>
+  //         </View>
+  //         <View style={styles.chartContainer}>
+  //           <LineChart
+  //             data={data}
+  //             width={screenWidth - 15}
+  //             height={220}
+  //             chartConfig={chartConfig}
+  //             bezier
+  //             style={styles.lineChart}
+  //             withVerticalLines={false}
+  //             withHorizontalLines={true}
+  //             withInnerLines={true}
+  //             withOuterLines={true}
+  //           />
+  //         </View>
+  //       </Card.Content>
+  //     </Card>
+  //   );
+  // };
 
   const renderInsights = () => {
     if (!analytics?.insights || analytics.insights.length === 0) return null;
@@ -1048,23 +1080,45 @@ export const GoalAnalyticsScreen: React.FC<GoalAnalyticsScreenProps> = ({ naviga
       </View>
 
       {/* Time Range Selector */}
-      <View style={[styles.timeRangeContainer, { backgroundColor: theme.colors.surface }]}>
-        <SegmentedButtons
-          value={timeRange}
-          onValueChange={setTimeRange}
-          buttons={timeRanges.map(range => ({
-            ...range,
-            style: {
-              backgroundColor: timeRange === range.value ? theme.colors.primary : theme.colors.surfaceVariant,
-              borderColor: theme.colors.outline,
-            },
-            labelStyle: {
-              color: timeRange === range.value ? theme.colors.onPrimary : theme.colors.text,
-            },
-          }))}
-          style={styles.segmentedButtons}
-        />
-      </View>
+      {/* <View style={[styles.timeRangeContainer, { backgroundColor: theme.colors.surface }]}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            gap: 8,
+          }}
+        >
+          {timeRanges.map((range) => (
+            <TouchableOpacity
+              key={range.value}
+              onPress={() => {
+                console.log('Time range button pressed:', range.value);
+                setTimeRange(range.value);
+              }}
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: 20,
+                borderWidth: 1,
+                marginRight: 8,
+                backgroundColor: timeRange === range.value ? theme.colors.primary : theme.colors.surfaceVariant,
+                borderColor: theme.colors.outline,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: '500',
+                  color: timeRange === range.value ? theme.colors.onPrimary : theme.colors.text,
+                }}
+              >
+                {range.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View> */}
 
       {/* Content */}
       <ScrollView
@@ -1080,10 +1134,10 @@ export const GoalAnalyticsScreen: React.FC<GoalAnalyticsScreenProps> = ({ naviga
           />
         }
       >
-        {renderOverviewCards()}
+      {renderOverviewCards()}
         {renderTimeStatus()}
         {renderMilestoneChart()}
-        {renderProgressChart()}
+        {/* {renderProgressChart()} */}
         {renderInsights()}
       </ScrollView>
 
@@ -1158,13 +1212,9 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 14,
   },
   timeRangeContainer: {
-    paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.surfaceVariant,
-  },
-  segmentedButtons: {
-    marginBottom: 0,
   },
   scrollView: {
     flex: 1,
@@ -1175,7 +1225,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   overviewContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap:4,
     marginBottom: 20,
   },
   overviewCard: {
@@ -1185,7 +1235,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     overflow: 'hidden',
   },
   cardContent: {
-    paddingVertical: 16,
+    paddingVertical: 2,
   },
   cardHeader: {
     marginBottom: 12,
@@ -1193,11 +1243,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   cardTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    // marginBottom: 8,
   },
   cardIcon: {
     margin: 0,
-    marginRight: 8,
+    // marginRight: 8,
   },
   cardTitle: {
     fontWeight: '600',
@@ -1205,7 +1255,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   progressText: {
     fontWeight: 'bold',
-    fontSize: 28,
+    fontSize: 24,
   },
   progressBar: {
     height: 8,
@@ -1342,6 +1392,16 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   insightDivider: {
     marginLeft: 48,
+  },
+  noDataContainer: {
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120,
+  },
+  noDataText: {
+    textAlign: 'center',
   },
   fab: {
     position: 'absolute',

@@ -9,6 +9,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday, isThisWeek, isThisMonth, addDays, subDays } from 'date-fns';
+import { useDayTranslations } from '@/utils/dateTranslations';
 
 interface DashboardScreenProps {
   navigation: any;
@@ -23,6 +24,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
+  const { getDayName } = useDayTranslations();
 
   const { tasks, fetchTasks, isLoading } = useTaskStore();
   const { projects, fetchProjects } = useProjectStore();
@@ -354,7 +356,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
                     styles.dayName,
                     isCurrentDay && styles.currentDayText
                   ]}>
-                    {format(day, 'EEE')}
+                    {getDayName(day, 'short')}
                   </Text>
                   <Text variant="titleMedium" style={[
                     styles.dayNumber,
@@ -414,7 +416,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
                 styles.chartSelectorText,
                 activeChart === 'progress' && styles.chartSelectorTextActive
               ]}>
-                Progress
+                {t('dashboard.chartProgress')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -428,7 +430,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
                 styles.chartSelectorText,
                 activeChart === 'priority' && styles.chartSelectorTextActive
               ]}>
-                Priority
+                {t('dashboard.chartPriority')}
               </Text>
             </TouchableOpacity>
           </View>

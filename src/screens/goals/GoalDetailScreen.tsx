@@ -888,7 +888,7 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
             onPress={handleCreateMilestone}
             style={[styles.milestoneModalButton, { backgroundColor: theme.colors.primary }]}
           >
-            {t('goals.create')}
+            {t('goals.createMilestone')}
           </Button>
         </View>
       </Modal>
@@ -1197,16 +1197,16 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
               )}
             </View>
 
-            <Button
+
+
+            <IconButton
               mode="contained"
-              compact
+
               onPress={() => setShowMilestoneCreateModal(true)}
               icon="plus"
               style={styles.addMilestoneButton}
-              contentStyle={styles.addMilestoneContent}
-            >
-              {t('goals.addMilestone')}
-            </Button>
+            />
+
           </View>
 
           {currentGoal.milestones.length === 0 ? (
@@ -1551,6 +1551,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   priorityChipText: {
     fontSize: 12,
     fontWeight: '600',
+    lineHeight: 12,
   },
   statusChip: {
     height: 28,
@@ -1558,6 +1559,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   statusChipText: {
     fontSize: 12,
     fontWeight: '600',
+    lineHeight: 12,
   },
   goalDescription: {
     marginBottom: 20,
@@ -1603,10 +1605,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     gap: 8,
   },
   categoryChip: {
-    height: 32,
+    height: 34,
+    padding: 0,
+    lineHeight: 14,
   },
   timeChip: {
-    height: 32,
+    height: 34,
   },
   timeChipText: {
     fontSize: 12,
@@ -1635,19 +1639,17 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontWeight: '600',
   },
   milestoneBadge: {
-    padding:0,
+    padding: 0,
     marginLeft: 8,
     fontSize: 10,
     color: theme.colors.onPrimary,
   },
   addMilestoneButton: {
     borderRadius: 12,
+    padding: 0,
+    backgroundColor: theme.colors.primary,
+    color: theme.colors.onPrimary,
   },
-  addMilestoneContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-
   emptyMilestones: {
     alignItems: 'center',
     paddingVertical: 40,
@@ -1694,11 +1696,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     lineHeight: 22,
   },
   milestoneStatusChip: {
-    height: 24,
+    height: 28,
   },
   milestoneStatusText: {
     fontSize: 10,
     fontWeight: '600',
+    lineHeight: 14,
   },
   milestoneDescription: {
     marginBottom: 8,

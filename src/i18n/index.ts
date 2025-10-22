@@ -38,7 +38,7 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: getDeviceLanguage(),
+    lng: 'en', // Default to English, will be overridden by LanguageContext
     fallbackLng: 'en',
     debug: __DEV__,
     

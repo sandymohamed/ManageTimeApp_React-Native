@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { goalService } from '@/services/goalService';
 import { Goal, CreateGoalData, UpdateGoalData, GoalStatus, GoalPriority, Milestone, CreateMilestoneData, UpdateMilestoneData, MilestoneStatus } from '@/types/goal';
 import { logger } from '@/utils/logger';
+import { format } from 'date-fns';
 
 interface GoalState {
   goals: Goal[];
@@ -56,6 +57,7 @@ interface GoalActions {
 
   // Analytics
   getGoalAnalytics: (goalId: string, timeRange?: string) => Promise<any>;
+  generateProgressHistory: (goal: any, timeRange: string) => any[];
 
   // Filtering and searching
   setSearchQuery: (query: string) => void;
@@ -385,6 +387,7 @@ export const useGoalStore = create<GoalStore>()(
 
       completeMilestone: async (goalId: string, milestoneId: string) => {
         try {
+         console.log('Complete milestone:', goalId, milestoneId);
           const milestone = await goalService.completeMilestone(goalId, milestoneId);
 
           set((state) => ({
@@ -640,30 +643,185 @@ export const useGoalStore = create<GoalStore>()(
         }
       },
 
+      // Helper function to generate progress history
+      generateProgressHistory: (goal: any, timeRange: string) => {
+        const now = new Date();
+        const milestones = goal.milestones || [];
+        
+        // Determine the time period and intervals
+        let startDate = new Date();
+        let intervalDays = 1;
+        let labelFormat = 'MMM dd';
+        
+        switch (timeRange) {
+          case 'week':
+            startDate.setDate(now.getDate() - 7);
+            intervalDays = 1;
+            labelFormat = 'EEE';
+            break;
+          case 'month':
+            startDate.setMonth(now.getMonth() - 1);
+            intervalDays = 2;
+            labelFormat = 'MMM dd';
+            break;
+          case 'quarter':
+            startDate.setMonth(now.getMonth() - 3);
+            intervalDays = 7;
+            labelFormat = 'MMM dd';
+            break;
+          case 'year':
+            startDate.setFullYear(now.getFullYear() - 1);
+            intervalDays = 30;
+            labelFormat = 'MMM';
+            break;
+          default: // 'all'
+            if (milestones.length > 0) {
+              const earliestMilestone = milestones.reduce((earliest: any, current: any) => 
+                new Date(current.createdAt) < new Date(earliest.createdAt) ? current : earliest
+              );
+              startDate = new Date(earliestMilestone.createdAt);
+            } else {
+              startDate.setMonth(now.getMonth() - 1);
+            }
+            intervalDays = 7;
+            labelFormat = 'MMM dd';
+        }
+        
+        // Generate time points
+        const timePoints = [];
+        const currentDate = new Date(startDate);
+        
+        while (currentDate <= now) {
+          timePoints.push(new Date(currentDate));
+          currentDate.setDate(currentDate.getDate() + intervalDays);
+        }
+        
+        // Calculate progress at each time point
+        const progressHistory = [];
+        
+        for (let i = 0; i < timePoints.length; i++) {
+          const timePoint = timePoints[i];
+          const label = format(timePoint, labelFormat);
+          
+          // Count milestones created before this time point
+          const totalMilestonesAtTime = milestones.filter((milestone: any) => 
+            new Date(milestone.createdAt) <= timePoint
+          ).length;
+          
+          // Count milestones completed before this time point
+          const completedMilestonesAtTime = milestones.filter((milestone: any) => 
+            milestone.status === MilestoneStatus.DONE && 
+            milestone.completedAt && 
+            new Date(milestone.completedAt) <= timePoint
+          ).length;
+          
+          // Calculate progress percentage
+          let progressAtTime = 0;
+          if (totalMilestonesAtTime > 0) {
+            progressAtTime = Math.round((completedMilestonesAtTime / totalMilestonesAtTime) * 100);
+          } else if (milestones.length > 0) {
+            // If no milestones created yet at this time point, show 0
+            progressAtTime = 0;
+          } else {
+            // If no milestones at all, create a gradual progression for demo
+            const totalDays = Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            const daysPassed = Math.ceil((timePoint.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            progressAtTime = Math.min(Math.round((daysPassed / totalDays) * 100), 100);
+          }
+          
+          // Add some realistic variation to prevent flat lines
+          if (progressAtTime > 0 && i > 0) {
+            const previousProgress = progressHistory[i - 1]?.progress || 0;
+            // Ensure progress doesn't go backwards unless there's a real reason
+            if (progressAtTime < previousProgress) {
+              progressAtTime = previousProgress;
+            }
+          }
+          
+          progressHistory.push({
+            week: label,
+            progress: progressAtTime,
+            date: timePoint,
+            totalMilestones: totalMilestonesAtTime,
+            completedMilestones: completedMilestonesAtTime
+          });
+        }
+        
+        console.log('Generated progress history:', progressHistory);
+        return progressHistory;
+      },
+
       // Analytics
       getGoalAnalytics: async (goalId: string, timeRange?: string) => {
         try {
           set({ isLoading: true, error: null });
 
-          // This would integrate with the analytics service
-          // For now, we'll return mock analytics data
           const goal = get().goals.find(g => g.id === goalId);
           if (!goal) return null;
+
+          // Filter milestones based on time range
+          const now = new Date();
+          let filteredMilestones = goal.milestones;
+
+          if (timeRange && timeRange !== 'all') {
+            const startDate = new Date();
+            switch (timeRange) {
+              case 'week':
+                startDate.setDate(now.getDate() - 7);
+                break;
+              case 'month':
+                startDate.setMonth(now.getMonth() - 1);
+                break;
+              case 'quarter':
+                startDate.setMonth(now.getMonth() - 3);
+                break;
+              case 'year':
+                startDate.setFullYear(now.getFullYear() - 1);
+                break;
+            }
+            
+            filteredMilestones = goal.milestones.filter(milestone => {
+              const milestoneDate = new Date(milestone.createdAt);
+              return milestoneDate >= startDate;
+            });
+          }
+
+          const completedMilestones = filteredMilestones.filter(m => m.status === MilestoneStatus.DONE);
+          const progress = filteredMilestones.length > 0 
+            ? Math.round((completedMilestones.length / filteredMilestones.length) * 100)
+            : 0;
+
+          // Calculate average completion time for completed milestones
+          const completedWithDates = completedMilestones.filter(m => m.completedAt);
+          const averageCompletionTime = completedWithDates.length > 0
+            ? completedWithDates.reduce((sum, milestone) => {
+                const created = new Date(milestone.createdAt);
+                const completed = new Date(milestone.completedAt!);
+                return sum + Math.ceil((completed.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+              }, 0) / completedWithDates.length
+            : 0;
+
+          // Generate progress history based on time range
+          const progressHistory = get().generateProgressHistory(goal, timeRange || 'all');
 
           const analytics = {
             goalId,
             timeRange: timeRange || 'all',
-            totalMilestones: goal.milestones.length,
-            completedMilestones: goal.milestones.filter(m => m.status === MilestoneStatus.DONE).length,
-            progress: goal.progress,
-            averageMilestoneCompletionTime: 7, // days
-            streak: 5, // consecutive days of activity
+            totalMilestones: filteredMilestones.length,
+            completedMilestones: completedMilestones.length,
+            progress,
+            progressHistory,
+            averageMilestoneCompletionTime: Math.round(averageCompletionTime),
+            streak: 5, // This could be calculated based on actual activity
             estimatedCompletionDate: goal.targetDate,
             insights: [
-              'You\'re making steady progress towards your goal',
-              'Consider breaking down larger milestones into smaller tasks',
-              'Your consistency is paying off - keep it up!'
-            ]
+              progress > 80 ? 'You\'re almost there! Keep up the great work!' :
+              progress > 50 ? 'You\'re making excellent progress towards your goal' :
+              progress > 25 ? 'You\'re off to a good start - keep the momentum going!' :
+              'Every journey begins with a single step - you\'ve got this!',
+              filteredMilestones.length > 0 && progress < 50 ? 'Consider breaking down larger milestones into smaller tasks' : null,
+              completedMilestones.length > 0 ? 'Your consistency is paying off - keep it up!' : null
+            ].filter(Boolean)
           };
 
           set({ isLoading: false });

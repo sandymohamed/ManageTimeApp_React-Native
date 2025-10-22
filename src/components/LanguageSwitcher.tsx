@@ -13,7 +13,7 @@ export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
   mode = 'button', 
   showLabel = true 
 }) => {
-  const { currentLanguage, changeLanguage } = useLanguage();
+  const { currentLanguage, changeLanguage, isLoading } = useLanguage();
   const { t } = useTranslation();
   const [visible, setVisible] = React.useState(false);
 
@@ -28,6 +28,22 @@ export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
     await changeLanguage(languageCode);
     setVisible(false);
   };
+
+  // Show loading state while language is being loaded
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        {showLabel && (
+          <Text variant="bodyMedium" style={styles.label}>
+            {t('settings.language')}:
+          </Text>
+        )}
+        <Text variant="bodySmall" style={styles.loadingText}>
+          {t('common.loading')}...
+        </Text>
+      </View>
+    );
+  }
 
   if (mode === 'menu') {
     return (
@@ -106,5 +122,9 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     // Menu button styling
+  },
+  loadingText: {
+    opacity: 0.7,
+    fontStyle: 'italic',
   },
 });

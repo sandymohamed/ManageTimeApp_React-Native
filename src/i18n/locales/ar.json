@@ -85,7 +85,7 @@
     "deleteTask": "حذف المهمة",
     "taskTitle": "عنوان المهمة",
     "description": "الوصف",
-    "dueDate": "تاريخ الاستحقاق",
+    "dueDate": "تاريخ الاتمام",
     "priority": "الأولوية",
     "status": "الحالة",
     "project": "المشروع",
@@ -111,7 +111,7 @@
     "delete": "حذف",
     "enterTitle": "أدخل عنوان المهمة",
     "enterDescription": "أدخل وصف المهمة",
-    "selectDate": "اختر تاريخ الاستحقاق",
+    "selectDate": "اختر تاريخ الاتمام",
     "todo": "مطلوب",
     "inProgress": "قيد التنفيذ",
     "completed": "مكتمل",
@@ -134,14 +134,13 @@
     "dragToReorder": "اضغط مطولاً واسحب لإعادة ترتيب المهام",
     "sort": {
       "createdAt": "تاريخ الإنشاء",
-      "dueDate": "تاريخ الاستحقاق",
+      "dueDate": "تاريخ الاتمام",
       "priority": "الأولوية",
       "title": "العنوان",
       "ascending": "التصاعدي",
       "descending": "التنازلي",
       "custom": "تخصيص"
     }
-   
   },
   "projects": {
     "title": "المشاريع",
@@ -170,7 +169,6 @@
     "color": "اللون",
     "selectStartDate": "اختر تاريخ البداية",
     "selectEndDate": "اختر تاريخ النهاية",
-
     "sortByName": "ترتيب حسب الاسم",
     "sortByCreated": "ترتيب حسب تاريخ الإنشاء",
     "sortByUpdated": "ترتيب حسب تاريخ التحديث",
@@ -283,6 +281,7 @@
     "cancelledSuccessfully": "تم إلغاء الهدف '{{title}}' بنجاح",
     "deletedSuccessfully": "تم حذف الهدف '{{title}}' بنجاح",
     "actionFailed": "فشل في تنفيذ الإجراء",
+    "priorities": "الأولوية",
     "priority": {
       "urgent": "عاجل",
       "high": "مهم",
@@ -318,6 +317,7 @@
     "milestoneActionFailed": "فشل في تنفيذ إجراء المعلم",
     "goalNotFound": "الهدف غير موجود",
     "updateGoal": "تحديث الهدف",
+    "update": "تحديث",
     "goalUpdated": "تم تحديث الهدف بنجاح",
     "updateError": "فشل في تحديث الهدف",
     "deleteConfirmation": "هل أنت متأكد من حذف هذا الهدف؟ لا يمكن التراجع عن هذا الإجراء.",
@@ -359,6 +359,7 @@
     },
     "analytics": "التحليلات",
     "analyticsError": "فشل في تحميل التحليلات",
+    "noProgressData": "لا توجد بيانات تقدم متاحة لهذه الفترة الزمنية",
     "completed": "مكتمل",
     "remaining": "متبقي",
     "streak": "التسلسل",
@@ -382,17 +383,19 @@
   },
   "dashboard": {
     "progress": "التقدم",
-    "todayTasks": "مهام اليوم",
-    "upcomingTasks": "المهام القادمة",
-    "recentProjects": "المشاريع الأخيرة",
-    "goalsProgress": "تقدم الأهداف",
-    "noTasks": "لا توجد مهام",
-    "noUpcomingTasks": "لا توجد مهام قادمة",
+    "daily": "يومي",
+    "weekly": "أسبوعي",
+    "monthly": "شهري",
+    "tasksCompleted": "مهام مكتملة",
+    "totalTasks": "إجمالي المهام",
+    "urgentTasks": "المهام العاجلة",
     "noUrgentTasks": "لا توجد مهام عاجلة",
     "thisWeekTasks": "مهام هذا الأسبوع",
     "analytics": "التحليلات",
     "last7Days": "آخر 7 أيام",
-    "priorityDistribution": "توزيع الأولوية"
+    "priorityDistribution": "توزيع الأولوية",
+    "chartProgress": "التقدم",
+    "chartPriority": "الأولوية"
   },
   "calendar": {
     "month": "الشهر",
@@ -406,7 +409,7 @@
     "edit": "تعديل",
     "priority": "الأولوية",
     "status": "الحالة",
-    "dueDate": "تاريخ الاستحقاق"
+    "dueDate": "تاريخ الاتمام"
   },
   "routines": {
     "myRoutines": "روتيني",
@@ -522,6 +525,7 @@
   "analytics": {
     "title": "التحليلات",
     "loading": "جاري تحميل التحليلات...",
+    "towardsGoal": "نحو الهدف",
     "noData": "لا توجد بيانات متاحة",
     "noDataDescription": "ابدأ بإنشاء المهام والمشاريع لرؤية تحليلاتك هنا.",
     "tasksCompleted": "المهام المكتملة",
@@ -541,7 +545,12 @@
     "timeTracking": "تتبع الوقت",
     "reports": "التقارير",
     "last7Days": "آخر 7 أيام",
-    "priorityDistribution": "توزيع الأولوية"
+    "priorityDistribution": "توزيع الأولوية",
+    "week": "أسبوع",
+    "month": "شهر",
+    "quarter": "ربع سنة",
+    "year": "عام",
+    "all": "الكل"
   },
   "profile": {
     "title": "الملف الشخصي",
@@ -598,11 +607,27 @@
     "lastYear": "العام الماضي",
     "nextYear": "العام القادم"
   },
+  "days": {
+    "monday": "الاثنين",
+    "tuesday": "الثلاثاء",
+    "wednesday": "الأربعاء",
+    "thursday": "الخميس",
+    "friday": "الجمعة",
+    "saturday": "السبت",
+    "sunday": "الأحد",
+    "mondayFull": "الاثنين",
+    "tuesdayFull": "الثلاثاء",
+    "wednesdayFull": "الأربعاء",
+    "thursdayFull": "الخميس",
+    "fridayFull": "الجمعة",
+    "saturdayFull": "السبت",
+    "sundayFull": "الأحد"
+  },
   "validation": {
     "titleRequired": "العنوان مطلوب",
     "nameRequired": "الاسم مطلوب",
     "descriptionRequired": "الوصف مطلوب",
-    "dueDateRequired": "تاريخ الاستحقاق مطلوب",
+    "dueDateRequired": "تاريخ الاتمام مطلوب",
     "startDateRequired": "تاريخ البداية مطلوب",
     "endDateRequired": "تاريخ النهاية مطلوب",
     "invalidDate": "يرجى إدخال تاريخ صحيح",

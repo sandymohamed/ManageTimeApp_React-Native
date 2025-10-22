@@ -290,7 +290,9 @@
     "addGoal": "Add Goal",
     "createGoal": "Create Goal",
     "editGoal": "Edit Goal",
+    "update":"Update",
     "deleteGoal": "Delete Goal",
+    "createMilestone": "Create Milestone",
     "goalTitle": "Goal Title",
     "goalDescription": "Description",
     "targetDate": "Target Date",
@@ -317,6 +319,7 @@
     "cancelledSuccessfully": "Goal '{{title}}' cancelled successfully",
     "deletedSuccessfully": "Goal '{{title}}' deleted successfully",
     "actionFailed": "Failed to perform action",
+   "priorities":"Priority",
     "priority": {
       "urgent": "Urgent",
       "high": "High",
@@ -390,6 +393,7 @@
       "hobbies": "Hobbies"
     },
     "analyticsError": "Failed to load analytics",
+    "noProgressData": "No progress data available for this time range",
     "remaining": "Remaining",
     "streak": "Streak",
     "daysInARow": "days in a row",
@@ -552,9 +556,26 @@
     "lastYear": "Last Year",
     "nextYear": "Next Year"
   },
+  "days": {
+    "monday": "Mon",
+    "tuesday": "Tue",
+    "wednesday": "Wed",
+    "thursday": "Thu",
+    "friday": "Fri",
+    "saturday": "Sat",
+    "sunday": "Sun",
+    "mondayFull": "Monday",
+    "tuesdayFull": "Tuesday",
+    "wednesdayFull": "Wednesday",
+    "thursdayFull": "Thursday",
+    "fridayFull": "Friday",
+    "saturdayFull": "Saturday",
+    "sundayFull": "Sunday"
+  },
   "analytics": {
     "title": "Analytics",
     "loading": "Loading analytics...",
+    "towardsGoal": "Towards Goal",
     "noData": "No Data Available",
     "noDataDescription": "Start creating tasks and projects to see your analytics here.",
     "tasksCompleted": "Tasks Completed",
@@ -574,7 +595,12 @@
     "timeTracking": "Time Tracking",
     "reports": "Reports",
     "last7Days": "Last 7 Days",
-    "priorityDistribution": "Priority Distribution"
+    "priorityDistribution": "Priority Distribution",
+    "week": "Week",
+    "month": "Month",
+    "quarter": "Quarter",
+    "year": "Year",
+    "all": "All"
   },
   "dashboard": {
     "progress": "Progress",
@@ -588,7 +614,9 @@
     "thisWeekTasks": "This Week's Tasks",
     "analytics": "Analytics",
     "last7Days": "Last 7 Days",
-    "priorityDistribution": "Priority Distribution"
+    "priorityDistribution": "Priority Distribution",
+    "chartProgress": "Progress",
+    "chartPriority": "Priority"
   },
   "calendar": {
     "month": "Month",

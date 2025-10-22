@@ -356,7 +356,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useColorScheme, Appearance } from 'react-native';
 import { MD3LightTheme, MD3DarkTheme, configureFonts } from 'react-native-paper';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getSavedTheme, saveTheme } from '../utils/preferences';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -714,7 +714,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   useEffect(() => {
     const loadThemePreference = async () => {
       try {
-        const savedTheme = await AsyncStorage.getItem('themeMode');
+        const savedTheme = await getSavedTheme();
         if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
           setThemeModeState(savedTheme as ThemeMode);
         }
@@ -746,7 +746,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const setThemeMode = async (mode: ThemeMode) => {
     try {
       setThemeModeState(mode);
-      await AsyncStorage.setItem('themeMode', mode);
+      await saveTheme(mode);
     } catch (error) {
       console.log('Error saving theme preference:', error);
     }

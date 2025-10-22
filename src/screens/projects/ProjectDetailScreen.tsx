@@ -529,7 +529,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
                                   style={[styles.priorityChip, { backgroundColor: getTaskPriorityColor(task.priority) + '20' }]}
                                   textStyle={{ color: getTaskPriorityColor(task.priority) }}
                                 >
-                                  {t(`tasks.priority.${task.priority.toLowerCase()}`)}
+                                  {t(`tasks.priority_options.${task.priority.toLowerCase()}`)}
                                 </Chip>
                               </View>
                             </View>
@@ -708,14 +708,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   projectMeta: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 8,
   },
   metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   metaText: {
-    marginLeft: 4,
+    margin: 0,
   },
   datesCard: {
     margin: 16,

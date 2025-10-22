@@ -563,7 +563,7 @@ export const GoalCreateScreen: React.FC<GoalCreateScreenProps> = ({ navigation }
           style={styles.sectionIcon}
         />
         <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-          {t('goals.priority')}
+          {t('goals.priorities')}
         </Text>
       </View>
       <SegmentedButtons
