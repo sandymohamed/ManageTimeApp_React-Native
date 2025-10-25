@@ -57,6 +57,22 @@ class ProjectInvitationService {
     }
   }
 
+  // Get all invitations sent by the user
+  async getSentInvitations(): Promise<ProjectInvitation[]> {
+    try {
+      const response = await apiClient.get<ApiResponse<ProjectInvitation[]>>('/project-invitations/sent');
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get sent invitations');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error('Get sent invitations error:', error);
+      throw error;
+    }
+  }
+
   // Accept invitation
   async acceptInvitation(invitationId: string): Promise<ProjectInvitation> {
     try {

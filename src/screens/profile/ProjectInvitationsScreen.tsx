@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// @ts-ignore - React version compatibility issue
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,123 +7,151 @@ import {
   FlatList,
   RefreshControl,
   Alert,
+  ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import { Card, Title, Paragraph, Button, Chip, FAB, TextInput } from 'react-native-paper';
+import { Card, Title, Paragraph, Button, Chip, Searchbar, Menu, Divider } from 'react-native-paper';
 import { theme } from '@/utils/theme';
 import { useTranslation } from 'react-i18next';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { projectInvitationService } from '@/services/projectInvitationService';
+import { ProjectInvitation as ApiProjectInvitation, ProjectRole } from '@/types/project';
 
 type ProjectInvitationsScreenNavigationProp = StackNavigationProp<any, 'ProjectInvitations'>;
 
-interface ProjectInvitation {
-  id: string;
-  projectId: string;
-  projectName: string;
-  inviteeEmail: string;
-  inviteeName?: string;
-  role: 'member' | 'admin' | 'viewer';
-  status: 'pending' | 'accepted' | 'declined' | 'expired';
-  createdAt: string;
-  expiresAt: string;
-}
+// Use the API interface directly
+type ProjectInvitation = ApiProjectInvitation & {
+  respondedAt?: string;
+};
 
 const ProjectInvitationsScreen: React.FC = () => {
   const navigation = useNavigation<ProjectInvitationsScreenNavigationProp>();
   const { t } = useTranslation();
 
   const [invitations, setInvitations] = useState<ProjectInvitation[]>([]);
+  const [filteredInvitations, setFilteredInvitations] = useState<ProjectInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showInviteForm, setShowInviteForm] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'member' | 'admin' | 'viewer'>('member');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [sortBy, setSortBy] = useState<'date' | 'status' | 'project'>('date');
+  const [showSortMenu, setShowSortMenu] = useState(false);
 
   useEffect(() => {
     loadInvitations();
   }, []);
 
+  useEffect(() => {
+    filterAndSortInvitations();
+  }, [invitations, searchQuery, statusFilter, sortBy]);
+
   const loadInvitations = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const invitationsData = await invitationService.getProjectInvitations();
-      // setInvitations(invitationsData);
+      const invitationsData = await projectInvitationService.getSentInvitations();
       
-      // Mock data for now
-      setInvitations([
-        {
-          id: '1',
-          projectId: 'project-1',
-          projectName: 'Sample Project 1',
-          inviteeEmail: 'user1@example.com',
-          inviteeName: 'User One',
-          role: 'member',
-          status: 'pending',
-          createdAt: '2024-01-01T00:00:00Z',
-          expiresAt: '2024-12-31T23:59:59Z',
-        },
-        {
-          id: '2',
-          projectId: 'project-2',
-          projectName: 'Sample Project 2',
-          inviteeEmail: 'user2@example.com',
-          inviteeName: 'User Two',
-          role: 'admin',
-          status: 'accepted',
-          createdAt: '2024-01-02T00:00:00Z',
-          expiresAt: '2024-12-31T23:59:59Z',
-        },
-      ]);
+      // Map API data to our local format
+      const mappedInvitations: ProjectInvitation[] = invitationsData.map(invitation => ({
+        ...invitation,
+        respondedAt: invitation.acceptedAt || (invitation.status !== 'PENDING' ? invitation.createdAt : undefined),
+      }));
+      
+      setInvitations(mappedInvitations);
     } catch (error) {
       console.error('Error loading invitations:', error);
-      Alert.alert('Error', 'Failed to load project invitations');
+      Alert.alert('Error', 'Failed to load project invitations. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadInvitations();
-    setRefreshing(false);
-  };
+        setRefreshing(false);
+  }, []);
 
+  const filterAndSortInvitations = useCallback(() => {
+    let filtered = [...invitations];
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(invitation =>
+        invitation.projectName.toLowerCase().includes(query) ||
+        invitation.inviteeEmail.toLowerCase().includes(query)
+      );
+    }
+
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(invitation => invitation.status === statusFilter.toUpperCase());
+    }
+
+    // Sort invitations
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'date':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'status':
+          return a.status.localeCompare(b.status);
+        case 'project':
+          return a.projectName.localeCompare(b.projectName);
+        default:
+          return 0;
+      }
+    });
+
+    setFilteredInvitations(filtered);
+  }, [invitations, searchQuery, statusFilter, sortBy]);
 
   const handleResendInvitation = async (invitationId: string) => {
     try {
-      // TODO: Replace with actual API call
-      // await invitationService.resendInvitation(invitationId);
+      // Find the invitation to get the projectId
+      const invitation = invitations.find((inv: ProjectInvitation) => inv.id === invitationId);
+      if (!invitation) {
+        Alert.alert('Error', 'Invitation not found');
+        return;
+      }
+
+      await projectInvitationService.resendInvitation(invitation.projectId, invitationId);
       
       Alert.alert('Success', 'Invitation resent successfully');
       loadInvitations(); // Refresh the list
     } catch (error) {
       console.error('Error resending invitation:', error);
-      Alert.alert('Error', 'Failed to resend invitation');
+      Alert.alert('Error', 'Failed to resend invitation. Please try again.');
     }
   };
 
   const handleCancelInvitation = async (invitationId: string) => {
     Alert.alert(
       'Cancel Invitation',
-      'Are you sure you want to cancel this invitation?',
+      'Are you sure you want to cancel this invitation? This action cannot be undone.',
       [
-        { text: 'No', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Yes',
+          text: 'Cancel Invitation',
           style: 'destructive',
           onPress: async () => {
             try {
-              // TODO: Replace with actual API call
-              // await invitationService.cancelInvitation(invitationId);
+              // Find the invitation to get the projectId
+              const invitation = invitations.find((inv: ProjectInvitation) => inv.id === invitationId);
+              if (!invitation) {
+                Alert.alert('Error', 'Invitation not found');
+                return;
+              }
+
+              await projectInvitationService.cancelInvitation(invitation.projectId, invitationId);
               
               Alert.alert('Success', 'Invitation cancelled successfully');
               loadInvitations(); // Refresh the list
             } catch (error) {
               console.error('Error cancelling invitation:', error);
-              Alert.alert('Error', 'Failed to cancel invitation');
+              Alert.alert('Error', 'Failed to cancel invitation. Please try again.');
             }
           },
         },
@@ -130,23 +159,64 @@ const ProjectInvitationsScreen: React.FC = () => {
     );
   };
 
-  const getRoleColor = (role: string) => {
+  const handleViewProject = (projectId: string) => {
+    // Navigate to project details
+    navigation.navigate('ProjectDetail', { projectId });
+  };
+
+  const getRoleColor = (role: ProjectRole) => {
     switch (role) {
-      case 'admin': return '#D32F2F';
-      case 'member': return '#1976D2';
-      case 'viewer': return '#388E3C';
+      case ProjectRole.OWNER: return '#D32F2F';
+      case ProjectRole.EDITOR: return '#1976D2';
+      case ProjectRole.VIEWER: return '#388E3C';
       default: return '#666666';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return '#FF9800';
-      case 'accepted': return '#4CAF50';
-      case 'declined': return '#F44336';
-      case 'expired': return '#9E9E9E';
+      case 'PENDING': return '#FF9800';
+      case 'ACCEPTED': return '#4CAF50';
+      case 'DECLINED': return '#F44336';
+      case 'EXPIRED': return '#9E9E9E';
       default: return '#666666';
     }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'PENDING': return 'clock-outline';
+      case 'ACCEPTED': return 'check-circle';
+      case 'DECLINED': return 'close-circle';
+      case 'EXPIRED': return 'clock-alert';
+      default: return 'help-circle';
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getTimeRemaining = (expiresAt: string) => {
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diff = expiry.getTime() - now.getTime();
+    
+    if (diff <= 0) return 'Expired';
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) return `${days}d ${hours}h left`;
+    if (hours > 0) return `${hours}h left`;
+    return 'Expires soon';
   };
 
   const renderInvitation = ({ item }: { item: ProjectInvitation }) => (
@@ -154,22 +224,30 @@ const ProjectInvitationsScreen: React.FC = () => {
         <Card.Content>
           <View style={styles.invitationHeader}>
           <View style={styles.projectInfo}>
-            <Title style={styles.projectName}>{item.projectName}</Title>
+            <TouchableOpacity onPress={() => handleViewProject(item.projectId)}>
+              <Title style={styles.projectName}>{item.projectName}</Title>
+            </TouchableOpacity>
+            {/* @ts-ignore - React Native Paper Paragraph component type issue */}
             <Paragraph style={styles.inviteeEmail}>
-              {item.inviteeName ? `${item.inviteeName} (${item.inviteeEmail})` : item.inviteeEmail}
+              {item.inviteeEmail}
             </Paragraph>
           </View>
-          <Chip
-            style={[styles.statusChip, { backgroundColor: getStatusColor(item.status) + '20' }]}
-            textStyle={{ color: getStatusColor(item.status) }}
-          >
-            {item.status.toUpperCase()}
-          </Chip>
+          <View style={styles.statusContainer}>
+            {/* @ts-ignore - React Native Paper Chip component type issue */}
+            <Chip
+              style={[styles.statusChip, { backgroundColor: getStatusColor(item.status) + '20' }]}
+              textStyle={{ color: getStatusColor(item.status) }}
+              icon={() => <Icon name={getStatusIcon(item.status)} size={16} color={getStatusColor(item.status)} />}
+            >
+              {item.status.toUpperCase()}
+            </Chip>
+          </View>
             </View>
 
         <View style={styles.invitationDetails}>
           <View style={styles.detailRow}>
             <Icon name="account" size={16} color={theme.colors.textSecondary} />
+            {/* @ts-ignore - React Native Paper Chip component type issue */}
             <Chip
               style={[styles.roleChip, { backgroundColor: getRoleColor(item.role) + '20' }]}
               textStyle={{ color: getRoleColor(item.role) }}
@@ -181,25 +259,44 @@ const ProjectInvitationsScreen: React.FC = () => {
           <View style={styles.detailRow}>
             <Icon name="calendar" size={16} color={theme.colors.textSecondary} />
             <Text style={styles.detailText}>
-              Sent: {new Date(item.createdAt).toLocaleDateString()}
+              Sent: {formatDate(item.createdAt)}
             </Text>
           </View>
 
           <View style={styles.detailRow}>
             <Icon name="clock" size={16} color={theme.colors.textSecondary} />
             <Text style={styles.detailText}>
-              Expires: {new Date(item.expiresAt).toLocaleDateString()}
+              Expires: {formatDate(item.expiresAt)}
             </Text>
           </View>
+
+          {item.respondedAt && (
+            <View style={styles.detailRow}>
+              <Icon name="check" size={16} color={theme.colors.textSecondary} />
+              <Text style={styles.detailText}>
+                Responded: {formatDate(item.respondedAt)}
+              </Text>
+            </View>
+          )}
+
+          {item.status === 'PENDING' && (
+            <View style={styles.detailRow}>
+              <Icon name="timer" size={16} color={theme.colors.textSecondary} />
+              <Text style={[styles.detailText, { color: getStatusColor('PENDING') }]}>
+                {getTimeRemaining(item.expiresAt)}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {item.status === 'pending' && (
+        {item.status === 'PENDING' && (
           <View style={styles.actionButtons}>
             <Button
               mode="outlined"
               onPress={() => handleCancelInvitation(item.id)}
               style={styles.cancelButton}
               textColor="#F44336"
+              icon="close"
             >
               Cancel
             </Button>
@@ -207,81 +304,134 @@ const ProjectInvitationsScreen: React.FC = () => {
               mode="outlined"
               onPress={() => handleResendInvitation(item.id)}
               style={styles.resendButton}
+              icon="send"
             >
               Resend
             </Button>
           </View>
         )}
-      </Card.Content>
-    </Card>
-  );
 
-  const renderInviteForm = () => (
-    <Card style={styles.inviteFormCard}>
-      <Card.Content>
-        <Title style={styles.formTitle}>Send New Invitation</Title>
-        
-        <TextInput
-          label="Email Address"
-          value={inviteEmail}
-          onChangeText={setInviteEmail}
-          style={styles.input}
-          mode="outlined"
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        <View style={styles.roleSelector}>
-          <Text style={styles.roleLabel}>Role:</Text>
-          <View style={styles.roleButtons}>
-            {(['member', 'admin', 'viewer'] as const).map((role) => (
-              <Button
-                key={role}
-                mode={inviteRole === role ? 'contained' : 'outlined'}
-                onPress={() => setInviteRole(role)}
-                style={styles.roleButton}
-                compact
-              >
-                {role.toUpperCase()}
-              </Button>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.formButtons}>
-          <Button
-            mode="outlined"
-            onPress={() => setShowInviteForm(false)}
-            style={styles.cancelFormButton}
-          >
-            Cancel
-          </Button>
-          <Button
-            mode="contained"
-            onPress={handleSendInvitation}
-            style={styles.sendButton}
-          >
-            Send Invitation
+        {item.status === 'EXPIRED' && (
+          <View style={styles.actionButtons}>
+            <Button
+              mode="outlined"
+              onPress={() => handleResendInvitation(item.id)}
+              style={styles.resendButton}
+              icon="refresh"
+            >
+              Resend
             </Button>
           </View>
+        )}
         </Card.Content>
       </Card>
     );
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Icon name="account-group-plus" size={64} color={theme.colors.textSecondary} />
+      <Icon name="account-group" size={64} color={theme.colors.textSecondary} />
       <Title style={styles.emptyTitle}>No Project Invitations</Title>
+      {/* @ts-ignore - React Native Paper Paragraph component type issue */}
       <Paragraph style={styles.emptyText}>
-        You haven't sent any project invitations yet. Tap the + button to invite someone.
+        {searchQuery || statusFilter !== 'all' 
+          ? 'No invitations match your current filters.'
+          : 'You haven\'t sent any project invitations yet.'
+        }
       </Paragraph>
+      {(searchQuery || statusFilter !== 'all') && (
+        <Button
+          mode="outlined"
+          onPress={() => {
+            setSearchQuery('');
+            setStatusFilter('all');
+          }}
+          style={styles.clearFiltersButton}
+        >
+          Clear Filters
+        </Button>
+      )}
+    </View>
+  );
+
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <Searchbar
+        placeholder="Search invitations..."
+        onChangeText={setSearchQuery}
+        value={searchQuery}
+        style={styles.searchBar}
+      />
+      
+      <View style={styles.filterRow}>
+        {/* @ts-ignore - React Native Paper Menu component type issue */}
+        <Menu
+          visible={showStatusMenu}
+          onDismiss={() => setShowStatusMenu(false)}
+          anchor={
+            <Button
+              mode="outlined"
+              onPress={() => setShowStatusMenu(true)}
+              icon="filter"
+              style={styles.filterButton}
+            >
+              {statusFilter === 'all' ? 'All Status' : statusFilter.toUpperCase()}
+            </Button>
+          }
+        >
+          <Menu.Item onPress={() => { setStatusFilter('all'); setShowStatusMenu(false); }} title="All Status" />
+          <Menu.Item onPress={() => { setStatusFilter('PENDING'); setShowStatusMenu(false); }} title="Pending" />
+          <Menu.Item onPress={() => { setStatusFilter('ACCEPTED'); setShowStatusMenu(false); }} title="Accepted" />
+          <Menu.Item onPress={() => { setStatusFilter('DECLINED'); setShowStatusMenu(false); }} title="Declined" />
+          <Menu.Item onPress={() => { setStatusFilter('EXPIRED'); setShowStatusMenu(false); }} title="Expired" />
+        </Menu>
+
+        {/* @ts-ignore - React Native Paper Menu component type issue */}
+        <Menu
+          visible={showSortMenu}
+          onDismiss={() => setShowSortMenu(false)}
+          anchor={
+            <Button
+              mode="outlined"
+              onPress={() => setShowSortMenu(true)}
+              icon="sort"
+              style={styles.sortButton}
+            >
+              Sort
+            </Button>
+          }
+        >
+          <Menu.Item onPress={() => { setSortBy('date'); setShowSortMenu(false); }} title="By Date" />
+          <Menu.Item onPress={() => { setSortBy('status'); setShowSortMenu(false); }} title="By Status" />
+          <Menu.Item onPress={() => { setSortBy('project'); setShowSortMenu(false); }} title="By Project" />
+        </Menu>
+      </View>
+
+      <View style={styles.statsContainer}>
+        <Text style={styles.statsText}>
+          {filteredInvitations.length} invitation{filteredInvitations.length !== 1 ? 's' : ''}
+        </Text>
+        {statusFilter !== 'all' && (
+          <Text style={styles.statsSubtext}>
+            (filtered from {invitations.length} total)
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>Loading invitations...</Text>
       </View>
     );
+  }
 
   return (
     <View style={styles.container}>
       <FlatList
-        data={invitations}
+        data={filteredInvitations}
         renderItem={renderInvitation}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
@@ -294,15 +444,8 @@ const ProjectInvitationsScreen: React.FC = () => {
           />
         }
         ListEmptyComponent={!loading ? renderEmptyState : null}
+        ListHeaderComponent={renderHeader}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={showInviteForm ? renderInviteForm : null}
-      />
-
-      <FAB
-        icon={showInviteForm ? "close" : "plus"}
-        style={styles.fab}
-        onPress={() => setShowInviteForm(!showInviteForm)}
-        label={showInviteForm ? "Cancel" : "Invite"}
       />
     </View>
   );
@@ -313,12 +456,56 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background || '#F5F5F5',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background || '#F5F5F5',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.colors.textSecondary || '#666666',
+  },
   listContainer: {
+    paddingBottom: 20,
+  },
+  header: {
     padding: 16,
-    paddingBottom: 80,
+    backgroundColor: theme.colors.surface || '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.outline || '#E0E0E0',
+  },
+  searchBar: {
+    marginBottom: 12,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  filterButton: {
+    flex: 1,
+  },
+  sortButton: {
+    flex: 1,
+  },
+  statsContainer: {
+    alignItems: 'center',
+  },
+  statsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text || '#333333',
+  },
+  statsSubtext: {
+    fontSize: 12,
+    color: theme.colors.textSecondary || '#666666',
+    marginTop: 2,
   },
   invitationCard: {
-    marginBottom: 16,
+    margin: 16,
+    marginTop: 0,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -338,12 +525,15 @@ const styles = StyleSheet.create({
   projectName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: theme.colors.text || '#333333',
+    color: theme.colors.primary || '#1976D2',
     marginBottom: 4,
   },
   inviteeEmail: {
     fontSize: 14,
     color: theme.colors.textSecondary || '#666666',
+  },
+  statusContainer: {
+    alignItems: 'flex-end',
   },
   statusChip: {
     borderRadius: 16,
@@ -376,55 +566,12 @@ const styles = StyleSheet.create({
   resendButton: {
     borderColor: theme.colors.primary || '#1976D2',
   },
-  inviteFormCard: {
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: theme.colors.primary || '#1976D2',
-    marginBottom: 16,
-  },
-  input: {
-    marginBottom: 16,
-  },
-  roleSelector: {
-    marginBottom: 16,
-  },
-  roleLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text || '#333333',
-    marginBottom: 8,
-  },
-  roleButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  roleButton: {
-    flex: 1,
-  },
-  formButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  cancelFormButton: {
-    borderColor: theme.colors.textSecondary || '#666666',
-  },
-  sendButton: {
-    minWidth: 120,
-  },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 64,
+    paddingHorizontal: 32,
   },
   emptyTitle: {
     fontSize: 20,
@@ -437,14 +584,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.textSecondary || '#666666',
     textAlign: 'center',
-    paddingHorizontal: 32,
+    marginBottom: 16,
   },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
-    backgroundColor: theme.colors.primary || '#1976D2',
+  clearFiltersButton: {
+    marginTop: 8,
   },
 });
 
