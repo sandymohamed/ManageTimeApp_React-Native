@@ -1,107 +1,145 @@
+export interface ValidationRule {
+  required?: boolean;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: RegExp;
+  custom?: (value: any) => string | null;
+}
+
+export interface ValidationRules {
+  [key: string]: ValidationRule;
+}
+
+export interface ValidationErrors {
+  [key: string]: string;
+}
+
+export const validateField = (value: any, rules: ValidationRule): string | null => {
+  // Required validation
+  if (rules.required && (!value || (typeof value === 'string' && !value.trim()))) {
+    return 'This field is required';
+  }
+
+  // Skip other validations if value is empty and not required
+  if (!value || (typeof value === 'string' && !value.trim())) {
+    return null;
+  }
+
+  // Min length validation
+  if (rules.minLength && typeof value === 'string' && value.length < rules.minLength) {
+    return `Must be at least ${rules.minLength} characters`;
+  }
+
+  // Max length validation
+  if (rules.maxLength && typeof value === 'string' && value.length > rules.maxLength) {
+    return `Must be no more than ${rules.maxLength} characters`;
+  }
+
+  // Pattern validation
+  if (rules.pattern && typeof value === 'string' && !rules.pattern.test(value)) {
+    return 'Invalid format';
+  }
+
+  // Custom validation
+  if (rules.custom) {
+    return rules.custom(value);
+  }
+
+  return null;
+};
+
+export const validateForm = (data: any, rules: ValidationRules): ValidationErrors => {
+  const errors: ValidationErrors = {};
+
+  Object.keys(rules).forEach(field => {
+    const fieldRules = rules[field];
+    const value = data[field];
+    const error = validateField(value, fieldRules);
+    
+    if (error) {
+      errors[field] = error;
+    }
+  });
+
+  return errors;
+};
+
+// Common validation rules
+export const commonRules = {
+  required: { required: true },
+  email: { 
+    required: true, 
+    pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ 
+  },
+  name: { 
+    required: true, 
+    minLength: 2, 
+    maxLength: 100 
+  },
+  title: { 
+    required: true, 
+    minLength: 2, 
+    maxLength: 200 
+  },
+  description: { 
+    maxLength: 1000 
+  },
+  optionalDescription: { 
+    maxLength: 1000 
+  },
+  password: { 
+    required: true, 
+    minLength: 8 
+  },
+  phone: { 
+    pattern: /^[\+]?[1-9][\d]{0,15}$/ 
+  },
+  url: { 
+    pattern: /^https?:\/\/.+/ 
+  }
+};
+
+// Date validation helpers
+export const validateDateRange = (startDate: string | Date, endDate: string | Date): string | null => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  if (start >= end) {
+    return 'End date must be after start date';
+  }
+  
+  return null;
+};
+
+export const validateFutureDate = (date: string | Date): string | null => {
+  const targetDate = new Date(date);
+  const now = new Date();
+  
+  if (targetDate <= now) {
+    return 'Date must be in the future';
+  }
+  
+  return null;
+};
+
+export const validatePastDate = (date: string | Date): string | null => {
+  const targetDate = new Date(date);
+  const now = new Date();
+  
+  if (targetDate >= now) {
+    return 'Date must be in the past';
+  }
+  
+  return null;
+};
+
+// Email validation
 export const validateEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
-export const validatePassword = (password: string): {isValid: boolean; errors: string[]} => {
-  const errors: string[] = [];
-  
-  if (password.length < 8) {
-    errors.push('Password must be at least 8 characters long');
-  }
-  
-  if (!/[A-Z]/.test(password)) {
-    errors.push('Password must contain at least one uppercase letter');
-  }
-  
-  if (!/[a-z]/.test(password)) {
-    errors.push('Password must contain at least one lowercase letter');
-  }
-  
-  if (!/\d/.test(password)) {
-    errors.push('Password must contain at least one number');
-  }
-  
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
-};
-
-export const validateName = (name: string): boolean => {
-  return name.trim().length >= 2 && name.trim().length <= 100;
-};
-
-export const validatePhoneNumber = (phone: string): boolean => {
-  const phoneRegex = /^\+?[\d\s\-\(\)]+$/;
-  return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 10;
-};
-
-export const validateUrl = (url: string): boolean => {
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-export const validateRequired = (value: any): boolean => {
-  if (typeof value === 'string') {
-    return value.trim().length > 0;
-  }
-  if (typeof value === 'number') {
-    return !isNaN(value);
-  }
-  if (Array.isArray(value)) {
-    return value.length > 0;
-  }
-  return value !== null && value !== undefined;
-};
-
-export const validateMinLength = (value: string, minLength: number): boolean => {
-  return value.length >= minLength;
-};
-
-export const validateMaxLength = (value: string, maxLength: number): boolean => {
-  return value.length <= maxLength;
-};
-
-export const validateRange = (value: number, min: number, max: number): boolean => {
-  return value >= min && value <= max;
-};
-
-export const validateDate = (date: string | Date): boolean => {
-  try {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return !isNaN(dateObj.getTime());
-  } catch {
-    return false;
-  }
-};
-
-export const validateFutureDate = (date: string | Date): boolean => {
-  try {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return !isNaN(dateObj.getTime()) && dateObj > new Date();
-  } catch {
-    return false;
-  }
-};
-
-export const validatePastDate = (date: string | Date): boolean => {
-  try {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return !isNaN(dateObj.getTime()) && dateObj < new Date();
-  } catch {
-    return false;
-  }
-};
-
-export const sanitizeString = (str: string): string => {
-  return str.trim().replace(/[<>]/g, '');
-};
-
-export const sanitizeHtml = (html: string): string => {
-  return html.replace(/<[^>]*>/g, '');
+// Password validation
+export const validatePassword = (password: string): boolean => {
+  return password.length >= 6;
 };

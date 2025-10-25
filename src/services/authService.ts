@@ -50,7 +50,7 @@ class AuthService {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         
-        const fetchTest = await fetch('http://192.168.1.13:3000/health', {
+        const fetchTest = await fetch('http://192.168.1.13:8081/health', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -69,7 +69,7 @@ class AuthService {
       // Test 2: Direct axios to health endpoint
       console.log("🔍 Test 2: Direct axios to health endpoint...");
       try {
-        const directAxios = await axios.get('http://192.168.1.13:3000/health', {
+        const directAxios = await axios.get('http://192.168.1.13:8081/health', {
           timeout: 10000,
           headers: {
             'Content-Type': 'application/json',
@@ -121,23 +121,20 @@ class AuthService {
 
         console.log('🔐 AuthService: Login response received:', response);
 
-        if (!response.success) {
-          throw new Error(response.error || 'Login failed');
+        if (!response.data.success) {
+          throw new Error(response.data.error || 'Login failed');
         }
 
         // Transform the response to match expected format
-        const { user, tokens } = response.data;
+        const { user, tokens } = response.data.data;
         return {
           user,
           token: tokens.accessToken,
           refreshToken: tokens.refreshToken,
         };
       } catch (networkError: any) {
-        // If it's a network error and we're in development, use mock data
-        if (networkError.message?.includes('Network') || networkError.code === 'NETWORK_ERROR') {
-          console.log('🌐 Network error detected, using mock data for testing...');
-          
-        }
+        // Disable mock data fallback - force real backend connection
+        console.log('🌐 Network error detected, throwing error instead of using mock data...');
         
         throw networkError;
       }
@@ -162,21 +159,21 @@ class AuthService {
 
       console.log('🔐 AuthService: Registration response received:', response);
 
-      if (!response.success) {
-        throw new Error(response.error || 'Registration failed');
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Registration failed');
       }
 
       // Transform the response to match expected format
-      const { user, tokens } = response.data;
+      const { user, tokens } = response.data.data;
       return {
         user,
         token: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       };
-    } catch (error) {
-      console.log('❌ AuthService: Registration error:', error);
-      logger.error('Registration error:', error);
-      throw error;
+    } catch (networkError: any) {
+      // Disable mock data fallback - force real backend connection
+      console.log('🌐 Network error detected, throwing error instead of using mock data...');
+      throw networkError;
     }
   }
 
@@ -192,29 +189,19 @@ class AuthService {
 
         console.log('🔄 AuthService: Refresh response received:', response);
 
-        if (!response.success) {
-          throw new Error(response.error || 'Token refresh failed');
+        if (!response.data.success) {
+          throw new Error(response.data.error || 'Token refresh failed');
         }
 
         // Transform the response to match expected format
-        const { accessToken, refreshToken: newRefreshToken } = response.data;
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
         return {
           token: accessToken,
           refreshToken: newRefreshToken,
         };
       } catch (networkError: any) {
-        // If it's a network error, generate new mock tokens
-        if (networkError.message?.includes('Network') || networkError.code === 'NETWORK_ERROR') {
-          console.log('🌐 Network error during refresh, generating new mock tokens...');
-          
-          const mockTokens = {
-            token: 'mock-access-token-' + Date.now(),
-            refreshToken: 'mock-refresh-token-' + Date.now()
-          };
-
-          console.log('✅ Generated new mock tokens for testing');
-          return mockTokens;
-        }
+        // Disable mock data fallback - force real backend connection
+        console.log('🌐 Network error during refresh, throwing error instead of using mock data...');
         
         throw networkError;
       }
@@ -264,8 +251,8 @@ class AuthService {
     try {
       const response = await apiClient.post<ApiResponse<void>>('/auth/change-password', data);
 
-      if (!response.success) {
-        throw new Error(response.error || 'Password change failed');
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Password change failed');
       }
     } catch (error) {
       logger.error('Change password error:', error);
@@ -282,48 +269,14 @@ class AuthService {
           },
         });
 
-        if (!response.success) {
-          throw new Error(response.error || 'Failed to get user');
+        if (!response.data.success) {
+          throw new Error(response.data.error || 'Failed to get user');
         }
 
-        return response.data;
+        return response.data.data;
       } catch (networkError: any) {
-        // If it's a network error, return mock user data
-        if (networkError.message?.includes('Network') || networkError.code === 'NETWORK_ERROR') {
-          console.log('🌐 Network error during getCurrentUser, using mock data...');
-          
-          const mockUser: User = {
-            id: '1',
-            email: 'test@example.com',
-            name: 'Test User',
-            avatar: undefined,
-            preferences: {
-              theme: 'light',
-              language: 'en',
-              notifications: {
-                push: true,
-                email: true,
-                inApp: true
-              },
-              reminders: {
-                taskDue: true,
-                goalDeadline: true,
-                projectUpdate: true
-              },
-              privacy: {
-                profileVisible: true,
-                activityVisible: true
-              },
-              timezone: 'UTC'
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isDeleted: false
-          };
-
-          console.log('✅ Using mock user data for testing');
-          return mockUser;
-        }
+        // Disable mock data fallback - force real backend connection
+        console.log('🌐 Network error during getCurrentUser, throwing error instead of using mock data...');
         
         throw networkError;
       }
@@ -337,11 +290,11 @@ class AuthService {
     try {
       const response = await apiClient.put<ApiResponse<User>>('/me', data);
 
-      if (!response.success) {
-        throw new Error(response.error || 'Profile update failed');
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Profile update failed');
       }
 
-      return response.data;
+      return response.data.data;
     } catch (error) {
       logger.error('Update profile error:', error);
       throw error;

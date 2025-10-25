@@ -253,8 +253,9 @@ import { Text, TextInput, Button, Card, Divider, IconButton } from 'react-native
 import { useAuthStore } from '@/store/authStore';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { theme } from '@/utils/theme';
-import { validateEmail, validatePassword } from '@/utils/validation';
+// import { validateEmail, validatePassword } from '@/utils/validation';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+// import { authService } from '@/services/authService';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export const LoginScreen: React.FC = () => {
@@ -263,12 +264,17 @@ export const LoginScreen: React.FC = () => {
   const navigation = useNavigation();
 
   const { login, isLoading, error, clearError } = useAuthStore();
+  
+  // Debug logging
+  
   const [email, setEmail] = useState('sandysawy@gmail.com');
   const [password, setPassword] = useState('Sandy@123');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+
+  console.log('🔍 LoginScreen Debug:', { isLoading, error, email, password });
   // Animation values
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
@@ -308,7 +314,7 @@ export const LoginScreen: React.FC = () => {
     if (!email.trim()) {
       setEmailError('Email is required');
       hasError = true;
-    } else if (!validateEmail(email)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError('Please enter a valid email address');
       hasError = true;
     }
@@ -316,7 +322,7 @@ export const LoginScreen: React.FC = () => {
     if (!password.trim()) {
       setPasswordError('Password is required');
       hasError = true;
-    } else if (!validatePassword(password)) {
+    } else if (password.length < 6) {
       setPasswordError('Password must be at least 6 characters');
       hasError = true;
     }
@@ -513,7 +519,7 @@ export const LoginScreen: React.FC = () => {
                     labelStyle={styles.loginButtonLabel}
                     icon="login"
                   >
-                    {isLoading ? '...' : t('auth.signIn')}
+                    {isLoading ? '...' : t('auth.signIn')} {isLoading ? '(Loading...)' : '(Ready)'}
                   </Button>
 
                   {/* Forgot Password */}

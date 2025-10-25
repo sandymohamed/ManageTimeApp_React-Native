@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Text, Card, useTheme, IconButton, Chip, Avatar, Menu, Divider, Button } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
@@ -9,6 +10,7 @@ import { Project, ProjectRole, ProjectStatus, ProjectMilestone, ProjectTask, Mil
 import { useProjectStore } from '@/store/projectStore';
 import { useTaskStore } from '@/store/taskStore';
 import { milestoneService } from '@/services/milestoneService';
+import { invitationService, ProjectInvitation } from '@/services/invitationService';
 import { showDeleteConfirmation } from '@/components/ConfirmationDialog';
 
 interface ProjectDetailScreenProps {
@@ -36,21 +38,40 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'milestones'>('overview');
   const [projectTasks, setProjectTasks] = useState<ProjectTask[]>([]);
   const [projectMilestones, setProjectMilestones] = useState<ProjectMilestone[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<ProjectInvitation[]>([]);
 
-  const fetchProjectMilestones = async () => {
+  const fetchProjectMilestones = useCallback(async () => {
     try {
       const milestones = await milestoneService.getProjectMilestones(projectId);
       setProjectMilestones(milestones);
     } catch (error) {
       console.error('Failed to fetch project milestones:', error);
     }
-  };
+  }, [projectId]);
+
+  const fetchPendingInvitations = useCallback(async () => {
+    try {
+      const invitations = await invitationService.getProjectInvitations(projectId);
+      setPendingInvitations(invitations.filter(inv => inv.status === 'PENDING'));
+    } catch (error) {
+      console.error('Failed to fetch pending invitations:', error);
+    }
+  }, [projectId]);
 
   useEffect(() => {
     fetchProject(projectId);
     fetchTasks();
     fetchProjectMilestones();
-  }, [projectId, fetchProject, fetchTasks]);
+    fetchPendingInvitations();
+  }, [projectId, fetchProject, fetchTasks, fetchPendingInvitations]);
+
+  // Refetch data when screen comes back into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchProjectMilestones();
+      fetchPendingInvitations();
+    }, [fetchProjectMilestones, fetchPendingInvitations])
+  );
 
   useEffect(() => {
     if (tasks && currentProject) {
@@ -295,6 +316,14 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
             >
               {t(`projects.status.${currentProject.status.toLowerCase()}`)}
             </Chip>
+
+            <IconButton
+              icon="dots-vertical"
+              size={20}
+              iconColor={theme.colors.textSecondary}
+              onPress={() => navigation.navigate('InvitationAccept', { token: '661195f05e2ae13502c4b0a8a720de664f5542b161dd99cda960c309d660d0f8' })}
+              
+            />
           </View>
 
           <View style={styles.projectMeta}>
@@ -369,6 +398,34 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
               {t('projects.invite')}
             </Button>
           </View>
+
+          {/* Pending Invitations */}
+          {pendingInvitations.length > 0 && (
+            <View style={styles.pendingInvitationsSection}>
+              <Text variant="titleSmall" style={[styles.pendingInvitationsTitle, { color: theme.colors.text }]}>
+                {t('invitations.pendingInvitations')} ({pendingInvitations.length})
+              </Text>
+              {pendingInvitations.map((invitation) => (
+                <View key={invitation.id} style={styles.pendingInvitationItem}>
+                  <View style={styles.pendingInvitationInfo}>
+                    <Text variant="bodyMedium" style={[styles.pendingInvitationEmail, { color: theme.colors.text }]}>
+                      {invitation.email}
+                    </Text>
+                    <Text variant="bodySmall" style={[styles.pendingInvitationRole, { color: theme.colors.textSecondary }]}>
+                      {t(`projects.roles.${invitation.role.toLowerCase()}`)} • {t('invitations.invitedOn')} {new Date(invitation.invitedAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <Chip
+                    style={[styles.pendingChip, { backgroundColor: theme.colors.info + '20' }]}
+                    textStyle={{ color: theme.colors.info }}
+                    icon="clock"
+                  >
+                    {t('invitations.status.pending')}
+                  </Chip>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={styles.membersList}>
             {currentProject.members.map((member) => (
@@ -750,6 +807,39 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  pendingInvitationsSection: {
+    marginBottom: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  pendingInvitationsTitle: {
+    marginBottom: 12,
+    fontWeight: 'bold',
+  },
+  pendingInvitationItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  pendingInvitationInfo: {
+    flex: 1,
+  },
+  pendingInvitationEmail: {
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  pendingInvitationRole: {
+    fontSize: 12,
+  },
+  pendingChip: {
+    marginLeft: 8,
+  },
   inviteButton: {
     borderRadius: 20,
   },
@@ -879,7 +969,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
- 
+
   priorityChip: {
     height: 35,
     alignSelf: 'flex-start',

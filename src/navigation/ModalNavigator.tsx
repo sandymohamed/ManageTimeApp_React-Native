@@ -8,7 +8,7 @@ import { TaskEditScreen } from '@/screens/tasks/TaskEditScreen';
 import { TaskDetailScreen } from '@/screens/tasks/TaskDetailScreen';
 import { ProjectCreateScreen } from '@/screens/projects/ProjectCreateScreen';
 import { ProjectDetailScreen } from '@/screens/projects/ProjectDetailScreen';
-import { ProjectEditScreen } from '@/screens/projects/ProjectEditScreen';
+// import { ProjectEditScreen } from '@/screens/projects/ProjectEditScreen';
 import { ProjectInviteScreen } from '@/screens/projects/ProjectInviteScreen';
 import { MilestoneCreateScreen } from '@/screens/projects/MilestoneCreateScreen';
 import { GoalCreateScreen } from '@/screens/goals/GoalCreateScreen';
@@ -19,6 +19,10 @@ import { MilestoneManagementScreen } from '@/screens/goals/MilestoneManagementSc
 import { AlarmCreateScreen } from '@/screens/alarms/AlarmCreateScreen';
 import { AlarmEditScreen } from '@/screens/alarms/AlarmEditScreen';
 import { SettingsScreen } from '@/screens/settings/SettingsScreen';
+import { ProjectEditScreen } from '@/screens/projects/ProjectEditScreen';
+import { InvitationAcceptScreen } from '@/screens/invitations/InvitationAcceptScreen';
+import { PendingInvitationsScreen } from '@/screens/invitations/PendingInvitationsScreen';
+import { ProjectInvitationsScreen } from '@/screens/profile/ProjectInvitationsScreen';
 
 export type ModalStackParamList = {
   TaskCreate: { projectId?: string; goalId?: string };
@@ -37,6 +41,9 @@ export type ModalStackParamList = {
   AlarmCreate: undefined;
   AlarmEdit: { alarmId: string };
   Settings: undefined;
+  InvitationAccept: { token: string };
+  PendingInvitations: undefined;
+  ProjectInvitations: undefined;
 };
 
 const Stack = createStackNavigator<ModalStackParamList>();
@@ -176,6 +183,32 @@ export const ModalNavigator: React.FC = () => {
       <Stack.Screen
         name="Settings"
         component={SettingsScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+
+      {/* Invitation Screens */}
+      <Stack.Screen
+        name="InvitationAccept"
+        component={InvitationAcceptScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="PendingInvitations"
+        component={PendingInvitationsScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="ProjectInvitations"
+        component={ProjectInvitationsScreen}
         options={{
           headerShown: false,
           presentation: 'modal',

@@ -220,6 +220,37 @@
     "members": "الأعضاء",
     "createdOn": "تم الإنشاء في {{date}}"
   },
+  "invitations": {
+    "title": "الدعوات",
+    "projectInvitation": "دعوة مشروع",
+    "invitationDetails": "تفاصيل الدعوة",
+    "invitedBy": "دعاه",
+    "status": "الحالة",
+    "expiresAt": "تنتهي في",
+    "expiresOn": "تنتهي في",
+    "invitedOn": "دُعي في",
+    "expired": "منتهية الصلاحية",
+    "invitationExpired": "انتهت صلاحية هذه الدعوة",
+    "invitationNotFound": "الدعوة غير موجودة",
+    "invitationNotFoundMessage": "الدعوة التي تبحث عنها غير موجودة أو تم حذفها.",
+    "noInvitations": "لا توجد دعوات معلقة",
+    "noInvitationsDescription": "ليس لديك أي دعوات مشروع معلقة في الوقت الحالي.",
+    "pendingInvitations": "الدعوات المعلقة",
+    "loginRequired": "تسجيل الدخول مطلوب",
+    "loginRequiredMessage": "تحتاج إلى تسجيل الدخول لقبول هذه الدعوة.",
+    "declineInvitation": "رفض الدعوة",
+    "declineConfirmation": "هل أنت متأكد من رفض هذه الدعوة؟",
+    "acceptError": "فشل في قبول الدعوة",
+    "declineError": "فشل في رفض الدعوة",
+    "loadError": "فشل في تحميل الدعوات",
+    "status": {
+      "pending": "معلقة",
+      "accepted": "مقبولة",
+      "declined": "مرفوضة",
+      "expired": "منتهية الصلاحية",
+      "cancelled": "ملغية"
+    }
+  },
   "milestones": {
     "title": "المعالم",
     "editMilestone": "تعديل المعلم",

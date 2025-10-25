@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Text, TextInput, Button, Card, Divider } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 import { theme } from '@/utils/theme';
-import { validateEmail, validatePassword, validateName } from '@/utils/validation';
+import { validateEmail, validatePassword } from '@/utils/validation';
 // --------------------------------------------------------------
 
 export const RegisterScreen: React.FC = () => {
   const navigation = useNavigation();
-  const { register, isLoading, error, clearError } = useAuthStore();
+  const { register, isLoading, error, clearError, isAuthenticated } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,6 +19,12 @@ export const RegisterScreen: React.FC = () => {
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
 
+  console.log("RegisterScreen - isAuthenticated:", isAuthenticated);
+
+  useEffect(() => {
+    console.log("RegisterScreen - Authentication state changed:", isAuthenticated);
+  }, [isAuthenticated]);
+
   const handleRegister = async () => {
     // Clear previous errors
     setNameError('');
@@ -26,18 +32,23 @@ export const RegisterScreen: React.FC = () => {
     setPasswordError('');
     setConfirmPasswordError('');
     clearError();
-
+    console.log("handleRegister try", name.trim(), email.trim(), password);
     // Validate inputs
     let hasError = false;
-
+    console.log("handleRegister try2222222222", name.trim(), email.trim(), password);
+    
     if (!name.trim()) {
+      console.log("handleRegister xxxxxxxxxxxxxxxxxxx", name.trim(), email.trim(), password);
       setNameError('Name is required');
       hasError = true;
-    } else if (!validateName(name)) {
+    } else if (name.trim().length < 2 || name.trim().length > 100) {
+      console.log("handleRegister yyyyyyyyyyyyyyy", name.trim(), email.trim(), password);
       setNameError('Name must be between 2 and 100 characters');
       hasError = true;
+      console.log("handleRegister yyyyyyyyyyyyyyy000", name.trim(), email.trim(), password);
     }
 
+    console.log("handleRegister 3333333333333", name.trim(), email.trim(), password);
     if (!email.trim()) {
       setEmailError('Email is required');
       hasError = true;
@@ -46,34 +57,46 @@ export const RegisterScreen: React.FC = () => {
       hasError = true;
     }
 
+    console.log("handleRegister 44444444444444", name.trim(), email.trim(), password);
     if (!password.trim()) {
       setPasswordError('Password is required');
       hasError = true;
+      console.log("handleRegister 5555555555555", name.trim(), email.trim(), password);
     } else {
-      const passwordValidation = validatePassword(password);
-      if (!passwordValidation.isValid) {
-        setPasswordError(passwordValidation.errors[0]);
+      console.log("handleRegister 6666666666666", name.trim(), email.trim(), password);
+      if (!validatePassword(password)) {
+        setPasswordError('Password must be at least 6 characters long');
         hasError = true;
+        console.log("handleRegister 77777777777", name.trim(), email.trim(), password);
       }
     }
 
     if (!confirmPassword.trim()) {
+      console.log("handleRegister 888888888888888", name.trim(), email.trim(), password);
       setConfirmPasswordError('Please confirm your password');
       hasError = true;
     } else if (password !== confirmPassword) {
+      console.log("handleRegister 9999999999999", name.trim(), email.trim(), password);
       setConfirmPasswordError('Passwords do not match');
       hasError = true;
     }
 
     if (hasError) return;
+    console.log("handleRegister 000000000000", name.trim(), email.trim(), password);
 
     try {
+      console.log("handleRegister try", name.trim(), email.trim(), password);
       await register({
         name: name.trim(),
         email: email.trim(),
         password,
       });
+      
+      console.log("Registration successful! User should be redirected to main app.");
+      console.log("RegisterScreen - isAuthenticated after registration:", isAuthenticated);
+      // Registration successful - user will be automatically redirected by auth state change
     } catch (error) {
+      console.log("Registration failed:", error);
       // Error is handled by the store
     }
   };

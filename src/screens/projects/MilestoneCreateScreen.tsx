@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Modal } from 'react-native';
-import { Text, Button, TextInput, Card, useTheme, IconButton } from 'react-native-paper';
+import { Text, Button, TextInput, Card, useTheme, IconButton, HelperText } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -8,6 +8,7 @@ import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { CreateMilestoneData, MilestoneStatus } from '@/types/project';
 import { milestoneService } from '@/services/milestoneService';
+import { validateForm, commonRules, validateDateRange } from '@/utils/validation';
 
 interface MilestoneCreateScreenProps {
   navigation: any;
@@ -37,31 +38,31 @@ export const MilestoneCreateScreen: React.FC<MilestoneCreateScreenProps> = ({ na
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [dateType, setDateType] = useState<'start' | 'due'>('start');
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Validation rules
+  const validationRules = {
+    title: commonRules.title,
+    description: commonRules.optionalDescription, // Optional description
+    startDate: { required: true },
+    dueDate: { 
+      required: true,
+      custom: (value: string) => {
+        if (!value) return 'Due date is required';
+        if (formData.startDate && validateDateRange(formData.startDate, value)) {
+          return 'Due date must be after start date';
+        }
+        return null;
+      }
+    }
+  };
 
   const handleSave = async () => {
-    // Validate form
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.title.trim()) {
-      newErrors.title = t('validation.titleRequired');
-    }
-
-    if (!formData.startDate) {
-      newErrors.startDate = t('validation.startDateRequired');
-    }
-
-    if (!formData.dueDate) {
-      newErrors.dueDate = t('validation.endDateRequired');
-    }
-
-    if (formData.startDate && formData.dueDate && new Date(formData.startDate) > new Date(formData.dueDate)) {
-      newErrors.dueDate = t('validation.endDateAfterStartDate');
-    }
-
+    // Validate form using validation utility
+    const newErrors = validateForm(formData, validationRules);
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
@@ -74,12 +75,26 @@ export const MilestoneCreateScreen: React.FC<MilestoneCreateScreenProps> = ({ na
       await milestoneService.createMilestone(projectId, formData);
       showSuccess(t('milestones.createdSuccessfully', { title: formData.title }));
       navigation.goBack();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create milestone:', error);
-      showError(t('milestones.createFailed', { title: formData.title }));
+      showError(error.message || t('milestones.createFailed', { title: formData.title }));
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleFieldChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const isFormValid = () => {
+    const validationErrors = validateForm(formData, validationRules);
+    return Object.keys(validationErrors).length === 0;
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
@@ -134,26 +149,30 @@ export const MilestoneCreateScreen: React.FC<MilestoneCreateScreenProps> = ({ na
             <TextInput
               label={t('milestones.title')}
               value={formData.title}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, title: text }))}
+              onChangeText={(text) => handleFieldChange('title', text)}
               error={!!errors.title}
+              disabled={isLoading}
               style={styles.input}
               mode="outlined"
             />
-            {errors.title && (
-              <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
-                {errors.title}
-              </Text>
-            )}
+            <HelperText type="error" visible={!!errors.title}>
+              {errors.title}
+            </HelperText>
 
             <TextInput
               label={t('milestones.description')}
               value={formData.description}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
+              onChangeText={(text) => handleFieldChange('description', text)}
               multiline
               numberOfLines={3}
+              disabled={isLoading}
+              error={!!errors.description}
               style={styles.input}
               mode="outlined"
             />
+            <HelperText type="error" visible={!!errors.description}>
+              {errors.description}
+            </HelperText>
           </Card.Content>
         </Card>
 
@@ -170,21 +189,20 @@ export const MilestoneCreateScreen: React.FC<MilestoneCreateScreenProps> = ({ na
                   label={t('milestones.startDate')}
                   value={formData.startDate ? new Date(formData.startDate).toLocaleDateString() : ''}
                   editable={false}
+                  disabled={isLoading}
                   style={styles.input}
                   mode="outlined"
                   error={!!errors.startDate}
                   right={
                     <TextInput.Icon
                       icon="calendar"
-                      onPress={() => openDatePicker('start')}
+                      onPress={() => !isLoading && openDatePicker('start')}
                     />
                   }
                 />
-                {errors.startDate && (
-                  <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
-                    {errors.startDate}
-                  </Text>
-                )}
+                <HelperText type="error" visible={!!errors.startDate}>
+                  {errors.startDate}
+                </HelperText>
               </View>
 
               <View style={styles.dateInputContainer}>
@@ -192,21 +210,20 @@ export const MilestoneCreateScreen: React.FC<MilestoneCreateScreenProps> = ({ na
                   label={t('milestones.endDate')}
                   value={formData.dueDate ? new Date(formData.dueDate).toLocaleDateString() : ''}
                   editable={false}
+                  disabled={isLoading}
                   style={styles.input}
                   mode="outlined"
                   error={!!errors.dueDate}
                   right={
                     <TextInput.Icon
                       icon="calendar"
-                      onPress={() => openDatePicker('due')}
+                      onPress={() => !isLoading && openDatePicker('due')}
                     />
                   }
                 />
-                {errors.dueDate && (
-                  <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
-                    {errors.dueDate}
-                  </Text>
-                )}
+                <HelperText type="error" visible={!!errors.dueDate}>
+                  {errors.dueDate}
+                </HelperText>
               </View>
             </View>
           </Card.Content>
@@ -219,6 +236,7 @@ export const MilestoneCreateScreen: React.FC<MilestoneCreateScreenProps> = ({ na
           mode="outlined"
           onPress={() => navigation.goBack()}
           style={styles.cancelButton}
+          disabled={isLoading}
         >
           {t('common.cancel')}
         </Button>
@@ -226,7 +244,7 @@ export const MilestoneCreateScreen: React.FC<MilestoneCreateScreenProps> = ({ na
           mode="contained"
           onPress={handleSave}
           loading={isLoading}
-          disabled={isLoading}
+          disabled={isLoading || !isFormValid()}
           style={styles.saveButton}
         >
           {t('common.create')}

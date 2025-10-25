@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, FlatList } from 'react-native';
-import { Text, Button, TextInput, Card, useTheme, IconButton, Chip, Avatar, Menu, Divider } from 'react-native-paper';
+import { Text, Button, TextInput, Card, useTheme, IconButton, Chip, Avatar, Menu, Divider, HelperText } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { ProjectRole } from '@/types/project';
 import { useProjectStore } from '@/store/projectStore';
+import { invitationService } from '@/services/invitationService';
+import { validateForm, commonRules } from '@/utils/validation';
 
 interface ProjectInviteScreenProps {
   navigation: any;
@@ -39,7 +41,7 @@ export const ProjectInviteScreen: React.FC<ProjectInviteScreenProps> = ({ naviga
   const styles = createStyles(theme);
 
   const { projectId } = route.params;
-  const { addMember, fetchProject } = useProjectStore();
+  const { fetchProject } = useProjectStore();
 
   const [inviteData, setInviteData] = useState<InviteData>({
     email: '',
@@ -78,15 +80,12 @@ export const ProjectInviteScreen: React.FC<ProjectInviteScreenProps> = ({ naviga
   };
 
   const handleInvite = async () => {
-    // Validate form
-    const newErrors: Record<string, string> = {};
-
-    if (!inviteData.email.trim()) {
-      newErrors.email = t('validation.emailRequired');
-    } else if (!/\S+@\S+\.\S+/.test(inviteData.email)) {
-      newErrors.email = t('validation.emailInvalid');
-    }
-
+    // Validate form using validation utility
+    const validationRules = {
+      email: commonRules.email,
+    };
+    
+    const newErrors = validateForm(inviteData, validationRules);
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
@@ -95,8 +94,9 @@ export const ProjectInviteScreen: React.FC<ProjectInviteScreenProps> = ({ naviga
 
     try {
       setIsLoading(true);
-      await addMember(projectId, {
-        userId: '', // This would be resolved by email on backend
+      await invitationService.createInvitation({
+        projectId,
+        email: inviteData.email,
         role: inviteData.role,
       });
       
@@ -104,10 +104,27 @@ export const ProjectInviteScreen: React.FC<ProjectInviteScreenProps> = ({ naviga
       navigation.goBack();
     } catch (error: any) {
       console.error('Invite member error:', error);
-      showError(t('projects.inviteMemberError'));
+      showError(error.message || t('projects.inviteMemberError'));
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleFieldChange = (field: string, value: any) => {
+    setInviteData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const isFormValid = () => {
+    const validationRules = {
+      email: commonRules.email,
+    };
+    const validationErrors = validateForm(inviteData, validationRules);
+    return Object.keys(validationErrors).length === 0;
   };
 
   const getRoleIcon = (role: ProjectRole) => {
@@ -165,19 +182,18 @@ export const ProjectInviteScreen: React.FC<ProjectInviteScreenProps> = ({ naviga
               <TextInput
                 mode="outlined"
                 value={inviteData.email}
-                onChangeText={handleEmailChange}
+                onChangeText={(text) => handleFieldChange('email', text)}
                 placeholder={t('projects.enterEmailAddress')}
                 error={!!errors.email}
+                disabled={isLoading}
                 style={styles.input}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              {errors.email && (
-                <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
-                  {errors.email}
-                </Text>
-              )}
+              <HelperText type="error" visible={!!errors.email}>
+                {errors.email}
+              </HelperText>
             </View>
 
             {/* User Suggestions */}
@@ -263,6 +279,7 @@ export const ProjectInviteScreen: React.FC<ProjectInviteScreenProps> = ({ naviga
           mode="outlined"
           onPress={() => navigation.goBack()}
           style={styles.actionButton}
+          disabled={isLoading}
         >
           {t('common.cancel')}
         </Button>
@@ -270,7 +287,7 @@ export const ProjectInviteScreen: React.FC<ProjectInviteScreenProps> = ({ naviga
           mode="contained"
           onPress={handleInvite}
           loading={isLoading}
-          disabled={isLoading || !inviteData.email.trim()}
+          disabled={isLoading || !isFormValid()}
           style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
         >
           {t('projects.sendInvite')}

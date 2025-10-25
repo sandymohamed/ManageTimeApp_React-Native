@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Modal } from 'react-native';
-import { Text, Button, TextInput, Card, useTheme, IconButton } from 'react-native-paper';
+import { Text, Button, TextInput, Card, useTheme, IconButton, HelperText } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -8,6 +8,7 @@ import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { CreateProjectData, ProjectStatus } from '@/types/project';
 import { useProjectStore } from '@/store/projectStore';
+import { validateForm, commonRules, validateDateRange } from '@/utils/validation';
 
 interface ProjectCreateScreenProps {
   navigation: any;
@@ -36,42 +37,71 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [dateType, setDateType] = useState<'start' | 'end'>('start');
 
-  const handleSave = async () => {
-    // Validate form
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = t('validation.nameRequired');
-    }
-
-    if (formData.startDate && formData.endDate) {
-      const startDate = new Date(formData.startDate);
-      const endDate = new Date(formData.endDate);
-      if (startDate >= endDate) {
-        newErrors.endDate = t('validation.endDateAfterStart');
+  // Validation rules
+  const validationRules = {
+    name: commonRules.name,
+    description: commonRules.optionalDescription, // Optional description with max length
+    startDate: {
+      custom: (value: string) => {
+        if (!value) return null;
+        if (formData.endDate && validateDateRange(value, formData.endDate)) {
+          return 'Start date must be before end date';
+        }
+        return null;
+      }
+    },
+    endDate: {
+      custom: (value: string) => {
+        if (!value) return null;
+        if (formData.startDate && validateDateRange(formData.startDate, value)) {
+          return 'End date must be after start date';
+        }
+        return null;
       }
     }
+  };
 
+  const handleSave = async () => {
+    // Validate form using validation utility
+    const newErrors = validateForm(formData, validationRules);
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
       return;
     }
 
+    setIsLoading(true);
+
     try {
       console.log("formData", formData);
-
       await createProject(formData);
       showSuccess(t('projects.createdSuccessfully', { name: formData.name }));
       navigation.goBack();
     } catch (error: any) {
       console.error('Create project error:', error);
-      showError(t('projects.createError'));
+      showError(error.message || t('projects.createError'));
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleFieldChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const isFormValid = () => {
+    const validationErrors = validateForm(formData, validationRules);
+    return Object.keys(validationErrors).length === 0;
   };
 
   const handleDatePress = (type: 'start' | 'end') => {
@@ -129,16 +159,15 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
               <TextInput
                 mode="outlined"
                 value={formData.name}
-                onChangeText={(text) => setFormData({ ...formData, name: text })}
+                onChangeText={(text) => handleFieldChange('name', text)}
                 placeholder={t('projects.enterProjectName')}
                 error={!!errors.name}
+                disabled={isLoading}
                 style={styles.input}
               />
-              {errors.name && (
-                <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
-                  {errors.name}
-                </Text>
-              )}
+              <HelperText type="error" visible={!!errors.name}>
+                {errors.name}
+              </HelperText>
             </View>
 
             <View style={styles.field}>
@@ -148,12 +177,17 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
               <TextInput
                 mode="outlined"
                 value={formData.description}
-                onChangeText={(text) => setFormData({ ...formData, description: text })}
+                onChangeText={(text) => handleFieldChange('description', text)}
                 placeholder={t('projects.enterDescription')}
                 multiline
                 numberOfLines={3}
+                disabled={isLoading}
+                error={!!errors.description}
                 style={styles.input}
               />
+              <HelperText type="error" visible={!!errors.description}>
+                {errors.description}
+              </HelperText>
             </View>
 
             <View style={styles.field}>
@@ -189,13 +223,17 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
                 {t('projects.startDate')}
               </Text>
               <View style={styles.dateContainer}>
-                <TouchableOpacity style={styles.dateButton} onPress={() => handleDatePress('start')}>
+                <TouchableOpacity 
+                  style={[styles.dateButton, isLoading && styles.disabledButton]} 
+                  onPress={() => !isLoading && handleDatePress('start')}
+                  disabled={isLoading}
+                >
                   <IconButton icon="calendar" size={20} iconColor={theme.colors.primary} />
                   <Text style={[styles.dateText, { color: theme.colors.text }]}>
                     {formData.startDate ? new Date(formData.startDate).toLocaleDateString() : t('projects.selectStartDate')}
                   </Text>
                 </TouchableOpacity>
-                {formData.startDate && (
+                {formData.startDate && !isLoading && (
                   <IconButton
                     icon="close-circle"
                     size={20}
@@ -211,13 +249,17 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
                 {t('projects.endDate')}
               </Text>
               <View style={styles.dateContainer}>
-                <TouchableOpacity style={styles.dateButton} onPress={() => handleDatePress('end')}>
+                <TouchableOpacity 
+                  style={[styles.dateButton, isLoading && styles.disabledButton]} 
+                  onPress={() => !isLoading && handleDatePress('end')}
+                  disabled={isLoading}
+                >
                   <IconButton icon="calendar" size={20} iconColor={theme.colors.primary} />
                   <Text style={[styles.dateText, { color: theme.colors.text }]}>
                     {formData.endDate ? new Date(formData.endDate).toLocaleDateString() : t('projects.selectEndDate')}
                   </Text>
                 </TouchableOpacity>
-                {formData.endDate && (
+                {formData.endDate && !isLoading && (
                   <IconButton
                     icon="close-circle"
                     size={20}
@@ -226,11 +268,9 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
                   />
                 )}
               </View>
-              {errors.endDate && (
-                <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
-                  {errors.endDate}
-                </Text>
-              )}
+              <HelperText type="error" visible={!!errors.endDate}>
+                {errors.endDate}
+              </HelperText>
             </View>
           </Card.Content>
         </Card>
@@ -242,12 +282,15 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
           mode="outlined"
           onPress={() => navigation.goBack()}
           style={styles.actionButton}
+          disabled={isLoading}
         >
           {t('common.cancel')}
         </Button>
         <Button
           mode="contained"
           onPress={handleSave}
+          loading={isLoading}
+          disabled={isLoading || !isFormValid()}
           style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
         >
           {t('projects.createProject')}
@@ -376,6 +419,9 @@ const createStyles = (theme: any) => StyleSheet.create({
   dateText: {
     marginLeft: 8,
     fontSize: 16,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   actionContainer: {
     flexDirection: 'row',

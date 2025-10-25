@@ -350,7 +350,7 @@ export const useProjectStore = create<ProjectStore>()(
         get().applyFilters();
       },
 
-      setSortBy: (sortBy: 'createdAt' | 'updatedAt' | 'name') => {
+      setSortBy: (sortBy: 'createdAt' | 'updatedAt' | 'name' | 'startDate' | 'endDate' | 'status') => {
         set({ sortBy });
         get().applyFilters();
       },
