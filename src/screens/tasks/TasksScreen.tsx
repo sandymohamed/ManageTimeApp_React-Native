@@ -134,7 +134,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
 
   const handleToggleComplete = async (task: Task) => {
     try {
-      if (task.status === TaskStatus.DONE) {
+      if (task?.status === TaskStatus?.DONE) {
         await uncompleteTask(task.id);
         showSuccess(t('tasks.uncompletedSuccessfully', { title: task.title }));
       } else {
@@ -216,10 +216,10 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
 
   const getStatusIcon = (status: TaskStatus) => {
     switch (status) {
-      case TaskStatus.TODO: return 'checkbox-blank-circle-outline';
-      case TaskStatus.IN_PROGRESS: return 'progress-clock';
-      case TaskStatus.DONE: return 'check-circle';
-      case TaskStatus.ARCHIVED: return 'archive-outline';
+      case TaskStatus?.TODO: return 'checkbox-blank-circle-outline';
+      case TaskStatus?.IN_PROGRESS: return 'progress-clock';
+      case TaskStatus?.DONE: return 'check-circle';
+      case TaskStatus?.ARCHIVED: return 'archive-outline';
       default: return 'help-circle';
     }
   };

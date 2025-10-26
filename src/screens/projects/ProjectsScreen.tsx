@@ -88,11 +88,11 @@ export const ProjectsScreen: React.FC<ProjectsScreenProps> = ({ navigation }) =>
 
   const getStatusColor = (status: ProjectStatus) => {
     switch (status) {
-      case ProjectStatus.ACTIVE: return theme.colors.success;
-      case ProjectStatus.PLANNING: return theme.colors.info;
-      case ProjectStatus.ON_HOLD: return theme.colors.warning;
-      case ProjectStatus.DONE: return theme.colors.completed;
-      case ProjectStatus.CANCELLED: return theme.colors.error;
+      case ProjectStatus?.ACTIVE: return theme.colors.success;
+      case ProjectStatus?.PLANNING: return theme.colors.info;
+      case ProjectStatus?.ON_HOLD: return theme.colors.warning;
+      case ProjectStatus?.DONE: return theme.colors.completed;
+      case ProjectStatus?.CANCELLED: return theme.colors.error;
       default: return theme.colors.textSecondary;
     }
   };

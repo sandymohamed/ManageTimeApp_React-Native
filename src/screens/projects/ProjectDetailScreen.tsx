@@ -188,6 +188,8 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
     }
   };
 
+  // TODO: all get colors have problems !!!!
+
   const getRoleColor = (role: ProjectRole) => {
     switch (role) {
       case ProjectRole.OWNER: return theme.colors.error;
@@ -199,30 +201,30 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
 
   const getTaskStatusColor = (status: TaskStatus) => {
     switch (status) {
-      case TaskStatus.TODO: return theme.colors.textSecondary;
-      case TaskStatus.IN_PROGRESS: return theme.colors.info;
-      case TaskStatus.DONE: return theme.colors.success;
-      case TaskStatus.CANCELLED: return theme.colors.error;
+      case TaskStatus?.TODO: return theme.colors.textSecondary;
+      case TaskStatus?.IN_PROGRESS: return theme.colors.info;
+      case TaskStatus?.DONE: return theme.colors.success;
+      case TaskStatus?.CANCELLED: return theme.colors.error;
       default: return theme.colors.textSecondary;
     }
   };
 
   const getTaskPriorityColor = (priority: TaskPriority) => {
     switch (priority) {
-      case TaskPriority.LOW: return theme.colors.success;
-      case TaskPriority.MEDIUM: return theme.colors.info;
-      case TaskPriority.HIGH: return theme.colors.warning;
-      case TaskPriority.URGENT: return theme.colors.error;
+      case TaskPriority?.LOW: return theme.colors.success;
+      case TaskPriority?.MEDIUM: return theme.colors.info;
+      case TaskPriority?.HIGH: return theme.colors.warning;
+      case TaskPriority?.URGENT: return theme.colors.error;
       default: return theme.colors.textSecondary;
     }
   };
 
   const getMilestoneStatusColor = (status: MilestoneStatus) => {
     switch (status) {
-      case MilestoneStatus.TODO: return theme.colors.textSecondary;
-      case MilestoneStatus.IN_PROGRESS: return theme.colors.info;
-      case MilestoneStatus.DONE: return theme.colors.success;
-      case MilestoneStatus.CANCELLED: return theme.colors.error;
+      case MilestoneStatus?.TODO: return theme.colors.textSecondary;
+      case MilestoneStatus?.IN_PROGRESS: return theme.colors.info;
+      case MilestoneStatus?.DONE: return theme.colors.success;
+      case MilestoneStatus?.CANCELLED: return theme.colors.error;
       default: return theme.colors.textSecondary;
     }
   };
