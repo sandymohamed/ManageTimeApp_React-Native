@@ -143,13 +143,20 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: async () => {
         try {
-          set({ isLoading: true });
-
           // Clear tokens from Keychain
           await Keychain.resetGenericPassword();
 
           // Clear all persisted data from all stores
           await get().clearAllPersistedData();
+
+          // Set state to completed logout (isInitialized stays true to avoid re-initialization)
+          set({
+            user: null,
+            isAuthenticated: false,
+            isInitialized: true, // Keep true to avoid triggering loading screen again
+            isLoading: false,
+            error: null,
+          });
 
           logger.info('User logged out successfully');
         } catch (error: any) {
@@ -158,6 +165,7 @@ export const useAuthStore = create<AuthStore>()(
           set({
             user: null,
             isAuthenticated: false,
+            isInitialized: true, // Keep true to avoid triggering loading screen
             isLoading: false,
             error: null,
           });
@@ -303,26 +311,13 @@ export const useAuthStore = create<AuthStore>()(
           
           await AsyncStorage.multiRemove(keysToRemove);
           
-          // Clear auth state
-          set({
-            user: null,
-            isAuthenticated: false,
-            isInitialized: false,
-            isLoading: false,
-            error: null,
-          });
+          // Don't set state here - let the caller handle state updates
+          // This prevents triggering loading screen unnecessarily
           
           logger.info('All persisted data cleared');
         } catch (error) {
           logger.error('Error clearing persisted data:', error);
-          // Clear auth state even if AsyncStorage fails
-          set({
-            user: null,
-            isAuthenticated: false,
-            isInitialized: false,
-            isLoading: false,
-            error: null,
-          });
+          // Don't throw error, just log it
         }
       },
     }),
