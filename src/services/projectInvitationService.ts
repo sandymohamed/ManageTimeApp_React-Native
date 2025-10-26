@@ -100,7 +100,7 @@ class ProjectInvitationService {
   // Accept invitation
   async acceptInvitation(invitationId: string): Promise<ProjectInvitation> {
     try {
-      const response = await apiClient.put<ApiResponse<ProjectInvitation>>(`/project-invitations/${invitationId}/accept`, {});
+      const response = await apiClient.put<ApiResponse<ProjectInvitation>>(`/invitations/${invitationId}/accept`, {});
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to accept invitation');
@@ -116,7 +116,7 @@ class ProjectInvitationService {
   // Decline invitation
   async declineInvitation(invitationId: string): Promise<ProjectInvitation> {
     try {
-      const response = await apiClient.put<ApiResponse<ProjectInvitation>>(`/project-invitations/${invitationId}/decline`, {});
+      const response = await apiClient.put<ApiResponse<ProjectInvitation>>(`/invitations/${invitationId}/decline`, {});
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to decline invitation');
@@ -132,7 +132,7 @@ class ProjectInvitationService {
   // Cancel invitation (for project owner)
   async cancelInvitation(projectId: string, invitationId: string): Promise<void> {
     try {
-      const response = await apiClient.delete<ApiResponse<void>>(`/projects/${projectId}/invitations/${invitationId}`);
+      const response = await apiClient.delete<ApiResponse<void>>(`/invitations/${invitationId}`);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to cancel invitation');
@@ -146,7 +146,7 @@ class ProjectInvitationService {
   // Resend invitation
   async resendInvitation(projectId: string, invitationId: string): Promise<ProjectInvitation> {
     try {
-      const response = await apiClient.post<ApiResponse<ProjectInvitation>>(`/projects/${projectId}/invitations/${invitationId}/resend`, {});
+      const response = await apiClient.post<ApiResponse<ProjectInvitation>>(`/invitations/${invitationId}/resend`, {});
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to resend invitation');
