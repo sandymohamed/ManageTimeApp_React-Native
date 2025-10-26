@@ -75,14 +75,14 @@ export const useTaskStore = create<TaskStore>()(
 
       // Data fetching
       fetchTasks: async () => {
-        console.log('Fetching tasks');
+        console.log('**************************    7777777777 Fetching tasks', get());
         try {
           set({ isLoading: true, error: null });
 
           const response = await taskService.getTasks();
-          console.log('Response:', response);
+          console.log('Fetching tasks Response:', response);
           const tasks = response;
-          console.log('Tasks:', tasks);
+          console.log('Fetching tasks Tasks:', tasks);
 
           // Sort tasks by order field
           const sortedTasks = tasks.sort((a, b) => (a.order || 0) - (b.order || 0));

@@ -46,22 +46,8 @@ const InvitationAcceptScreen: React.FC = () => {
   const loadInvitation = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const invitationData = await invitationService.getInvitationByToken(token);
-      // setInvitation(invitationData);
-      
-      // Mock data for now
-      setInvitation({
-        id: '1',
-        projectId: 'project-1',
-        projectName: 'Sample Project',
-        inviterName: 'John Doe',
-        inviterEmail: 'john@example.com',
-        role: 'member',
-        status: 'pending',
-        createdAt: '2024-01-01T00:00:00Z',
-        expiresAt: '2024-12-31T23:59:59Z',
-      });
+      const invitationData = await invitationService.getInvitationByToken(token);
+      setInvitation(invitationData);
     } catch (error) {
       console.error('Error loading invitation:', error);
       Alert.alert('Error', 'Failed to load invitation details');
@@ -73,8 +59,7 @@ const InvitationAcceptScreen: React.FC = () => {
   const handleAccept = async () => {
     try {
       setProcessing(true);
-      // TODO: Replace with actual API call
-      // await invitationService.acceptInvitation(token);
+      await invitationService.acceptInvitation(token);
       
       Alert.alert(
         'Invitation Accepted',
@@ -97,8 +82,7 @@ const InvitationAcceptScreen: React.FC = () => {
   const handleDecline = async () => {
     try {
       setProcessing(true);
-      // TODO: Replace with actual API call
-      // await invitationService.declineInvitation(token);
+      await invitationService.declineInvitation(token);
       
       Alert.alert(
         'Invitation Declined',

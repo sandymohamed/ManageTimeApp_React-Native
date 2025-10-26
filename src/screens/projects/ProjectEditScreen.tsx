@@ -55,7 +55,6 @@ const ProjectEditScreen: React.FC = () => {
   const loadProjectData = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
       // const project = await projectService.getProject(projectId);
       // setProjectData(project);
       
@@ -81,7 +80,6 @@ const ProjectEditScreen: React.FC = () => {
   const handleSave = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
       // await projectService.updateProject(projectId, projectData);
       
       Alert.alert('Success', 'Project updated successfully', [
@@ -113,7 +111,6 @@ const ProjectEditScreen: React.FC = () => {
           onPress: async () => {
             try {
               setLoading(true);
-              // TODO: Replace with actual API call
               // await projectService.deleteProject(projectId);
               
               Alert.alert('Success', 'Project deleted successfully', [

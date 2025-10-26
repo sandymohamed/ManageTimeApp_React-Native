@@ -17,7 +17,9 @@ import { theme } from '@/utils/theme';
 import { useTranslation } from 'react-i18next';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { projectInvitationService } from '@/services/projectInvitationService';
+import { invitationService } from '@/services/invitationService';
 import { ProjectInvitation as ApiProjectInvitation, ProjectRole } from '@/types/project';
+import { useAuthStore } from '@/store/authStore';
 
 type ProjectInvitationsScreenNavigationProp = StackNavigationProp<any, 'ProjectInvitations'>;
 
@@ -51,7 +53,44 @@ const ProjectInvitationsScreen: React.FC = () => {
   const loadInvitations = async () => {
     try {
       setLoading(true);
-      const invitationsData = await projectInvitationService.getSentInvitations();
+      
+      // Debug: Check if user is authenticated
+      const { user, isAuthenticated } = useAuthStore.getState();
+      console.log('🔐 Auth Debug - User:', user?.email, 'Authenticated:', isAuthenticated);
+      
+      let invitationsData: any[] = [];
+      
+      try {
+        // Try the project invitation service first
+        console.log('🔄 Trying projectInvitationService.getSentInvitations()...');
+        invitationsData = await projectInvitationService.getSentInvitations();
+        console.log('✅ projectInvitationService.getSentInvitations success:', invitationsData);
+      } catch (error) {
+        console.log('❌ projectInvitationService.getSentInvitations failed:', error);
+        
+        try {
+          // Fallback: Try alternative endpoint
+          console.log('🔄 Trying projectInvitationService.getAllUserProjectInvitations()...');
+          invitationsData = await projectInvitationService.getAllUserProjectInvitations();
+          console.log('✅ projectInvitationService.getAllUserProjectInvitations success:', invitationsData);
+        } catch (fallbackError) {
+          console.log('❌ getAllUserProjectInvitations also failed:', fallbackError);
+          
+          try {
+            // Final fallback: Try the regular invitation service
+            console.log('🔄 Trying invitationService.getPendingInvitations() as last resort...');
+            const pendingInvitations = await invitationService.getPendingInvitations();
+            // Filter to only show invitations sent by current user
+            const { user } = useAuthStore.getState();
+            invitationsData = pendingInvitations.filter(inv => inv.inviter?.email === user?.email);
+            console.log('✅ invitationService fallback success:', invitationsData);
+          } catch (finalError) {
+            console.log('❌ All API calls failed:', finalError);
+            invitationsData = [];
+            console.log('📝 Using empty array as final fallback');
+          }
+        }
+      }
       
       // Map API data to our local format
       const mappedInvitations: ProjectInvitation[] = invitationsData.map(invitation => ({
@@ -59,10 +98,11 @@ const ProjectInvitationsScreen: React.FC = () => {
         respondedAt: invitation.acceptedAt || (invitation.status !== 'PENDING' ? invitation.createdAt : undefined),
       }));
       
+      console.log('📋 Final Mapped Invitations:', mappedInvitations);
       setInvitations(mappedInvitations);
     } catch (error) {
-      console.error('Error loading invitations:', error);
-      Alert.alert('Error', 'Failed to load project invitations. Please try again.');
+      console.error('❌ Error loading invitations:', error);
+      Alert.alert('Error', `Failed to load project invitations: ${(error as Error).message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -71,7 +111,7 @@ const ProjectInvitationsScreen: React.FC = () => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadInvitations();
-        setRefreshing(false);
+    setRefreshing(false);
   }, []);
 
   const filterAndSortInvitations = useCallback(() => {
@@ -221,8 +261,8 @@ const ProjectInvitationsScreen: React.FC = () => {
 
   const renderInvitation = ({ item }: { item: ProjectInvitation }) => (
     <Card style={styles.invitationCard}>
-        <Card.Content>
-          <View style={styles.invitationHeader}>
+      <Card.Content>
+        <View style={styles.invitationHeader}>
           <View style={styles.projectInfo}>
             <TouchableOpacity onPress={() => handleViewProject(item.projectId)}>
               <Title style={styles.projectName}>{item.projectName}</Title>
@@ -242,7 +282,7 @@ const ProjectInvitationsScreen: React.FC = () => {
               {item.status.toUpperCase()}
             </Chip>
           </View>
-            </View>
+        </View>
 
         <View style={styles.invitationDetails}>
           <View style={styles.detailRow}>
@@ -323,9 +363,9 @@ const ProjectInvitationsScreen: React.FC = () => {
             </Button>
           </View>
         )}
-        </Card.Content>
-      </Card>
-    );
+      </Card.Content>
+    </Card>
+  );
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -353,16 +393,24 @@ const ProjectInvitationsScreen: React.FC = () => {
     </View>
   );
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <Searchbar
-        placeholder="Search invitations..."
-        onChangeText={setSearchQuery}
-        value={searchQuery}
-        style={styles.searchBar}
-      />
-      
-      <View style={styles.filterRow}>
+  const renderHeader = () => {
+    const { user } = useAuthStore.getState();
+    
+    return (
+      <View style={styles.header}>
+        {/* Debug info - remove in production */}
+        <View style={styles.debugInfo}>
+          <Text style={styles.debugText}>Logged in as: {user?.email || 'Unknown'}</Text>
+        </View>
+        
+        <Searchbar
+          placeholder="Search invitations..."
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          style={styles.searchBar}
+        />
+        
+        <View style={styles.filterRow}>
         {/* @ts-ignore - React Native Paper Menu component type issue */}
         <Menu
           visible={showStatusMenu}
@@ -415,9 +463,10 @@ const ProjectInvitationsScreen: React.FC = () => {
             (filtered from {invitations.length} total)
           </Text>
         )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -475,6 +524,17 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface || '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.outline || '#E0E0E0',
+  },
+  debugInfo: {
+    backgroundColor: '#E3F2FD',
+    padding: 8,
+    borderRadius: 4,
+    marginBottom: 12,
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#1976D2',
+    fontWeight: '500',
   },
   searchBar: {
     marginBottom: 12,

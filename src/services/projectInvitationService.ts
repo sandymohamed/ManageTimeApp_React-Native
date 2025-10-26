@@ -60,15 +60,39 @@ class ProjectInvitationService {
   // Get all invitations sent by the user
   async getSentInvitations(): Promise<ProjectInvitation[]> {
     try {
+      console.log('🌐 API Call - Getting sent invitations from /project-invitations/sent');
       const response = await apiClient.get<ApiResponse<ProjectInvitation[]>>('/project-invitations/sent');
+      console.log('🌐 API Response - Raw response:', response);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to get sent invitations');
       }
 
+      console.log('🌐 API Response - Data:', response.data);
       return response.data;
     } catch (error) {
       logger.error('Get sent invitations error:', error);
+      console.error('❌ API Error - getSentInvitations:', error);
+      throw error;
+    }
+  }
+
+  // Alternative: Get all invitations for user's projects
+  async getAllUserProjectInvitations(): Promise<ProjectInvitation[]> {
+    try {
+      console.log('🌐 API Call - Getting all user project invitations from /project-invitations/user/all');
+      const response = await apiClient.get<ApiResponse<ProjectInvitation[]>>('/project-invitations/user/all');
+      console.log('🌐 API Response - Raw response:', response);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get user project invitations');
+      }
+
+      console.log('🌐 API Response - Data:', response.data);
+      return response.data;
+    } catch (error) {
+      logger.error('Get all user project invitations error:', error);
+      console.error('❌ API Error - getAllUserProjectInvitations:', error);
       throw error;
     }
   }

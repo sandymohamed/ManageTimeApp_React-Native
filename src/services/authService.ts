@@ -8,7 +8,7 @@ import { logger } from '@/utils/logger';
 import axios from 'axios';
 
 class AuthService {
-  // TODO: Remove this after testing
+  // Debug helper - only for development/testing
   // Add this to your AuthService temporarily
   // Add to your AuthService temporarily
   async debugTokenStorage(): Promise<void> {
@@ -40,6 +40,7 @@ class AuthService {
     }
   }
 
+  // Debug helper - only for development/testing
   async testConnection(): Promise<void> {
     try {
       console.log("🔍 Testing network connectivity...");
@@ -109,35 +110,27 @@ class AuthService {
     try {
       console.log('🔐 AuthService: Starting login...', credentials);
 
-      // For testing purposes, if backend is not available, use mock data
-      try {
-        const response = await apiClient.post<ApiResponse<{
-          user: User;
-          tokens: {
-            accessToken: string;
-            refreshToken: string;
-          };
-        }>>('/auth/login', credentials);
-
-        console.log('🔐 AuthService: Login response received:', response);
-
-        if (!response.data.success) {
-          throw new Error(response.data.error || 'Login failed');
-        }
-
-        // Transform the response to match expected format
-        const { user, tokens } = response.data.data;
-        return {
-          user,
-          token: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
+      const response = await apiClient.post<ApiResponse<{
+        user: User;
+        tokens: {
+          accessToken: string;
+          refreshToken: string;
         };
-      } catch (networkError: any) {
-        // Disable mock data fallback - force real backend connection
-        console.log('🌐 Network error detected, throwing error instead of using mock data...');
-        
-        throw networkError;
+      }>>('/auth/login', credentials);
+
+      console.log('🔐 AuthService: Login response received:', response);
+
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Login failed');
       }
+
+      // Transform the response to match expected format
+      const { user, tokens } = response.data.data;
+      return {
+        user,
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      };
     } catch (error) {
       console.log('❌ AuthService: Login error:', error);
       logger.error('Login error:', error);
@@ -170,10 +163,10 @@ class AuthService {
         token: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       };
-    } catch (networkError: any) {
-      // Disable mock data fallback - force real backend connection
-      console.log('🌐 Network error detected, throwing error instead of using mock data...');
-      throw networkError;
+    } catch (error) {
+      console.log('❌ AuthService: Registration error:', error);
+      logger.error('Registration error:', error);
+      throw error;
     }
   }
 
@@ -181,30 +174,23 @@ class AuthService {
     try {
       console.log('🔄 AuthService: Refreshing token...');
 
-      try {
-        const response = await apiClient.post<ApiResponse<{
-          accessToken: string;
-          refreshToken: string;
-        }>>('/auth/refresh', { refreshToken });
+      const response = await apiClient.post<ApiResponse<{
+        accessToken: string;
+        refreshToken: string;
+      }>>('/auth/refresh', { refreshToken });
 
-        console.log('🔄 AuthService: Refresh response received:', response);
+      console.log('🔄 AuthService: Refresh response received:', response);
 
-        if (!response.data.success) {
-          throw new Error(response.data.error || 'Token refresh failed');
-        }
-
-        // Transform the response to match expected format
-        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-        return {
-          token: accessToken,
-          refreshToken: newRefreshToken,
-        };
-      } catch (networkError: any) {
-        // Disable mock data fallback - force real backend connection
-        console.log('🌐 Network error during refresh, throwing error instead of using mock data...');
-        
-        throw networkError;
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Token refresh failed');
       }
+
+      // Transform the response to match expected format
+      const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+      return {
+        token: accessToken,
+        refreshToken: newRefreshToken,
+      };
     } catch (error: any) {
       console.log('❌ AuthService: Token refresh error:', error);
       logger.error('Token refresh error:', error);
@@ -262,24 +248,17 @@ class AuthService {
 
   async getCurrentUser(token: string): Promise<User> {
     try {
-      try {
-        const response = await apiClient.get<ApiResponse<User>>('/me', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+      const response = await apiClient.get<ApiResponse<User>>('/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-        if (!response.data.success) {
-          throw new Error(response.data.error || 'Failed to get user');
-        }
-
-        return response.data.data;
-      } catch (networkError: any) {
-        // Disable mock data fallback - force real backend connection
-        console.log('🌐 Network error during getCurrentUser, throwing error instead of using mock data...');
-        
-        throw networkError;
+      if (!response.data.success) {
+        throw new Error(response.data.error || 'Failed to get user');
       }
+
+      return response.data.data;
     } catch (error) {
       logger.error('Get current user error:', error);
       throw error;

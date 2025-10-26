@@ -44,35 +44,9 @@ const PendingInvitationsScreen: React.FC = () => {
   const loadInvitations = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call
-      // const invitationsData = await invitationService.getPendingInvitations();
-      // setInvitations(invitationsData);
-      
-      // Mock data for now
-      setInvitations([
-        {
-          id: '1',
-          projectId: 'project-1',
-          projectName: 'Sample Project 1',
-          inviterName: 'John Doe',
-          inviterEmail: 'john@example.com',
-          role: 'member',
-          status: 'pending',
-          createdAt: '2024-01-01T00:00:00Z',
-          expiresAt: '2024-12-31T23:59:59Z',
-        },
-        {
-          id: '2',
-          projectId: 'project-2',
-          projectName: 'Sample Project 2',
-          inviterName: 'Jane Smith',
-          inviterEmail: 'jane@example.com',
-          role: 'admin',
-          status: 'pending',
-          createdAt: '2024-01-02T00:00:00Z',
-          expiresAt: '2024-12-31T23:59:59Z',
-        },
-      ]);
+      // Call API to get pending invitations
+      const invitationsData = await invitationService.getPendingInvitations();
+      setInvitations(invitationsData);
     } catch (error) {
       console.error('Error loading invitations:', error);
       Alert.alert('Error', 'Failed to load pending invitations');
@@ -89,8 +63,7 @@ const PendingInvitationsScreen: React.FC = () => {
 
   const handleAccept = async (invitationId: string) => {
     try {
-      // TODO: Replace with actual API call
-      // await invitationService.acceptInvitation(invitationId);
+      await invitationService.acceptInvitation(invitationId);
       
       Alert.alert('Success', 'Invitation accepted successfully');
       loadInvitations(); // Refresh the list
@@ -102,8 +75,7 @@ const PendingInvitationsScreen: React.FC = () => {
 
   const handleDecline = async (invitationId: string) => {
     try {
-      // TODO: Replace with actual API call
-      // await invitationService.declineInvitation(invitationId);
+      await invitationService.declineInvitation(invitationId);
       
       Alert.alert('Success', 'Invitation declined successfully');
       loadInvitations(); // Refresh the list
