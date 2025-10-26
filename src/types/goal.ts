@@ -1,3 +1,5 @@
+import { MilestoneStatus } from "./project";
+
 export enum GoalStatus {
   DRAFT = 'DRAFT',
   ACTIVE = 'ACTIVE',
@@ -47,11 +49,11 @@ export interface Milestone {
   isDeleted: boolean;
 }
 
-export enum MilestoneStatus {
-  TODO = 'TODO',
-  IN_PROGRESS = 'IN_PROGRESS',
-  DONE = 'DONE',
-}
+// export enum MilestoneStatus {
+//   TODO = 'TODO',
+//   IN_PROGRESS = 'IN_PROGRESS',
+//   DONE = 'DONE',
+// }
 
 export interface CreateGoalData {
   title: string;
@@ -72,20 +74,20 @@ export interface UpdateGoalData {
   completedAt?: string;
 }
 
-export interface CreateMilestoneData {
-  title: string;
-  description?: string;
-  targetDate?: string;
-  order?: number;
-}
+// export interface CreateMilestoneData {
+//   title: string;
+//   description?: string;
+//   targetDate?: string;
+//   order?: number;
+// }
 
-export interface UpdateMilestoneData {
-  title?: string;
-  description?: string;
-  status?: MilestoneStatus;
-  targetDate?: string;
-  order?: number;
-}
+// export interface UpdateMilestoneData {
+//   title?: string;
+//   description?: string;
+//   status?: MilestoneStatus;
+//   targetDate?: string;
+//   order?: number;
+// }
 
 export interface AIPlanRequest {
   goalId: string;

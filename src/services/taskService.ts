@@ -1,7 +1,7 @@
-import {apiClient} from './apiClient';
-import {Task, CreateTaskData, UpdateTaskData} from '@/types/task';
-import {ApiResponse, PaginatedResponse} from '@/types';
-import {logger} from '@/utils/logger';
+import { apiClient } from './apiClient';
+import { Task, CreateTaskData, UpdateTaskData } from '@/types/task';
+import { ApiResponse, PaginatedResponse } from '@/types';
+import { logger } from '@/utils/logger';
 
 class TaskService {
   async getTasks(params?: {
@@ -20,39 +20,7 @@ class TaskService {
         params,
       });
       console.log('Response TaskService:', response.data);
-   /*
-    {
-        "id": "22c98545-b807-45f1-a04d-766cfd28a51d",
-        "title": "Complete API Documentation - Updated",
-        "description": "Write comprehensive API documentation with examples",
-        "creatorId": "ddc1ba7f-71c7-43cd-8c53-f8ab056638b0",
-        "assigneeId": null,
-        "projectId": null,
-        "goalId": null,
-        "milestoneId": null,
-        "parentTaskId": null,
-        "priority": "URGENT",
-        "status": "IN_PROGRESS",
-        "dueDate": "2024-01-20T17:00:00.000Z",
-        "recurrenceRule": null,
-        "metadata": {
-            "category": "documentation",
-            "estimatedHours": 4
-        },
-        "createdAt": "2025-09-29T18:59:25.702Z",
-        "updatedAt": "2025-09-29T19:01:31.407Z",
-        "creator": {
-            "id": "ddc1ba7f-71c7-43cd-8c53-f8ab056638b0",
-            "name": "sandy",
-            "email": "sandysawy@gmail.com"
-        },
-        "assignee": null,
-        "project": null,
-        "goal": null,
-        "milestone": null
-    }
-]
-       */
+
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to get tasks');
@@ -172,7 +140,7 @@ class TaskService {
 
   async getTasksByProject(projectId: string): Promise<Task[]> {
     try {
-      const response = await this.getTasks({projectId});
+      const response = await this.getTasks({ projectId });
       return response;
     } catch (error) {
       logger.error('Get tasks by project error:', error);
@@ -182,7 +150,7 @@ class TaskService {
 
   async getTasksByGoal(goalId: string): Promise<Task[]> {
     try {
-      const response = await this.getTasks({goalId});
+      const response = await this.getTasks({ goalId });
       return response;
     } catch (error) {
       logger.error('Get tasks by goal error:', error);
@@ -192,7 +160,7 @@ class TaskService {
 
   async getTasksByAssignee(assigneeId: string): Promise<Task[]> {
     try {
-      const response = await this.getTasks({assigneeId});
+      const response = await this.getTasks({ assigneeId });
       return response;
     } catch (error) {
       logger.error('Get tasks by assignee error:', error);
@@ -202,7 +170,7 @@ class TaskService {
 
   async searchTasks(query: string): Promise<Task[]> {
     try {
-      const response = await this.getTasks({search: query});
+      const response = await this.getTasks({ search: query });
       return response;
     } catch (error) {
       logger.error('Search tasks error:', error);

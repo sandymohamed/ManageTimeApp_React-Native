@@ -1,3 +1,5 @@
+import { TaskPriority, TaskStatus } from "./task";
+
 export enum ProjectRole {
   OWNER = 'OWNER',
   EDITOR = 'EDITOR',
@@ -117,26 +119,26 @@ export interface ProjectTask {
   updatedAt: string;
 }
 
-export enum TaskStatus {
-  TODO = 'TODO',
-  IN_PROGRESS = 'IN_PROGRESS',
-  DONE = 'DONE',
-  CANCELLED = 'CANCELLED',
-  ARCHIVED = 'ARCHIVED',
+// export enum TaskStatus {
+//   TODO = 'TODO',
+//   IN_PROGRESS = 'IN_PROGRESS',
+//   DONE = 'DONE',
+//   CANCELLED = 'CANCELLED',
+//   ARCHIVED = 'ARCHIVED',
 
 
-  // TODO = 'TODO',
-  // IN_PROGRESS = 'IN_PROGRESS',
-  // COMPLETED = 'COMPLETED',
-  // CANCELLED = 'CANCELLED',
-}
+//   // TODO = 'TODO',
+//   // IN_PROGRESS = 'IN_PROGRESS',
+//   // COMPLETED = 'COMPLETED',
+//   // CANCELLED = 'CANCELLED',
+// }
 
-export enum TaskPriority {
-  LOW = 'LOW',
-  MEDIUM = 'MEDIUM',
-  HIGH = 'HIGH',
-  URGENT = 'URGENT',
-}
+// export enum TaskPriority {
+//   LOW = 'LOW',
+//   MEDIUM = 'MEDIUM',
+//   HIGH = 'HIGH',
+//   URGENT = 'URGENT',
+// }
 
 export interface CreateMilestoneData {
   title: string;

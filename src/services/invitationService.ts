@@ -32,11 +32,11 @@ class InvitationService {
     try {
       const response = await apiClient.post<ApiResponse<ProjectInvitation>>('/invitations', data);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to create invitation');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create invitation');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       logger.error('Create invitation error:', error);
       throw error;
@@ -47,11 +47,11 @@ class InvitationService {
     try {
       const response = await apiClient.get<ApiResponse<ProjectInvitation[]>>(`/invitations/project/${projectId}`);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to get project invitations');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get project invitations');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       logger.error('Get project invitations error:', error);
       throw error;
@@ -62,11 +62,11 @@ class InvitationService {
     try {
       const response = await apiClient.get<ApiResponse<ProjectInvitation>>(`/invitations/${token}`);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to get invitation');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get invitation');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       logger.error('Get invitation by token error:', error);
       throw error;
@@ -77,11 +77,11 @@ class InvitationService {
     try {
       const response = await apiClient.post<ApiResponse<{ success: boolean; message: string }>>(`/invitations/${token}/accept`);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to accept invitation');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to accept invitation');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       logger.error('Accept invitation error:', error);
       throw error;
@@ -92,11 +92,11 @@ class InvitationService {
     try {
       const response = await apiClient.post<ApiResponse<{ success: boolean; message: string }>>(`/invitations/${token}/decline`);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to decline invitation');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to decline invitation');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       logger.error('Decline invitation error:', error);
       throw error;
@@ -107,11 +107,11 @@ class InvitationService {
     try {
       const response = await apiClient.delete<ApiResponse<{ success: boolean; message: string }>>(`/invitations/${invitationId}`);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to cancel invitation');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to cancel invitation');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       logger.error('Cancel invitation error:', error);
       throw error;
@@ -122,11 +122,11 @@ class InvitationService {
     try {
       const response = await apiClient.get<ApiResponse<ProjectInvitation[]>>('/invitations/user/pending');
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to get pending invitations');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get pending invitations');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       logger.error('Get pending invitations error:', error);
       throw error;

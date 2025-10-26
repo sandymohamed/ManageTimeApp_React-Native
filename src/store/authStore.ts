@@ -26,6 +26,7 @@ interface AuthActions {
   updateProfile: (data: Partial<User>) => Promise<void>;
   getToken: () => Promise<string | null>;
   getRefreshToken: () => Promise<string | null>;
+  clearAllPersistedData: () => Promise<void>;
 }
 
 type AuthStore = AuthState & AuthActions;
@@ -106,6 +107,7 @@ export const useAuthStore = create<AuthStore>()(
           set({ isLoading: true, error: null });
           
           console.log("register try", credentials);
+          
           const response = await authService.register(credentials);
           console.log("register try response", response);
           
@@ -146,12 +148,8 @@ export const useAuthStore = create<AuthStore>()(
           // Clear tokens from Keychain
           await Keychain.resetGenericPassword();
 
-          set({
-            user: null,
-            isAuthenticated: false,
-            isLoading: false,
-            error: null,
-          });
+          // Clear all persisted data from all stores
+          await get().clearAllPersistedData();
 
           logger.info('User logged out successfully');
         } catch (error: any) {
@@ -209,8 +207,16 @@ export const useAuthStore = create<AuthStore>()(
             return;
           }
 
-          // Verify token with backend
-          const user = await authService.getCurrentUser(token);
+          // Verify token with backend with timeout
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Timeout')), 5000); // 5 second timeout
+          });
+
+          const user = await Promise.race([
+            authService.getCurrentUser(token),
+            timeoutPromise
+          ]) as any;
+
           console.log("initializeAuth user", user);
           set({
             user,
@@ -282,6 +288,42 @@ export const useAuthStore = create<AuthStore>()(
 
       setLoading: (loading: boolean) => {
         set({ isLoading: loading });
+      },
+
+      clearAllPersistedData: async () => {
+        try {
+          // Clear specific persisted store data instead of all AsyncStorage
+          // This is much faster and doesn't block the main thread
+          const keysToRemove = [
+            'auth-store',
+            'task-storage',
+            'goal-storage',
+            'project-store',
+          ];
+          
+          await AsyncStorage.multiRemove(keysToRemove);
+          
+          // Clear auth state
+          set({
+            user: null,
+            isAuthenticated: false,
+            isInitialized: false,
+            isLoading: false,
+            error: null,
+          });
+          
+          logger.info('All persisted data cleared');
+        } catch (error) {
+          logger.error('Error clearing persisted data:', error);
+          // Clear auth state even if AsyncStorage fails
+          set({
+            user: null,
+            isAuthenticated: false,
+            isInitialized: false,
+            isLoading: false,
+            error: null,
+          });
+        }
       },
     }),
     {

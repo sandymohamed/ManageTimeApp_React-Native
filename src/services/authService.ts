@@ -50,7 +50,7 @@ class AuthService {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
+
         const fetchTest = await fetch('http://192.168.1.13:8081/health', {
           method: 'GET',
           headers: {
@@ -58,7 +58,7 @@ class AuthService {
           },
           signal: controller.signal,
         });
-        
+
         clearTimeout(timeoutId);
         console.log("✅ Fetch test result:", fetchTest.status, fetchTest.statusText);
         const data = await fetchTest.json();
@@ -120,12 +120,12 @@ class AuthService {
 
       console.log('🔐 AuthService: Login response received:', response);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Login failed');
+      if (!response.success) {
+        throw new Error(response.error || 'Login failed');
       }
 
       // Transform the response to match expected format
-      const { user, tokens } = response.data.data;
+      const { user, tokens } = response.data;
       return {
         user,
         token: tokens.accessToken,
@@ -152,12 +152,12 @@ class AuthService {
 
       console.log('🔐 AuthService: Registration response received:', response);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Registration failed');
+      if (!response.success) {
+        throw new Error(response.error || 'Registration failed');
       }
 
       // Transform the response to match expected format
-      const { user, tokens } = response.data.data;
+      const { user, tokens } = response.data;
       return {
         user,
         token: tokens.accessToken,
@@ -181,12 +181,12 @@ class AuthService {
 
       console.log('🔄 AuthService: Refresh response received:', response);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Token refresh failed');
+      if (!response.success) {
+        throw new Error(response.error || 'Token refresh failed');
       }
 
       // Transform the response to match expected format
-      const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+      const { accessToken, refreshToken: newRefreshToken } = response.data;
       return {
         token: accessToken,
         refreshToken: newRefreshToken,
@@ -194,7 +194,7 @@ class AuthService {
     } catch (error: any) {
       console.log('❌ AuthService: Token refresh error:', error);
       logger.error('Token refresh error:', error);
-      
+
       // Provide more specific error messages
       if (error.message?.includes('Refresh token expired')) {
         throw new Error('Your session has expired. Please login again.');
@@ -203,7 +203,7 @@ class AuthService {
       } else if (error.message?.includes('401')) {
         throw new Error('Authentication failed. Please login again.');
       }
-      
+
       throw error;
     }
   }
@@ -237,8 +237,8 @@ class AuthService {
     try {
       const response = await apiClient.post<ApiResponse<void>>('/auth/change-password', data);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Password change failed');
+      if (!response.success) {
+        throw new Error(response.error || 'Password change failed');
       }
     } catch (error) {
       logger.error('Change password error:', error);
@@ -254,11 +254,11 @@ class AuthService {
         },
       });
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to get user');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to get user');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       logger.error('Get current user error:', error);
       throw error;
@@ -269,11 +269,11 @@ class AuthService {
     try {
       const response = await apiClient.put<ApiResponse<User>>('/me', data);
 
-      if (!response.data.success) {
-        throw new Error(response.data.error || 'Profile update failed');
+      if (!response.success) {
+        throw new Error(response.error || 'Profile update failed');
       }
 
-      return response.data.data;
+      return response.data;
     } catch (error) {
       logger.error('Update profile error:', error);
       throw error;
