@@ -1,212 +1,585 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { Text, Card, Button, TextInput, IconButton, Switch, useTheme, Chip, Modal, Portal } from 'react-native-paper';
+// import React, { useState } from 'react';
+// import {
+//   View,
+//   Text,
+//   StyleSheet,
+//   ScrollView,
+//   Alert,
+//   ActivityIndicator,
+//   RefreshControl,
+// } from 'react-native';
+// import { Card, Title, Paragraph, Button, Chip, IconButton } from 'react-native-paper';
+// import { useTranslation } from 'react-i18next';
+// import { useNavigation, useFocusEffect } from '@react-navigation/native';
+// import { theme } from '@/utils/theme';
+// import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+// import { routineService } from '@/services/routineService';
+// import { Routine, RoutineTask, RoutineFrequency } from '@/types/routine';
+// import { useNotification } from '@/contexts/NotificationContext';
+
+// const RoutinesScreen: React.FC = () => {
+//   const navigation = useNavigation();
+//   const { t } = useTranslation();
+//   const { showSuccess, showError } = useNotification();
+//   const [routines, setRoutines] = useState<Routine[]>([]);
+//   const [loading, setLoading] = useState(true);
+//   const [refreshing, setRefreshing] = useState(false);
+//   const [creatingExamples, setCreatingExamples] = useState(false);
+
+//   // Reload routines when screen comes into focus (after create/edit)
+//   useFocusEffect(
+//     React.useCallback(() => {
+//       loadRoutines();
+//     }, [])
+//   );
+
+//   const loadRoutines = async () => {
+//     try {
+//       setLoading(true);
+//       const data = await routineService.getUserRoutines();
+//       setRoutines(data);
+//     } catch (error) {
+//       console.error('Error loading routines:', error);
+//       Alert.alert(t('common.error'), t('routines.loadError'));
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   const onRefresh = async () => {
+//     setRefreshing(true);
+//     await loadRoutines();
+//     setRefreshing(false);
+//   };
+
+//   const handleToggleTask = async (taskId: string, currentStatus: boolean) => {
+//     try {
+//       await routineService.toggleTaskCompletion(taskId, !currentStatus);
+//       await loadRoutines();
+//     } catch (error) {
+//       console.error('Error toggling task:', error);
+//       Alert.alert(t('common.error'), t('routines.updateTaskError'));
+//     }
+//   };
+
+//   const handleEditRoutine = (routineId: string) => {
+//     // @ts-ignore
+//     navigation.navigate('RoutineEdit', { routineId });
+//   };
+
+//   const handleCreateRoutine = () => {
+//     // @ts-ignore
+//     navigation.navigate('RoutineCreate');
+//   };
+
+//   const handleDeleteRoutine = async (routineId: string) => {
+//     Alert.alert(
+//       t('routines.deleteRoutine'),
+//       t('routines.deleteRoutineConfirm'),
+//       [
+//         { text: t('common.cancel'), style: 'cancel' },
+//         {
+//           text: t('common.delete'),
+//           style: 'destructive',
+//           onPress: async () => {
+//             try {
+//               await routineService.deleteRoutine(routineId);
+//               await loadRoutines();
+//               showSuccess(t('routines.routineDeleted'));
+//             } catch (error) {
+//               console.error('Error deleting routine:', error);
+//               showError(t('routines.deleteError'));
+//             }
+//           },
+//         },
+//       ]
+//     );
+//   };
+
+//   const createExampleRoutines = async () => {
+//     try {
+//       setCreatingExamples(true);
+      
+//       // Morning Routine
+//       const morningRoutine = await routineService.createRoutine({
+//         title: t('routines.morningRoutine') || 'Morning Routine',
+//         description: t('routines.morningRoutineDesc') || 'Daily morning routine at 6:00 AM',
+//         frequency: 'DAILY',
+//         schedule: {
+//           time: '06:00',
+//         },
+//         timezone: 'UTC',
+//       });
+
+//       await routineService.addTaskToRoutine(morningRoutine.id, {
+//         title: 'Drink water',
+//         order: 0,
+//       });
+//       await routineService.addTaskToRoutine(morningRoutine.id, {
+//         title: 'Exercise',
+//         order: 1,
+//       });
+//       await routineService.addTaskToRoutine(morningRoutine.id, {
+//         title: 'Breakfast',
+//         order: 2,
+//       });
+
+//       // Friday Prayer (Weekly)
+//       const fridayPrayer = await routineService.createRoutine({
+//         title: t('routines.fridayPrayer') || 'Friday Prayer',
+//         description: t('routines.fridayPrayerDesc') || 'Weekly Friday prayer at 1:00 PM',
+//         frequency: 'WEEKLY',
+//         schedule: {
+//           time: '13:00',
+//           days: [5], // Friday
+//         },
+//         timezone: 'UTC',
+//       });
+
+//       await routineService.addTaskToRoutine(fridayPrayer.id, {
+//         title: 'Prepare for prayer',
+//         order: 0,
+//       });
+//       await routineService.addTaskToRoutine(fridayPrayer.id, {
+//         title: 'Attend Friday prayer',
+//         order: 1,
+//       });
+
+//       await loadRoutines();
+//       showSuccess(t('routines.exampleRoutinesCreated') || 'Example routines created successfully');
+//     } catch (error: any) {
+//       console.error('Error creating example routines:', error);
+//       showError(error.message || 'Failed to create example routines');
+//     } finally {
+//       setCreatingExamples(false);
+//     }
+//   };
+
+//   const getFrequencyLabel = (frequency: RoutineFrequency) => {
+//     switch (frequency) {
+//       case 'DAILY': return t('routines.daily');
+//       case 'WEEKLY': return t('routines.weekly');
+//       case 'MONTHLY': return t('routines.monthly');
+//       case 'YEARLY': return t('routines.yearly');
+//     }
+//   };
+
+//   const getFrequencyIcon = (frequency: RoutineFrequency) => {
+//     switch (frequency) {
+//       case 'DAILY': return 'calendar-today';
+//       case 'WEEKLY': return 'calendar-range';
+//       case 'MONTHLY': return 'calendar-month';
+//       case 'YEARLY': return 'calendar';
+//     }
+//   };
+
+//   const formatNextOccurrence = (date?: string) => {
+//     if (!date) return t('routines.notScheduled');
+//     return new Date(date).toLocaleString();
+//   };
+
+//   const renderRoutine = (routine: Routine) => {
+//     const completedTasks = routine.routineTasks.filter(t => t.completed).length;
+//     const totalTasks = routine.routineTasks.length;
+//     const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+//     return (
+//       <Card style={styles.routineCard} key={routine.id}>
+//         <Card.Content>
+//           <View style={styles.routineHeader}>
+//             <View style={styles.routineTitleContainer}>
+//               <Title style={styles.routineTitle}>{routine.title}</Title>
+//               <Chip
+//                 icon={() => <Icon name={getFrequencyIcon(routine.frequency)} size={16} color="#1976D2" />}
+//                 style={styles.frequencyChip}
+//               >
+//                 {getFrequencyLabel(routine.frequency)}
+//               </Chip>
+//             </View>
+//             {routine.schedule.time && (
+//               <Chip style={styles.timeChip}>
+//                 <Icon name="clock" size={14} color={theme.colors.primary} /> {routine.schedule.time}
+//               </Chip>
+//             )}
+//           </View>
+
+//           {routine.description && (
+//             <Paragraph style={styles.description}>{routine.description}</Paragraph>
+//           )}
+
+//           <View style={styles.progressContainer}>
+//             <View style={styles.progressBar}>
+//               <View style={[styles.progressFill, { width: `${progress}%` }]} />
+//             </View>
+//             <Text style={styles.progressText}>
+//               {t('routines.tasksCompleted', { completed: completedTasks, total: totalTasks })}
+//             </Text>
+//           </View>
+
+//           {/* Routine Tasks */}
+//           <View style={styles.tasksContainer}>
+//             {routine.routineTasks.map((task, index) => (
+//               <Card
+//                 key={task.id}
+//                 style={[
+//                   styles.taskCard,
+//                   task.completed && styles.taskCardCompleted,
+//                 ]}
+//               >
+//                 <Card.Content style={styles.taskContent}>
+//                   <View style={styles.taskHeader}>
+//                     <View style={styles.taskCheckboxContainer}>
+//                       <Button
+//                         mode="text"
+//                         onPress={() => handleToggleTask(task.id, task.completed)}
+//                         icon={task.completed ? 'check-circle' : 'circle-outline'}
+//                         textColor={task.completed ? '#4CAF50' : theme.colors.textSecondary}
+//                       >
+//                         <Text
+//                           style={[
+//                             styles.taskTitle,
+//                             task.completed && styles.taskTitleCompleted,
+//                           ]}
+//                         >
+//                           {task.title}
+//                         </Text>
+//                       </Button>
+//                     </View>
+//                   </View>
+//                   {task.description && (
+//                     <Paragraph style={styles.taskDescription}>
+//                       {task.description}
+//                     </Paragraph>
+//                   )}
+//                   {task.reminderTime && (
+//                     <Chip
+//                       icon={() => <Icon name="bell" size={14} />}
+//                       style={styles.reminderChip}
+//                     >
+//                       {task.reminderTime}
+//                     </Chip>
+//                   )}
+//                 </Card.Content>
+//               </Card>
+//             ))}
+//           </View>
+
+//           <View style={styles.routineFooter}>
+//             <Text style={styles.nextOccurrence}>
+//               {t('routines.next')}: {formatNextOccurrence(routine.nextOccurrenceAt)}
+//             </Text>
+//             <View style={styles.routineActions}>
+//               <IconButton
+//                 icon="pencil"
+//                 size={20}
+//                 onPress={() => handleEditRoutine(routine.id)}
+//               />
+//               <Button
+//                 mode="outlined"
+//                 onPress={() => handleDeleteRoutine(routine.id)}
+//                 textColor="#F44336"
+//                 icon="delete"
+//                 style={styles.deleteButton}
+//               >
+//                 {t('common.delete')}
+//               </Button>
+//             </View>
+//           </View>
+//         </Card.Content>
+//       </Card>
+//     );
+//   };
+
+//   if (loading && !refreshing) {
+//     return (
+//       <View style={styles.loadingContainer}>
+//         <ActivityIndicator size="large" color={theme.colors.primary} />
+//       </View>
+//     );
+//   }
+
+//   return (
+//     <View style={styles.container}>
+//       <ScrollView
+//         style={styles.scrollView}
+//         refreshControl={
+//           <RefreshControl
+//             refreshing={refreshing}
+//             onRefresh={onRefresh}
+//             colors={[theme.colors.primary || '#1976D2']}
+//           />
+//         }
+//       >
+//         {routines.length === 0 ? (
+//           <View style={styles.emptyState}>
+//             <Icon name="repeat" size={64} color={theme.colors.textSecondary} />
+//             <Title style={styles.emptyTitle}>{t('routines.noRoutines')}</Title>
+//             <Paragraph style={styles.emptyText}>
+//               {t('routines.createFirstRoutine')}
+//             </Paragraph>
+//             <View style={styles.emptyStateButtons}>
+//               <Button
+//                 mode="outlined"
+//                 onPress={createExampleRoutines}
+//                 icon="lightbulb"
+//                 loading={creatingExamples}
+//                 disabled={creatingExamples}
+//                 style={styles.exampleButton}
+//               >
+//                 {t('routines.createExamples') || 'Create Example Routines'}
+//               </Button>
+//             </View>
+//           </View>
+//         ) : (
+//           routines.map(routine => renderRoutine(routine))
+//         )}
+//       </ScrollView>
+
+//       <Button
+//         mode="contained"
+//         onPress={handleCreateRoutine}
+//         style={styles.fab}
+//         icon="plus"
+//       >
+//         {t('routines.createRoutine')}
+//       </Button>
+//     </View>
+//   );
+// };
+
+// const styles = StyleSheet.create({
+//   container: {
+//     flex: 1,
+//     backgroundColor: theme.colors.background || '#F5F5F5',
+//   },
+//   loadingContainer: {
+//     flex: 1,
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//     backgroundColor: theme.colors.background || '#F5F5F5',
+//   },
+//   scrollView: {
+//     flex: 1,
+//   },
+//   routineCard: {
+//     margin: 16,
+//     marginBottom: 8,
+//     elevation: 2,
+//   },
+//   routineHeader: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-between',
+//     alignItems: 'flex-start',
+//     marginBottom: 12,
+//   },
+//   routineTitleContainer: {
+//     flex: 1,
+//   },
+//   routineTitle: {
+//     fontSize: 18,
+//     fontWeight: 'bold',
+//     marginBottom: 8,
+//   },
+//   frequencyChip: {
+//     marginTop: 8,
+//   },
+//   timeChip: {
+//     marginLeft: 8,
+//   },
+//   description: {
+//     color: theme.colors.textSecondary,
+//     marginBottom: 12,
+//   },
+//   progressContainer: {
+//     marginVertical: 12,
+//   },
+//   progressBar: {
+//     height: 8,
+//     backgroundColor: theme.colors.outline || '#E0E0E0',
+//     borderRadius: 4,
+//     marginBottom: 8,
+//     overflow: 'hidden',
+//   },
+//   progressFill: {
+//     height: '100%',
+//     backgroundColor: '#4CAF50',
+//   },
+//   progressText: {
+//     fontSize: 12,
+//     color: theme.colors.textSecondary,
+//   },
+//   tasksContainer: {
+//     marginTop: 12,
+//     gap: 8,
+//   },
+//   taskCard: {
+//     backgroundColor: '#F9F9F9',
+//     marginBottom: 8,
+//   },
+//   taskCardCompleted: {
+//     opacity: 0.6,
+//   },
+//   taskContent: {
+//     paddingVertical: 8,
+//   },
+//   taskHeader: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//   },
+//   taskCheckboxContainer: {
+//     flex: 1,
+//   },
+//   taskTitle: {
+//     fontSize: 16,
+//     color: theme.colors.text,
+//   },
+//   taskTitleCompleted: {
+//     textDecorationLine: 'line-through',
+//     color: theme.colors.textSecondary,
+//   },
+//   taskDescription: {
+//     fontSize: 14,
+//     color: theme.colors.textSecondary,
+//     marginTop: 4,
+//   },
+//   reminderChip: {
+//     marginTop: 8,
+//   },
+//   routineFooter: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-between',
+//     alignItems: 'center',
+//     marginTop: 16,
+//     paddingTop: 16,
+//     borderTopWidth: 1,
+//     borderTopColor: theme.colors.outline || '#E0E0E0',
+//   },
+//   routineActions: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//   },
+//   deleteButton: {
+//     marginLeft: 8,
+//   },
+//   nextOccurrence: {
+//     fontSize: 12,
+//     color: theme.colors.textSecondary,
+//   },
+//   emptyState: {
+//     flex: 1,
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//     paddingVertical: 64,
+//     paddingHorizontal: 32,
+//   },
+//   emptyTitle: {
+//     fontSize: 20,
+//     fontWeight: 'bold',
+//     marginTop: 16,
+//     marginBottom: 8,
+//   },
+//   emptyText: {
+//     fontSize: 16,
+//     color: theme.colors.textSecondary,
+//     textAlign: 'center',
+//   },
+//   emptyStateButtons: {
+//     marginTop: 24,
+//     width: '100%',
+//     alignItems: 'center',
+//   },
+//   exampleButton: {
+//     marginTop: 12,
+//   },
+//   fab: {
+//     position: 'absolute',
+//     margin: 16,
+//     right: 0,
+//     bottom: 0,
+//   },
+// });
+
+// export { RoutinesScreen };
+
+
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  RefreshControl,
+} from 'react-native';
+import { Card, Title, Paragraph, Button, Chip, IconButton } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { routineService } from '@/services/routineService';
+import { Routine, RoutineTask, RoutineFrequency } from '@/types/routine';
 import { useNotification } from '@/contexts/NotificationContext';
 
-interface Routine {
-  id: string;
-  title: string;
-  description?: string;
-  time: string;
-  days: string[];
-  frequency: 'daily' | 'weekly' | 'monthly';
-  isActive: boolean;
-  alarmEnabled: boolean;
-  createdAt: string;
-  completedToday?: boolean;
-}
-
-interface RoutinesScreenProps {
-  navigation: any;
-}
-
-export const RoutinesScreen: React.FC<RoutinesScreenProps> = ({ navigation }) => {
+const RoutinesScreen: React.FC = () => {
+  const navigation = useNavigation();
   const { t } = useTranslation();
-  const { isRTL } = useLanguage();
-  const paperTheme = useTheme();
+  const { showSuccess, showError } = useNotification();
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
-  const { showSuccess, showError } = useNotification();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [selectedTime, setSelectedTime] = useState(new Date());
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [creatingExamples, setCreatingExamples] = useState(false);
 
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    time: '',
-    days: [] as string[],
-    frequency: 'daily' as 'daily' | 'weekly' | 'monthly',
-    alarmEnabled: true,
-  });
+  useFocusEffect(
+    React.useCallback(() => {
+      loadRoutines();
+    }, [])
+  );
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const weekDays = [
-    { key: 'monday', label: t('routines.monday') },
-    { key: 'tuesday', label: t('routines.tuesday') },
-    { key: 'wednesday', label: t('routines.wednesday') },
-    { key: 'thursday', label: t('routines.thursday') },
-    { key: 'friday', label: t('routines.friday') },
-    { key: 'saturday', label: t('routines.saturday') },
-    { key: 'sunday', label: t('routines.sunday') },
-  ];
-
-  const frequencyOptions = [
-    { key: 'daily', label: t('routines.daily') },
-    { key: 'weekly', label: t('routines.weekly') },
-    { key: 'monthly', label: t('routines.monthly') },
-  ];
-
-  // Load routines from storage (you can implement this with AsyncStorage)
-  useEffect(() => {
-    loadRoutines();
-  }, []);
-
-  const loadRoutines = () => {
-    // Mock data - replace with actual storage implementation
-    const mockRoutines: Routine[] = [
-      {
-        id: '1',
-        title: t('routines.morningPrayer'),
-        description: t('routines.morningPrayerDesc'),
-        time: '05:30',
-        days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
-        frequency: 'daily',
-        isActive: true,
-        alarmEnabled: true,
-        createdAt: new Date().toISOString(),
-        completedToday: false,
-      },
-      {
-        id: '2',
-        title: t('routines.breakfast'),
-        description: t('routines.breakfastDesc'),
-        time: '06:00',
-        days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
-        frequency: 'daily',
-        isActive: true,
-        alarmEnabled: true,
-        createdAt: new Date().toISOString(),
-        completedToday: true,
-      },
-      {
-        id: '3',
-        title: t('routines.fridayPrayer'),
-        description: t('routines.fridayPrayerDesc'),
-        time: '13:00',
-        days: ['friday'],
-        frequency: 'weekly',
-        isActive: true,
-        alarmEnabled: true,
-        createdAt: new Date().toISOString(),
-        completedToday: false,
-      },
-      {
-        id: '4',
-        title: t('routines.monthlySubscription'),
-        description: t('routines.monthlySubscriptionDesc'),
-        time: '09:00',
-        days: ['1'], // First day of month
-        frequency: 'monthly',
-        isActive: true,
-        alarmEnabled: true,
-        createdAt: new Date().toISOString(),
-        completedToday: false,
-      },
-    ];
-    setRoutines(mockRoutines);
+  const loadRoutines = async () => {
+    try {
+      setLoading(true);
+      const data = await routineService.getUserRoutines();
+      setRoutines(data);
+    } catch (error) {
+      console.error('Error loading routines:', error);
+      Alert.alert(t('common.error'), t('routines.loadError'));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const resetForm = () => {
-    setFormData({
-      title: '',
-      description: '',
-      time: '',
-      days: [],
-      frequency: 'daily',
-      alarmEnabled: true,
-    });
-    setSelectedDays([]);
-    setErrors({});
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadRoutines();
+    setRefreshing(false);
+  };
+
+  const handleToggleTask = async (taskId: string, currentStatus: boolean) => {
+    try {
+      await routineService.toggleTaskCompletion(taskId, !currentStatus);
+      await loadRoutines();
+    } catch (error) {
+      console.error('Error toggling task:', error);
+      Alert.alert(t('common.error'), t('routines.updateTaskError'));
+    }
+  };
+
+  const handleEditRoutine = (routineId: string) => {
+    // @ts-ignore
+    navigation.navigate('RoutineEdit', { routineId });
   };
 
   const handleCreateRoutine = () => {
-    setEditingRoutine(null);
-    resetForm();
-    setShowCreateModal(true);
+    // @ts-ignore
+    navigation.navigate('RoutineCreate');
   };
 
-  const handleEditRoutine = (routine: Routine) => {
-    setEditingRoutine(routine);
-    setFormData({
-      title: routine.title,
-      description: routine.description || '',
-      time: routine.time,
-      days: routine.days,
-      frequency: routine.frequency,
-      alarmEnabled: routine.alarmEnabled,
-    });
-    setSelectedDays(routine.days);
-    setShowCreateModal(true);
-  };
-
-  const handleSaveRoutine = () => {
-    // Validate form
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.title.trim()) {
-      newErrors.title = t('validation.titleRequired');
-    }
-
-    if (!formData.time) {
-      newErrors.time = t('validation.timeRequired');
-    }
-
-    if (formData.frequency === 'weekly' && selectedDays.length === 0) {
-      newErrors.days = t('validation.daysRequired');
-    }
-
-    setErrors(newErrors);
-
-    if (Object.keys(newErrors).length > 0) {
-      return;
-    }
-
-    const routineData: Routine = {
-      id: editingRoutine?.id || Date.now().toString(),
-      title: formData.title,
-      description: formData.description,
-      time: formData.time,
-      days: selectedDays,
-      frequency: formData.frequency,
-      isActive: true,
-      alarmEnabled: formData.alarmEnabled,
-      createdAt: editingRoutine?.createdAt || new Date().toISOString(),
-    };
-
-    if (editingRoutine) {
-      setRoutines(prev => prev.map(r => r.id === editingRoutine.id ? routineData : r));
-      showSuccess(t('routines.routineUpdated'));
-    } else {
-      setRoutines(prev => [routineData, ...prev]);
-      showSuccess(t('routines.routineCreated'));
-    }
-
-    setShowCreateModal(false);
-    resetForm();
-  };
-
-  const handleDeleteRoutine = (id: string) => {
+  const handleDeleteRoutine = async (routineId: string) => {
     Alert.alert(
       t('routines.deleteRoutine'),
       t('routines.deleteRoutineConfirm'),
@@ -215,329 +588,275 @@ export const RoutinesScreen: React.FC<RoutinesScreenProps> = ({ navigation }) =>
         {
           text: t('common.delete'),
           style: 'destructive',
-          onPress: () => {
-            setRoutines(prev => prev.filter(r => r.id !== id));
-            showSuccess(t('routines.routineDeleted'));
+          onPress: async () => {
+            try {
+              await routineService.deleteRoutine(routineId);
+              await loadRoutines();
+              showSuccess(t('routines.routineDeleted'));
+            } catch (error) {
+              console.error('Error deleting routine:', error);
+              showError(t('routines.deleteError'));
+            }
           },
         },
       ]
     );
   };
 
-  const handleToggleRoutine = (id: string) => {
-    setRoutines(prev => prev.map(r => 
-      r.id === id ? { ...r, isActive: !r.isActive } : r
-    ));
-  };
+  const createExampleRoutines = async () => {
+    try {
+      setCreatingExamples(true);
+      
+      const morningRoutine = await routineService.createRoutine({
+        title: t('routines.morningRoutine') || 'Morning Routine',
+        description: t('routines.morningRoutineDesc') || 'Daily morning routine at 6:00 AM',
+        frequency: 'DAILY',
+        schedule: {
+          time: '06:00',
+        },
+        timezone: 'UTC',
+      });
 
-  const handleToggleAlarm = (id: string) => {
-    setRoutines(prev => prev.map(r => 
-      r.id === id ? { ...r, alarmEnabled: !r.alarmEnabled } : r
-    ));
-  };
+      await routineService.addTaskToRoutine(morningRoutine.id, {
+        title: 'Drink water',
+        order: 0,
+      });
+      await routineService.addTaskToRoutine(morningRoutine.id, {
+        title: 'Exercise',
+        order: 1,
+      });
+      await routineService.addTaskToRoutine(morningRoutine.id, {
+        title: 'Breakfast',
+        order: 2,
+      });
 
-  const handleCompleteRoutine = (id: string) => {
-    setRoutines(prev => prev.map(r => 
-      r.id === id ? { ...r, completedToday: !r.completedToday } : r
-    ));
-  };
+      const fridayPrayer = await routineService.createRoutine({
+        title: t('routines.fridayPrayer') || 'Friday Prayer',
+        description: t('routines.fridayPrayerDesc') || 'Weekly Friday prayer at 1:00 PM',
+        frequency: 'WEEKLY',
+        schedule: {
+          time: '13:00',
+          days: [5],
+        },
+        timezone: 'UTC',
+      });
 
-  const handleTimePress = () => {
-    if (formData.time) {
-      const [hours, minutes] = formData.time.split(':');
-      setSelectedTime(new Date(2024, 0, 1, parseInt(hours), parseInt(minutes)));
-    }
-    setShowTimePicker(true);
-  };
+      await routineService.addTaskToRoutine(fridayPrayer.id, {
+        title: 'Prepare for prayer',
+        order: 0,
+      });
+      await routineService.addTaskToRoutine(fridayPrayer.id, {
+        title: 'Attend Friday prayer',
+        order: 1,
+      });
 
-  const handleTimeChange = (event: any, selectedDate?: Date) => {
-    if (selectedDate) {
-      setSelectedTime(selectedDate);
-      setFormData(prev => ({
-        ...prev,
-        time: selectedDate.toTimeString().slice(0, 5),
-      }));
-    }
-    setShowTimePicker(false);
-  };
-
-  const toggleDay = (day: string) => {
-    setSelectedDays(prev => 
-      prev.includes(day) 
-        ? prev.filter(d => d !== day)
-        : [...prev, day]
-    );
-  };
-
-  const getFrequencyText = (routine: Routine) => {
-    switch (routine.frequency) {
-      case 'daily':
-        return t('routines.everyDay');
-      case 'weekly':
-        const dayNames = routine.days.map(day => 
-          weekDays.find(wd => wd.key === day)?.label || day
-        ).join(', ');
-        return `${t('routines.every')} ${dayNames}`;
-      case 'monthly':
-        return t('routines.everyMonth');
-      default:
-        return '';
+      await loadRoutines();
+      showSuccess(t('routines.exampleRoutinesCreated') || 'Example routines created successfully');
+    } catch (error: any) {
+      console.error('Error creating example routines:', error);
+      showError(error.message || 'Failed to create example routines');
+    } finally {
+      setCreatingExamples(false);
     }
   };
 
-  const renderRoutineCard = (routine: Routine) => (
-    <Card key={routine.id} style={[styles.routineCard, { backgroundColor: theme.colors.surface }]}>
-      <Card.Content>
-        <View style={styles.routineHeader}>
-          <View style={styles.routineTitleContainer}>
-            <Text variant="titleMedium" style={[styles.routineTitle, { color: theme.colors.text }]}>
-              {routine.title}
-            </Text>
-            {routine.description && (
-              <Text variant="bodyMedium" style={[styles.routineDescription, { color: theme.colors.text }]}>
-                {routine.description}
-              </Text>
+  const getFrequencyLabel = (frequency: RoutineFrequency) => {
+    switch (frequency) {
+      case 'DAILY': return t('routines.daily');
+      case 'WEEKLY': return t('routines.weekly');
+      case 'MONTHLY': return t('routines.monthly');
+      case 'YEARLY': return t('routines.yearly');
+    }
+  };
+
+  const getFrequencyIcon = (frequency: RoutineFrequency) => {
+    switch (frequency) {
+      case 'DAILY': return 'calendar-today';
+      case 'WEEKLY': return 'calendar-range';
+      case 'MONTHLY': return 'calendar-month';
+      case 'YEARLY': return 'calendar';
+    }
+  };
+
+  const formatNextOccurrence = (date?: string) => {
+    if (!date) return t('routines.notScheduled');
+    return new Date(date).toLocaleString();
+  };
+
+  const renderRoutine = (routine: Routine) => {
+    const completedTasks = routine.routineTasks.filter(t => t.completed).length;
+    const totalTasks = routine.routineTasks.length;
+    const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+    return (
+      <Card style={styles.routineCard} key={routine.id}>
+        <Card.Content>
+          <View style={styles.routineHeader}>
+            <View style={styles.routineTitleContainer}>
+              <Title style={styles.routineTitle}>{routine.title}</Title>
+              <Chip
+                icon={() => <Icon name={getFrequencyIcon(routine.frequency)} size={16} color={theme.colors.primary} />}
+                style={styles.frequencyChip}
+                textStyle={{ color: theme.colors.primary }}
+              >
+                {getFrequencyLabel(routine.frequency)}
+              </Chip>
+            </View>
+            {routine.schedule.time && (
+              <Chip 
+                style={[styles.timeChip, { backgroundColor: theme.colors.primary + '15' }]}
+                textStyle={{ color: theme.colors.primary }}
+              >
+                <Icon name="clock" size={14} color={theme.colors.primary} /> {routine.schedule.time}
+              </Chip>
             )}
           </View>
-          <View style={styles.routineActions}>
-            <IconButton
-              icon={routine.completedToday ? 'check-circle' : 'check-circle-outline'}
-              size={24}
-              iconColor={routine.completedToday ? '#4CAF50' : theme.colors.text}
-              onPress={() => handleCompleteRoutine(routine.id)}
-            />
-            <IconButton
-              icon="pencil"
-              size={20}
-              iconColor={theme.colors.text}
-              onPress={() => handleEditRoutine(routine)}
-            />
-            <IconButton
-              icon="delete"
-              size={20}
-              iconColor={theme.colors.error}
-              onPress={() => handleDeleteRoutine(routine.id)}
-            />
-          </View>
-        </View>
 
-        <View style={styles.routineDetails}>
-          <View style={styles.routineDetailItem}>
-            <Text variant="bodySmall" style={[styles.detailLabel, { color: theme.colors.text }]}>
-              {t('routines.time')}
-            </Text>
-            <Text variant="bodyMedium" style={[styles.detailValue, { color: theme.colors.text }]}>
-              {routine.time}
-            </Text>
-          </View>
-          
-          <View style={styles.routineDetailItem}>
-            <Text variant="bodySmall" style={[styles.detailLabel, { color: theme.colors.text }]}>
-              {t('routines.frequency')}
-            </Text>
-            <Text variant="bodyMedium" style={[styles.detailValue, { color: theme.colors.text }]}>
-              {getFrequencyText(routine)}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.routineControls}>
-          <View style={styles.controlItem}>
-            <Text variant="bodySmall" style={[styles.controlLabel, { color: theme.colors.text }]}>
-              {t('routines.active')}
-            </Text>
-            <Switch
-              value={routine.isActive}
-              onValueChange={() => handleToggleRoutine(routine.id)}
-              color={theme.colors.primary}
-            />
-          </View>
-          
-          <View style={styles.controlItem}>
-            <Text variant="bodySmall" style={[styles.controlLabel, { color: theme.colors.text }]}>
-              {t('routines.alarm')}
-            </Text>
-            <Switch
-              value={routine.alarmEnabled}
-              onValueChange={() => handleToggleAlarm(routine.id)}
-              color={theme.colors.primary}
-            />
-          </View>
-        </View>
-      </Card.Content>
-    </Card>
-  );
-
-  const renderCreateModal = () => (
-    <Portal>
-      <Modal
-        visible={showCreateModal}
-        onDismiss={() => setShowCreateModal(false)}
-        contentContainerStyle={[styles.modal, { backgroundColor: theme.colors.surface }]}
-      >
-        <ScrollView style={styles.modalContent}>
-          <Text variant="headlineSmall" style={[styles.modalTitle, { color: theme.colors.text }]}>
-            {editingRoutine ? t('routines.editRoutine') : t('routines.createRoutine')}
-          </Text>
-
-          <TextInput
-            label={t('routines.title')}
-            value={formData.title}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, title: text }))}
-            error={!!errors.title}
-            style={styles.input}
-          />
-          {errors.title && (
-            <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
-              {errors.title}
-            </Text>
+          {routine.description && (
+            <Paragraph style={styles.description}>{routine.description}</Paragraph>
           )}
 
-          <TextInput
-            label={t('routines.description')}
-            value={formData.description}
-            onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
-            multiline
-            numberOfLines={3}
-            style={styles.input}
-          />
-
-          <TouchableOpacity style={styles.timeInput} onPress={handleTimePress}>
-            <Text variant="bodyMedium" style={[styles.timeInputText, { color: theme.colors.text }]}>
-              {formData.time || t('routines.selectTime')}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.colors.success }]} />
+            </View>
+            <Text style={styles.progressText}>
+              {t('routines.tasksCompleted', { completed: completedTasks, total: totalTasks })}
             </Text>
-            <IconButton icon="clock" size={20} iconColor={theme.colors.primary} />
-          </TouchableOpacity>
-          {errors.time && (
-            <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
-              {errors.time}
-            </Text>
-          )}
+          </View>
 
-          <Text variant="bodyMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            {t('routines.frequency')}
-          </Text>
-          <View style={styles.frequencySelector}>
-            {frequencyOptions.map((option) => (
-              <Chip
-                key={option.key}
-                selected={formData.frequency === option.key}
-                onPress={() => setFormData(prev => ({ ...prev, frequency: option.key as any }))}
+          <View style={styles.tasksContainer}>
+            {routine.routineTasks.map((task, index) => (
+              <Card
+                key={task.id}
                 style={[
-                  styles.frequencyChip,
-                  formData.frequency === option.key && { backgroundColor: theme.colors.primary }
-                ]}
-                textStyle={[
-                  styles.frequencyChipText,
-                  formData.frequency === option.key && { color: theme.colors.onPrimary }
+                  styles.taskCard,
+                  task.completed && styles.taskCardCompleted,
                 ]}
               >
-                {option.label}
-              </Chip>
+                <Card.Content style={styles.taskContent}>
+                  <View style={styles.taskHeader}>
+                    <View style={styles.taskCheckboxContainer}>
+                      <Button
+                        mode="text"
+                        onPress={() => handleToggleTask(task.id, task.completed)}
+                        icon={task.completed ? 'check-circle' : 'circle-outline'}
+                        textColor={task.completed ? theme.colors.success : theme.colors.textSecondary}
+                      >
+                        <Text
+                          style={[
+                            styles.taskTitle,
+                            task.completed && styles.taskTitleCompleted,
+                          ]}
+                        >
+                          {task.title}
+                        </Text>
+                      </Button>
+                    </View>
+                  </View>
+                  {task.description && (
+                    <Paragraph style={styles.taskDescription}>
+                      {task.description}
+                    </Paragraph>
+                  )}
+                  {task.reminderTime && (
+                    <Chip
+                      icon={() => <Icon name="bell" size={14} color={theme.colors.primary} />}
+                      style={[styles.reminderChip, { backgroundColor: theme.colors.primary + '15' }]}
+                      textStyle={{ color: theme.colors.primary }}
+                    >
+                      {task.reminderTime}
+                    </Chip>
+                  )}
+                </Card.Content>
+              </Card>
             ))}
           </View>
 
-          {formData.frequency === 'weekly' && (
-            <>
-              <Text variant="bodyMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                {t('routines.selectDays')}
-              </Text>
-              <View style={styles.daysSelector}>
-                {weekDays.map((day) => (
-                  <Chip
-                    key={day.key}
-                    selected={selectedDays.includes(day.key)}
-                    onPress={() => toggleDay(day.key)}
-                    style={[
-                      styles.dayChip,
-                      selectedDays.includes(day.key) && { backgroundColor: theme.colors.primary }
-                    ]}
-                    textStyle={[
-                      styles.dayChipText,
-                      selectedDays.includes(day.key) && { color: theme.colors.onPrimary }
-                    ]}
-                  >
-                    {day.label}
-                  </Chip>
-                ))}
-              </View>
-              {errors.days && (
-                <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>
-                  {errors.days}
-                </Text>
-              )}
-            </>
-          )}
-
-          <View style={styles.modalActions}>
-            <Button
-              mode="outlined"
-              onPress={() => setShowCreateModal(false)}
-              style={styles.modalButton}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button
-              mode="contained"
-              onPress={handleSaveRoutine}
-              style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
-            >
-              {editingRoutine ? t('common.update') : t('common.create')}
-            </Button>
-          </View>
-        </ScrollView>
-      </Modal>
-    </Portal>
-  );
-
-  return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.colors.surface }]}>
-        <Text variant="headlineSmall" style={[styles.headerTitle, { color: theme.colors.text }]}>
-          {t('routines.myRoutines')}
-        </Text>
-        <Button
-          mode="contained"
-          onPress={handleCreateRoutine}
-          style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
-          icon="plus"
-        >
-          {t('routines.createRoutine')}
-        </Button>
-      </View>
-
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {routines.length === 0 ? (
-          <Card style={[styles.emptyCard, { backgroundColor: theme.colors.surface }]}>
-            <Card.Content style={styles.emptyCardContent}>
-              <Text variant="bodyLarge" style={[styles.emptyText, { color: theme.colors.text }]}>
-                {t('routines.noRoutines')}
-              </Text>
+          <View style={styles.routineFooter}>
+            <Text style={styles.nextOccurrence}>
+              {t('routines.next')}: {formatNextOccurrence(routine.nextOccurrenceAt)}
+            </Text>
+            <View style={styles.routineActions}>
+              <IconButton
+                icon="pencil"
+                size={20}
+                iconColor={theme.colors.primary}
+                onPress={() => handleEditRoutine(routine.id)}
+              />
               <Button
                 mode="outlined"
-                onPress={handleCreateRoutine}
-                style={styles.emptyButton}
+                onPress={() => handleDeleteRoutine(routine.id)}
+                textColor={theme.colors.error}
+                icon="delete"
+                style={styles.deleteButton}
               >
-                {t('routines.createFirstRoutine')}
+                {t('common.delete')}
               </Button>
-            </Card.Content>
-          </Card>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
+    );
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>{t('routines.loading')}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        {routines.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Icon name="repeat" size={64} color={theme.colors.textSecondary} />
+            <Title style={styles.emptyTitle}>{t('routines.noRoutines')}</Title>
+            <Paragraph style={styles.emptyText}>
+              {t('routines.createFirstRoutine')}
+            </Paragraph>
+            <View style={styles.emptyStateButtons}>
+              <Button
+                mode="outlined"
+                onPress={createExampleRoutines}
+                icon="lightbulb"
+                loading={creatingExamples}
+                disabled={creatingExamples}
+                style={styles.exampleButton}
+                textColor={theme.colors.primary}
+              >
+                {t('routines.createExamples') || 'Create Example Routines'}
+              </Button>
+            </View>
+          </View>
         ) : (
-          routines.map(renderRoutineCard)
+          routines.map(routine => renderRoutine(routine))
         )}
       </ScrollView>
 
-      {renderCreateModal()}
-
-      {showTimePicker && (
-        <DateTimePicker
-          value={selectedTime}
-          mode="time"
-          is24Hour={true}
-          display="default"
-          onChange={handleTimeChange}
-        />
-      )}
+      <Button
+        mode="contained"
+        onPress={handleCreateRoutine}
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        icon="plus"
+        contentStyle={styles.fabContent}
+      >
+        {t('routines.createRoutine')}
+      </Button>
     </View>
   );
 };
@@ -545,28 +864,28 @@ export const RoutinesScreen: React.FC<RoutinesScreenProps> = ({ navigation }) =>
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: theme.colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    elevation: 2,
+    backgroundColor: theme.colors.background,
   },
-  headerTitle: {
-    fontWeight: '600',
-  },
-  createButton: {
-    borderRadius: 20,
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: theme.colors.textSecondary,
   },
   scrollView: {
     flex: 1,
-    padding: 16,
   },
   routineCard: {
-    marginBottom: 16,
+    margin: 16,
+    marginBottom: 8,
     elevation: 2,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
   },
   routineHeader: {
     flexDirection: 'row',
@@ -576,129 +895,140 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   routineTitleContainer: {
     flex: 1,
-    marginRight: 12,
   },
   routineTitle: {
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: theme.colors.text,
   },
-  routineDescription: {
+  frequencyChip: {
+    marginTop: 8,
+    backgroundColor: theme.colors.primary + '15',
+  },
+  timeChip: {
+    marginLeft: 8,
+  },
+  description: {
+    color: theme.colors.textSecondary,
+    marginBottom: 12,
+  },
+  progressContainer: {
+    marginVertical: 12,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: theme.colors.outline,
+    borderRadius: 4,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+  },
+  progressText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  tasksContainer: {
+    marginTop: 12,
+    gap: 8,
+  },
+  taskCard: {
+    backgroundColor: theme.colors.surfaceVariant,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  taskCardCompleted: {
+    opacity: 0.6,
+  },
+  taskContent: {
+    paddingVertical: 8,
+  },
+  taskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  taskCheckboxContainer: {
+    flex: 1,
+  },
+  taskTitle: {
+    fontSize: 16,
+    color: theme.colors.text,
+  },
+  taskTitleCompleted: {
+    textDecorationLine: 'line-through',
+    color: theme.colors.textSecondary,
+  },
+  taskDescription: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
     marginTop: 4,
-    opacity: 0.7,
+  },
+  reminderChip: {
+    marginTop: 8,
+  },
+  routineFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.outline,
   },
   routineActions: {
     flexDirection: 'row',
+    alignItems: 'center',
   },
-  routineDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+  deleteButton: {
+    marginLeft: 8,
+    borderColor: theme.colors.error,
   },
-  routineDetailItem: {
+  nextOccurrence: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  emptyState: {
     flex: 1,
-  },
-  detailLabel: {
-    opacity: 0.7,
-    marginBottom: 2,
-  },
-  detailValue: {
-    fontWeight: '500',
-  },
-  routineControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.surfaceVariant,
-  },
-  controlItem: {
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 64,
+    paddingHorizontal: 32,
   },
-  controlLabel: {
-    marginBottom: 4,
-  },
-  emptyCard: {
-    marginTop: 40,
-  },
-  emptyCardContent: {
-    alignItems: 'center',
-    paddingVertical: 40,
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+    color: theme.colors.text,
   },
   emptyText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 20,
-    opacity: 0.7,
+    lineHeight: 22,
   },
-  emptyButton: {
-    borderRadius: 20,
-  },
-  modal: {
-    margin: 20,
-    borderRadius: 20,
-    maxHeight: '80%',
-  },
-  modalContent: {
-    padding: 20,
-  },
-  modalTitle: {
-    fontWeight: '600',
-    marginBottom: 20,
-  },
-  input: {
-    marginBottom: 16,
-  },
-  timeInput: {
-    flexDirection: 'row',
+  emptyStateButtons: {
+    marginTop: 24,
+    width: '100%',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.outline,
-    borderRadius: 8,
-    marginBottom: 16,
   },
-  timeInputText: {
-    flex: 1,
+  exampleButton: {
+    marginTop: 12,
+    borderColor: theme.colors.primary,
   },
-  sectionTitle: {
-    fontWeight: '500',
-    marginBottom: 12,
-    marginTop: 8,
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0,
+    borderRadius: 28,
+    elevation: 4,
   },
-  frequencySelector: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  frequencyChip: {
-    height: 36,
-  },
-  frequencyChipText: {
-    fontSize: 14,
-  },
-  daysSelector: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
-  },
-  dayChip: {
-    height: 36,
-  },
-  dayChipText: {
-    fontSize: 14,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-  },
-  errorText: {
-    marginTop: 4,
-    marginBottom: 8,
+  fabContent: {
+    height: 56,
   },
 });
+
+export { RoutinesScreen };

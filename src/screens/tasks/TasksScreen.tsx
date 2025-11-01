@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, RefreshControl, TouchableOpacity, TextInput, FlatList, Animated, LayoutAnimation } from 'react-native';
-import { Text, FAB, IconButton, Chip, Card, useTheme } from 'react-native-paper';
+import { View, StyleSheet, RefreshControl, TouchableOpacity, TextInput, FlatList, Animated } from 'react-native';
+import { Text, FAB, IconButton, Chip, Card,  } from 'react-native-paper';
 
 let DraggableFlatList: any = null;
 
@@ -30,8 +30,8 @@ interface TasksScreenProps {
 
 export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
-  const customTheme = useCustomTheme();
   const { showSuccess, showError } = useNotification();
+  const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
 

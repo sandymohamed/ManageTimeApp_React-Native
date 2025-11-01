@@ -71,7 +71,7 @@ const ProjectEditScreen: React.FC = () => {
       });
     } catch (error) {
       console.error('Error loading project:', error);
-      Alert.alert('Error', 'Failed to load project data');
+      Alert.alert(t('common.error'), t('projects.loadError'));
     } finally {
       setLoading(false);
     }
@@ -82,15 +82,15 @@ const ProjectEditScreen: React.FC = () => {
       setLoading(true);
       // await projectService.updateProject(projectId, projectData);
       
-      Alert.alert('Success', 'Project updated successfully', [
+      Alert.alert(t('common.success'), t('projects.projectUpdated'), [
         {
-          text: 'OK',
+          text: t('common.ok'),
           onPress: () => navigation.goBack(),
         },
       ]);
     } catch (error) {
       console.error('Error updating project:', error);
-      Alert.alert('Error', 'Failed to update project');
+      Alert.alert(t('common.error'), t('projects.updateError'));
     } finally {
       setLoading(false);
     }
@@ -98,30 +98,30 @@ const ProjectEditScreen: React.FC = () => {
 
   const handleDelete = () => {
     Alert.alert(
-      'Delete Project',
-      'Are you sure you want to delete this project? This action cannot be undone.',
+      t('projects.deleteProject'),
+      t('projects.deleteConfirmation'),
       [
         {
-          text: 'Cancel',
+          text: t('common.cancel'),
           style: 'cancel',
         },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               setLoading(true);
               // await projectService.deleteProject(projectId);
               
-              Alert.alert('Success', 'Project deleted successfully', [
+              Alert.alert(t('common.success'), t('projects.projectDeleted'), [
                 {
-                  text: 'OK',
+                  text: t('common.ok'),
                   onPress: () => navigation.goBack(),
                 },
               ]);
             } catch (error) {
               console.error('Error deleting project:', error);
-              Alert.alert('Error', 'Failed to delete project');
+              Alert.alert(t('common.error'), t('projects.deleteError'));
             } finally {
               setLoading(false);
             }

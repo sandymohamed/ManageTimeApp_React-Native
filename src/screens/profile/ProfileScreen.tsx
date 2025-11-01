@@ -41,7 +41,7 @@ export const ProfileScreen: React.FC = () => {
   const handleLogout = () => {
     Alert.alert(
       t('auth.logout'),
-      'Are you sure you want to logout?',
+      t('auth.logoutConfirmation'),
       [
         {text: t('common.cancel'), style: 'cancel'},
         {text: t('auth.logout'), style: 'destructive', onPress: logout},

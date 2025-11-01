@@ -319,6 +319,8 @@ import { MilestoneCreateScreen } from '@/screens/projects/MilestoneCreateScreen'
 import { SettingsScreen } from '@/screens/settings/SettingsScreen';
 import { DashboardScreen } from '@/screens/dashboard/DashboardScreen';
 import { RoutinesScreen } from '@/screens/routines/RoutinesScreen';
+import { RoutineCreateScreen } from '@/screens/routines/RoutineCreateScreen';
+import { RoutineEditScreen } from '@/screens/routines/RoutineEditScreen';
 import { CalendarScreen } from '@/screens/calendar/CalendarScreen';
 import { ProjectInvitationsScreen } from '@/screens/profile/ProjectInvitationsScreen';
 import { PendingInvitationsScreen } from '@/screens/invitations/PendingInvitationsScreen';
@@ -356,6 +358,8 @@ export type RootStackParamList = {
   MilestoneManagement: { goalId: string };
   AlarmCreate: undefined;
   AlarmEdit: { alarmId: string };
+  RoutineCreate: undefined;
+  RoutineEdit: { routineId: string };
   Settings: undefined;
   ProjectInvitations: undefined;
   PendingInvitations: undefined;
@@ -779,6 +783,22 @@ export const MainNavigator: React.FC = () => {
       <Stack.Screen
         name="InvitationAccept"
         component={InvitationAcceptScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="RoutineCreate"
+        component={RoutineCreateScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="RoutineEdit"
+        component={RoutineEditScreen}
         options={{
           headerShown: false,
           presentation: 'modal',
