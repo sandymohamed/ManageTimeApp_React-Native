@@ -28,6 +28,8 @@
     "remove": "Remove",
     "select": "Select",
     "seeAll": "See All",
+    "showLess": "Show Less",
+    "more": "more",
     "update": "Update",
     "deleteItem": "Delete {{item}}",
     "nameRequired": "Name is required",

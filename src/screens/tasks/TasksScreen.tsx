@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, RefreshControl, TouchableOpacity, TextInput, FlatList, Animated } from 'react-native';
+import { View, StyleSheet, RefreshControl, TouchableOpacity, TextInput, FlatList, Animated, ScrollView } from 'react-native';
 import { Text, FAB, IconButton, Chip, Card,  } from 'react-native-paper';
 
 let DraggableFlatList: any = null;
@@ -63,6 +63,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
+  const [showAllCompleted, setShowAllCompleted] = useState(false);
   // const [dragging, setDragging] = useState(false);
 
   const [useFallback, setUseFallback] = useState(true); // Start with fallback
@@ -71,6 +72,14 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  // Set default sort to dueDate from current time on initial load
+  useEffect(() => {
+    if (sortBy === 'order') {
+      setSortBy('dueDate');
+      setSortOrder('asc');
+    }
+  }, []); // Only run once on mount
 
   // Handle route parameters for filtering
   useEffect(() => {
@@ -368,6 +377,57 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
     return renderTask({ item });
   };
 
+  // Separate and sort tasks: incomplete first (sorted by time), completed at bottom
+  const getOrganizedTasks = () => {
+    const now = new Date();
+    
+    // Separate incomplete and completed tasks
+    const incompleteTasks = filteredTasks.filter(task => task.status !== TaskStatus.DONE);
+    const completedTasks = filteredTasks.filter(task => task.status === TaskStatus.DONE);
+    
+    // Sort incomplete tasks by dueDate/time from current time (earliest first)
+    incompleteTasks.sort((a, b) => {
+      const getTaskDateTime = (task: Task) => {
+        if (!task.dueDate) return Infinity; // Tasks without due date go to end
+        
+        const dueDate = new Date(task.dueDate);
+        
+        // If task has dueTime, combine with dueDate
+        if (task.dueTime) {
+          const [hours, minutes] = task.dueTime.split(':').map(Number);
+          dueDate.setHours(hours || 0, minutes || 0, 0, 0);
+        } else {
+          // Default to start of day if no time specified
+          dueDate.setHours(0, 0, 0, 0);
+        }
+        
+        return dueDate.getTime();
+      };
+      
+      const aTime = getTaskDateTime(a);
+      const bTime = getTaskDateTime(b);
+      
+      // Tasks in the past come after future tasks
+      const aIsPast = aTime < now.getTime();
+      const bIsPast = bTime < now.getTime();
+      
+      if (aIsPast !== bIsPast) {
+        return aIsPast ? 1 : -1; // Past tasks after future tasks
+      }
+      
+      return aTime - bTime; // Sort by time ascending
+    });
+    
+    // Sort completed tasks by completion time (most recent first)
+    completedTasks.sort((a, b) => {
+      const aCompletedAt = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+      const bCompletedAt = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+      return bCompletedAt - aCompletedAt;
+    });
+    
+    return { incompleteTasks, completedTasks };
+  };
+
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <IconButton
@@ -581,70 +641,72 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
         </View>
       )}
 
-      {/* Task List - Use Fallback if drag & drop is problematic */}
-      {useFallback ? (
-        <FlatList
-          data={filteredTasks}
-          renderItem={renderFallbackTask}
-          keyExtractor={(item: Task) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
+      {/* Task List - Separated into incomplete and completed sections */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {(() => {
+          const { incompleteTasks, completedTasks } = getOrganizedTasks();
+          const displayCompletedTasks = showAllCompleted ? completedTasks : completedTasks.slice(0, 5);
+          
+          // Render incomplete tasks
+          if (incompleteTasks.length === 0 && completedTasks.length === 0) {
+            return renderEmptyState();
           }
-          ListEmptyComponent={renderEmptyState}
-          showsVerticalScrollIndicator={false}
-        />
-      ) : (
-        <View style={{ flex: 1 }}>
-          {DraggableFlatList ? (
-            <DraggableFlatList
-              data={filteredTasks}
-              renderItem={renderTask}
-              keyExtractor={(item: Task) => item.id}
-              onDragEnd={handleDragEnd}
-              // onDragEnd={({ data }: { data: Task[] }) => handleReorder(data)}
-
-              contentContainerStyle={styles.listContent}
-              refreshControl={
-                <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
-              }
-              ListEmptyComponent={renderEmptyState}
-              showsVerticalScrollIndicator={false}
-              activationDistance={10}
-              autoscrollThreshold={100}
-              autoscrollSpeed={500}
-            />
-          ) : (
+          
+          return (
             <>
-              <FlatList
-                data={filteredTasks}
-                renderItem={renderFallbackTask}
-                keyExtractor={(item: Task) => item.id}
-                contentContainerStyle={styles.listContent}
-                refreshControl={
-                  <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} />
-                }
-                ListEmptyComponent={renderEmptyState}
-                showsVerticalScrollIndicator={false}
-              />
-              <FlatList
-                data={filteredTasks}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => renderTask({ item, drag: () => { }, isActive: false })}
-                contentContainerStyle={styles.listContent}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={handleRefresh}
-                  />
-                }
-                ListEmptyComponent={renderEmptyState}
-                showsVerticalScrollIndicator={false}
-              />
+              {/* Incomplete Tasks */}
+              {incompleteTasks.length > 0 && (
+                <View>
+                  {incompleteTasks.map((task) => (
+                    <View key={task.id}>
+                      {useFallback ? renderFallbackTask({ item: task }) : renderTask({ item: task })}
+                    </View>
+                  ))}
+                </View>
+              )}
+              
+              {/* Completed Tasks Section */}
+              {completedTasks.length > 0 && (
+                <View style={styles.completedSection}>
+                  <View style={styles.completedHeader}>
+                    <Text variant="titleMedium" style={[styles.completedSectionTitle, { color: theme.colors.textSecondary }]}>
+                      {t('tasks.completed')} ({completedTasks.length})
+                    </Text>
+                  </View>
+                  {displayCompletedTasks.map((task) => (
+                    <View key={task.id}>
+                      {useFallback ? renderFallbackTask({ item: task }) : renderTask({ item: task })}
+                    </View>
+                  ))}
+                  {completedTasks.length > 5 && (
+                    <TouchableOpacity
+                      style={styles.seeAllButton}
+                      onPress={() => setShowAllCompleted(!showAllCompleted)}
+                    >
+                      <Text style={[styles.seeAllButtonText, { color: theme.colors.primary }]}>
+                        {showAllCompleted ? t('common.showLess') : t('common.seeAll')} ({completedTasks.length - 5} {t('common.more')})
+                      </Text>
+                      <IconButton
+                        icon={showAllCompleted ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        iconColor={theme.colors.primary}
+                        style={{ margin: 0, padding: 0 }}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </>
-          )}
-        </View>
-      )}
+          );
+        })()}
+      </ScrollView>
 
       {/* Floating Action Button */}
       <FAB
@@ -863,5 +925,32 @@ const createStyles = (theme: any) => StyleSheet.create({
     margin: 16,
     right: 0,
     bottom: 0,
+  },
+  completedSection: {
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.outline,
+  },
+  completedHeader: {
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  completedSectionTitle: {
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 8,
+  },
+  seeAllButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginRight: 4,
   },
 });
