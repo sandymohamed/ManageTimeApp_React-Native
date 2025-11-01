@@ -278,7 +278,7 @@
 // @ts-ignore - React version compatibility issue
 import React from 'react';
 // @ts-ignore - React version compatibility issue
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -291,9 +291,11 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useTranslation } from 'react-i18next';
 import { theme } from '@/utils/theme';
 import { EnhancedHeader } from '@/components/EnhancedHeader';
-import { Text } from 'react-native-paper';
+import { Text, Badge } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { ModalNavigator } from './ModalNavigator';
+import { projectInvitationService } from '@/services/projectInvitationService';
+import { useFocusEffect } from '@react-navigation/native';
 
 // Import screens
 import { TasksScreen } from '@/screens/tasks/TasksScreen';
@@ -311,6 +313,13 @@ import { AlarmCreateScreen } from '@/screens/alarms/AlarmCreateScreen';
 import { AlarmEditScreen } from '@/screens/alarms/AlarmEditScreen';
 import { AnalyticsScreen } from '@/screens/analytics/AnalyticsScreen';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
+import { EditProfileScreen } from '@/screens/profile/EditProfileScreen';
+import { ChangePasswordScreen } from '@/screens/profile/ChangePasswordScreen';
+import { NotificationSettingsScreen } from '@/screens/profile/NotificationSettingsScreen';
+import { PrivacyScreen } from '@/screens/profile/PrivacyScreen';
+import { HelpSupportScreen } from '@/screens/profile/HelpSupportScreen';
+import { AboutScreen } from '@/screens/profile/AboutScreen';
+import { DataStorageScreen } from '@/screens/profile/DataStorageScreen';
 import { ProjectsScreen } from '@/screens/projects/ProjectsScreen';
 import { ProjectCreateScreen } from '@/screens/projects/ProjectCreateScreen';
 import { ProjectDetailScreen } from '@/screens/projects/ProjectDetailScreen';
@@ -361,6 +370,13 @@ export type RootStackParamList = {
   RoutineCreate: undefined;
   RoutineEdit: { routineId: string };
   Settings: undefined;
+  EditProfile: undefined;
+  ChangePassword: undefined;
+  NotificationSettings: undefined;
+  Privacy: undefined;
+  HelpSupport: undefined;
+  About: undefined;
+  DataStorage: undefined;
   ProjectInvitations: undefined;
   PendingInvitations: undefined;
   InvitationAccept: { token: string };
@@ -375,20 +391,36 @@ const SwipeableTabBar: React.FC<any> = ({ state, descriptors, navigation }) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [maxScroll, setMaxScroll] = useState(0);
+  const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
 
-  console.log('state', state);
-  console.log('descriptors', descriptors);
-  console.log('navigation', navigation);
+  // Fetch pending invitations count
+  const fetchPendingInvitations = useCallback(async () => {
+    try {
+      const data = await projectInvitationService.getAllUserProjectInvitations();
+      const pendingReceived = data.received?.filter((inv: any) => inv.status === 'PENDING') || [];
+      setPendingInvitationsCount(pendingReceived.length);
+    } catch (error) {
+      console.error('Failed to fetch pending invitations:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPendingInvitations();
+    // Set up interval to refresh every 30 seconds
+    const interval = setInterval(fetchPendingInvitations, 30000);
+    return () => clearInterval(interval);
+  }, [fetchPendingInvitations]);
+
   const tabConfig = [
-    { key: 'Dashboard', icon: 'view-dashboard', label: t('navigation.dashboard') || 'Dashboard' },
-    { key: 'Tasks', icon: 'checkbox-marked-circle-outline', label: t('navigation.tasks') || 'Tasks' },
-    { key: 'Calendar', icon: 'calendar', label: t('navigation.calendar') || 'Calendar' },
-    { key: 'Routines', icon: 'repeat', label: t('navigation.routines') || 'Routines' },
-    { key: 'Goals', icon: 'flag', label: t('navigation.goals') || 'Goals' },
-    { key: 'Projects', icon: 'file-tree', label: t('navigation.projects') || 'Projects' },
-    { key: 'Alarms', icon: 'alarm', label: t('navigation.alarms') || 'Alarms' },
-    { key: 'Analytics', icon: 'chart-bar', label: t('navigation.analytics') || 'Analytics' },
-    { key: 'Profile', icon: 'account', label: t('navigation.profile') || 'Profile' },
+    { key: 'Dashboard', icon: 'view-dashboard', label: t('navigation.dashboard') || 'Dashboard', badge: 0 },
+    { key: 'Tasks', icon: 'checkbox-marked-circle-outline', label: t('navigation.tasks') || 'Tasks', badge: 0 },
+    { key: 'Calendar', icon: 'calendar', label: t('navigation.calendar') || 'Calendar', badge: 0 },
+    { key: 'Routines', icon: 'repeat', label: t('navigation.routines') || 'Routines', badge: 0 },
+    { key: 'Goals', icon: 'flag', label: t('navigation.goals') || 'Goals', badge: 0 },
+    { key: 'Projects', icon: 'file-tree', label: t('navigation.projects') || 'Projects', badge: 0 },
+    { key: 'Alarms', icon: 'alarm', label: t('navigation.alarms') || 'Alarms', badge: 0 },
+    { key: 'Analytics', icon: 'chart-bar', label: t('navigation.analytics') || 'Analytics', badge: 0 },
+    { key: 'Profile', icon: 'account', label: t('navigation.profile') || 'Profile', badge: pendingInvitationsCount },
   ];
 
   const onTabPress = (routeKey: string, isFocused: boolean) => {
@@ -461,12 +493,23 @@ const SwipeableTabBar: React.FC<any> = ({ state, descriptors, navigation }) => {
                 }}
                 activeOpacity={0.7}
               >
-                <Icon
-                  name={tab.icon}
-                  size={22}
-                  color={isFocused ? theme.colors.primary : theme.colors.textSecondary}
-                  style={styles.tabIcon}
-                />
+                <View style={styles.tabIconContainer}>
+                  <Icon
+                    name={tab.icon}
+                    size={22}
+                    color={isFocused ? theme.colors.primary : theme.colors.textSecondary}
+                    style={styles.tabIcon}
+                  />
+                  {/* Badge for notifications */}
+                  {tab.badge > 0 && (
+                    <Badge
+                      style={[styles.tabBadge, { backgroundColor: theme.colors.error }]}
+                      size={16}
+                    >
+                      {tab.badge > 99 ? '99+' : tab.badge}
+                    </Badge>
+                  )}
+                </View>
                 <Text
                   style={[
                     styles.tabLabel,
@@ -765,6 +808,62 @@ export const MainNavigator: React.FC = () => {
         }}
       />
       <Stack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="ChangePassword"
+        component={ChangePasswordScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="NotificationSettings"
+        component={NotificationSettingsScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="Privacy"
+        component={PrivacyScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="HelpSupport"
+        component={HelpSupportScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="About"
+        component={AboutScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="DataStorage"
+        component={DataStorageScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
         name="ProjectInvitations"
         component={ProjectInvitationsScreen}
         options={{
@@ -842,8 +941,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(25, 118, 210, 0.08)',
     borderRadius: 20,
   },
-  tabIcon: {
+  tabIconContainer: {
+    position: 'relative',
     marginBottom: 4,
+  },
+  tabIcon: {
+    // Icon styles
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -10,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    fontSize: 10,
+    lineHeight: 16,
   },
   tabLabel: {
     fontSize: 12,

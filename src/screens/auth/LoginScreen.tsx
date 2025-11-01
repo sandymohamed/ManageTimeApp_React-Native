@@ -264,19 +264,18 @@ export const LoginScreen: React.FC = () => {
   const navigation = useNavigation();
 
   const { login, isLoading, error, clearError } = useAuthStore();
-  
+
   // Debug logging
-  
+
   // const [email, setEmail] = useState('test@example.com');
   // const [password, setPassword] = useState('password123');
   const [email, setEmail] = useState('sandysawy@gmail.com');
-  const [password, setPassword] = useState('Sandy@123');
+  const [password, setPassword] = useState('Ss@12345');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
-  console.log('🔍 LoginScreen Debug:', { isLoading, error, email, password });
   // Animation values
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(50))[0];
@@ -645,11 +644,11 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     marginBottom: theme.spacing.md,
-   },
+  },
   input: {
     backgroundColor: theme.colors.surface,
   },
-  
+
   inputFocused: {
     backgroundColor: `${theme.colors.primary}08`,
   },

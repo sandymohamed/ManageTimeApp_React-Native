@@ -50,11 +50,11 @@ export const ProfileScreen: React.FC = () => {
   };
 
   const handleEditProfile = () => {
-    console.log('Edit profile');
+    navigation.navigate('EditProfile' as never);
   };
 
   const handleChangePassword = () => {
-    console.log('Change password');
+    navigation.navigate('ChangePassword' as never);
   };
 
   const handleSettings = () => {
@@ -66,11 +66,27 @@ export const ProfileScreen: React.FC = () => {
   };
 
   const handleHelp = () => {
-    console.log('Help');
+    navigation.navigate('HelpSupport' as never);
   };
 
   const handleAbout = () => {
-    console.log('About');
+    navigation.navigate('About' as never);
+  };
+
+  const handleNotifications = () => {
+    navigation.navigate('NotificationSettings' as never);
+  };
+
+  const handlePrivacy = () => {
+    navigation.navigate('Privacy' as never);
+  };
+
+  const handleDataStorage = () => {
+    navigation.navigate('DataStorage' as never);
+  };
+
+  const handleExportData = () => {
+    navigation.navigate('DataStorage' as never);
   };
 
   return (
@@ -132,7 +148,7 @@ export const ProfileScreen: React.FC = () => {
             description="Manage notification preferences"
             left={(props: any) => <List.Icon {...props} icon="bell" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
-            onPress={() => console.log('Notifications')}
+            onPress={handleNotifications}
           />
           <Divider />
           <List.Item
@@ -140,7 +156,7 @@ export const ProfileScreen: React.FC = () => {
             description="Control your privacy settings"
             left={(props: any) => <List.Icon {...props} icon="shield-account" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
-            onPress={() => console.log('Privacy')}
+            onPress={handlePrivacy}
           />
         </Card.Content>
       </Card>
@@ -172,7 +188,7 @@ export const ProfileScreen: React.FC = () => {
             description="Manage your data and storage"
             left={(props: any) => <List.Icon {...props} icon="database" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
-            onPress={() => console.log('Data & Storage')}
+            onPress={handleDataStorage}
           />
           <Divider />
           <List.Item
@@ -180,7 +196,7 @@ export const ProfileScreen: React.FC = () => {
             description="Export your data"
             left={(props: any) => <List.Icon {...props} icon="download" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
-            onPress={() => console.log('Export Data')}
+            onPress={handleExportData}
           />
         </Card.Content>
       </Card>

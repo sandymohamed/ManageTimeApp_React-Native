@@ -597,6 +597,36 @@ const ProjectInvitationsScreen: React.FC = () => {
         />
       }
     >
+      {/* Received Invitations Section */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.titleRow}>
+            <View style={[styles.iconContainer, { backgroundColor: theme.colors.secondary + '20' }]}>
+              <Icon name="email-receive" size={20} color={theme.colors.secondary} />
+            </View>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+              {t('invitations.receivedInvitations')}
+            </Text>
+          </View>
+          <View style={[styles.countBadge, { backgroundColor: theme.colors.secondary }]}>
+            <Text style={styles.countText}>{receivedInvitations.length}</Text>
+          </View>
+        </View>
+
+        {receivedInvitations.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Icon name="email-outline" size={48} color={theme.colors.textSecondary} />
+            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+              {t('invitations.noReceivedInvitations')}
+            </Text>
+          </View>
+        ) : (
+          receivedInvitations.map(invitation => renderInvitation(invitation, 'received'))
+        )}
+      </View>
+
+      <Divider style={[styles.sectionDivider, { backgroundColor: theme.colors.outline }]} />
+
       {/* Sent Invitations Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -625,35 +655,8 @@ const ProjectInvitationsScreen: React.FC = () => {
         )}
       </View>
 
-      <Divider style={[styles.sectionDivider, { backgroundColor: theme.colors.outline }]} />
 
-      {/* Received Invitations Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.titleRow}>
-            <View style={[styles.iconContainer, { backgroundColor: theme.colors.secondary + '20' }]}>
-              <Icon name="email-receive" size={20} color={theme.colors.secondary} />
-            </View>
-            <Title style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              {t('invitations.receivedInvitations')}
-            </Title>
-          </View>
-          <View style={[styles.countBadge, { backgroundColor: theme.colors.secondary }]}>
-            <Text style={styles.countText}>{receivedInvitations.length}</Text>
-          </View>
-        </View>
 
-        {receivedInvitations.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Icon name="email-outline" size={48} color={theme.colors.textSecondary} />
-            <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-              {t('invitations.noReceivedInvitations')}
-            </Text>
-          </View>
-        ) : (
-          receivedInvitations.map(invitation => renderInvitation(invitation, 'received'))
-        )}
-      </View>
     </ScrollView>
   );
 };
@@ -742,7 +745,8 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   statusChip: {
     borderRadius: 12,
-    height: 28,
+    height: 32,
+    lineHeight: 10,
   },
   divider: {
     marginVertical: 12,
@@ -787,7 +791,8 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: 8,
   },
   buttonContent: {
-    height: 36,
+    height: 40,
+    lineHeight: 12,
   },
 });
 

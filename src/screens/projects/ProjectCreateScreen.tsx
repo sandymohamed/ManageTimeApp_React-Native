@@ -1,18 +1,27 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Platform, Modal, ActivityIndicator } from 'react-native';
 import { Text, Button, TextInput, Card, useTheme, IconButton, HelperText } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useRoute, RouteProp } from '@react-navigation/native';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
-import { CreateProjectData, ProjectStatus } from '@/types/project';
+import { CreateProjectData, UpdateProjectData, ProjectStatus } from '@/types/project';
 import { useProjectStore } from '@/store/projectStore';
 import { validateForm, commonRules, validateDateRange } from '@/utils/validation';
 
 interface ProjectCreateScreenProps {
   navigation: any;
 }
+
+type ProjectCreateScreenRouteProp = RouteProp<
+  {
+    ProjectCreate: undefined;
+    ProjectEdit: { projectId: string };
+  },
+  'ProjectCreate' | 'ProjectEdit'
+>;
 
 const PROJECT_COLORS = [
   '#2196F3', '#4CAF50', '#FF9800', '#F44336', '#9C27B0',
@@ -21,6 +30,7 @@ const PROJECT_COLORS = [
 
 export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
+  const route = useRoute<ProjectCreateScreenRouteProp>();
   const { isRTL } = useLanguage();
   const paperTheme = useTheme();
   const customTheme = useCustomTheme();
@@ -28,7 +38,11 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
   const theme = customTheme.theme;
   const styles = createStyles(theme);
 
-  const { createProject } = useProjectStore();
+  // Check if we're in edit mode
+  const projectId = 'projectId' in route.params ? route.params.projectId : undefined;
+  const isEditMode = !!projectId;
+
+  const { createProject, updateProject, fetchProject, currentProject } = useProjectStore();
 
   const [formData, setFormData] = useState<CreateProjectData>({
     name: '',
@@ -38,9 +52,48 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [dateType, setDateType] = useState<'start' | 'end'>('start');
+
+  // Load project data if in edit mode
+  useEffect(() => {
+    if (isEditMode && projectId) {
+      loadProjectData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, projectId]);
+
+  const loadProjectData = async () => {
+    if (!projectId) return;
+
+    try {
+      setIsLoadingData(true);
+      await fetchProject(projectId);
+
+      if (currentProject) {
+        setFormData({
+          name: currentProject.name || '',
+          description: currentProject.description || '',
+          color: currentProject.color || PROJECT_COLORS[0],
+          startDate: currentProject.startDate || undefined,
+          endDate: currentProject.endDate || undefined,
+        });
+
+        // Set selected date based on the project's date
+        if (currentProject.startDate) {
+          setSelectedDate(new Date(currentProject.startDate));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading project data:', error);
+      showError(t('projects.loadError'));
+      navigation.goBack();
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
 
   // Validation rules
   const validationRules = {
@@ -78,13 +131,27 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
     setIsLoading(true);
 
     try {
-      console.log("formData", formData);
-      await createProject(formData);
-      showSuccess(t('projects.createdSuccessfully', { name: formData.name }));
+      if (isEditMode && projectId) {
+        // Update existing project
+        const updateData: UpdateProjectData = {
+          name: formData.name,
+          description: formData.description,
+          color: formData.color,
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+        };
+        await updateProject(projectId, updateData);
+        showSuccess(t('projects.updatedSuccessfully', { name: formData.name }));
+      } else {
+        // Create new project
+        console.log("formData", formData);
+        await createProject(formData);
+        showSuccess(t('projects.createdSuccessfully', { name: formData.name }));
+      }
       navigation.goBack();
     } catch (error: any) {
-      console.error('Create project error:', error);
-      showError(error.message || t('projects.createError'));
+      console.error(`${isEditMode ? 'Update' : 'Create'} project error:`, error);
+      showError(error.message || (isEditMode ? t('projects.updateError') : t('projects.createError')));
     } finally {
       setIsLoading(false);
     }
@@ -143,13 +210,25 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
     });
   };
 
+  // Show loading screen while fetching project data
+  if (isLoadingData && isEditMode) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text variant="bodyLarge" style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+          {t('common.loading')}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
             <Text variant="headlineSmall" style={[styles.title, { color: theme.colors.text }]}>
-              {t('projects.createProject')}
+              {isEditMode ? t('projects.editProject') : t('projects.createProject')}
             </Text>
 
             <View style={styles.field}>
@@ -289,11 +368,11 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
         <Button
           mode="contained"
           onPress={handleSave}
-          loading={isLoading}
-          disabled={isLoading || !isFormValid()}
+          loading={isLoading || isLoadingData}
+          disabled={isLoading || isLoadingData || !isFormValid()}
           style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
         >
-          {t('projects.createProject')}
+          {isEditMode ? t('common.save') : t('projects.createProject')}
         </Button>
       </View>
 
@@ -355,6 +434,14 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    textAlign: 'center',
   },
   scrollView: {
     flex: 1,
