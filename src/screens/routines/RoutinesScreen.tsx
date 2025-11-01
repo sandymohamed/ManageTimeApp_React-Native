@@ -99,7 +99,7 @@
 //   const createExampleRoutines = async () => {
 //     try {
 //       setCreatingExamples(true);
-      
+
 //       // Morning Routine
 //       const morningRoutine = await routineService.createRoutine({
 //         title: t('routines.morningRoutine') || 'Morning Routine',
@@ -512,7 +512,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { Card, Title, Paragraph, Button, Chip, IconButton } from 'react-native-paper';
+import { Card, Title, Paragraph, Button, Chip, IconButton, FAB } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
@@ -606,7 +606,7 @@ const RoutinesScreen: React.FC = () => {
   const createExampleRoutines = async () => {
     try {
       setCreatingExamples(true);
-      
+
       const morningRoutine = await routineService.createRoutine({
         title: t('routines.morningRoutine') || 'Morning Routine',
         description: t('routines.morningRoutineDesc') || 'Daily morning routine at 6:00 AM',
@@ -703,7 +703,7 @@ const RoutinesScreen: React.FC = () => {
               </Chip>
             </View>
             {routine.schedule.time && (
-              <Chip 
+              <Chip
                 style={[styles.timeChip, { backgroundColor: theme.colors.primary + '15' }]}
                 textStyle={{ color: theme.colors.primary }}
               >
@@ -784,15 +784,13 @@ const RoutinesScreen: React.FC = () => {
                 iconColor={theme.colors.primary}
                 onPress={() => handleEditRoutine(routine.id)}
               />
-              <Button
-                mode="outlined"
-                onPress={() => handleDeleteRoutine(routine.id)}
-                textColor={theme.colors.error}
+
+              <FAB
                 icon="delete"
                 style={styles.deleteButton}
-              >
-                {t('common.delete')}
-              </Button>
+                onPress={() => handleDeleteRoutine(routine.id)}
+                color={theme.colors.error}
+              />
             </View>
           </View>
         </Card.Content>
@@ -830,6 +828,7 @@ const RoutinesScreen: React.FC = () => {
               {t('routines.createFirstRoutine')}
             </Paragraph>
             <View style={styles.emptyStateButtons}>
+
               <Button
                 mode="outlined"
                 onPress={createExampleRoutines}
@@ -841,6 +840,7 @@ const RoutinesScreen: React.FC = () => {
               >
                 {t('routines.createExamples') || 'Create Example Routines'}
               </Button>
+
             </View>
           </View>
         ) : (
@@ -848,7 +848,7 @@ const RoutinesScreen: React.FC = () => {
         )}
       </ScrollView>
 
-      <Button
+      {/* <Button
         mode="contained"
         onPress={handleCreateRoutine}
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
@@ -856,7 +856,16 @@ const RoutinesScreen: React.FC = () => {
         contentStyle={styles.fabContent}
       >
         {t('routines.createRoutine')}
-      </Button>
+      </Button> */}
+
+
+      <FAB
+        onPress={handleCreateRoutine}
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        icon="plus"
+        // contentStyle={styles.fabContent}
+        color={theme.colors.onPrimary}
+      />
     </View>
   );
 };
@@ -984,6 +993,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   deleteButton: {
     marginLeft: 8,
     borderColor: theme.colors.error,
+    backgroundColor: "transparent",
   },
   nextOccurrence: {
     fontSize: 12,

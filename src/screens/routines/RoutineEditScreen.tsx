@@ -792,7 +792,7 @@ const RoutineEditScreen: React.FC = () => {
   };
 
   const addTask = () => {
-    setTasks([...tasks, { title: '', description: '', reminderTime: '' }]);
+    setTasks([...tasks, { title: '', description: '', reminderTime: formData.schedule.time || '' }]);
   };
 
   const updateTask = (index: number, field: string, value: string) => {
@@ -816,21 +816,36 @@ const RoutineEditScreen: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.title?.trim()) {
+    // Validate title
+    if (!formData.title || !formData.title.trim()) {
       newErrors.title = t('validation.titleRequired');
     }
 
+    // Validate time
+    if (!formData.schedule?.time) {
+      newErrors.time = t('routines.timeRequired') || 'Please select a time';
+    }
+
+    // Validate frequency-specific fields
     if (formData.frequency === 'WEEKLY' && (!selectedDays || selectedDays.length === 0)) {
       newErrors.days = t('validation.daysRequired');
     }
 
     if (formData.frequency === 'MONTHLY' && (!selectedDay || selectedDay < 1 || selectedDay > 31)) {
-      newErrors.day = 'Please select a valid day of month (1-31)';
+      newErrors.day = t('routines.dayRequired') || 'Please select a valid day of month (1-31)';
     }
 
-    const validTasks = tasks.filter(t => t.title.trim());
+    // Validate tasks
+    const validTasks = tasks.filter(t => t.title && t.title.trim());
     if (validTasks.length === 0) {
-      newErrors.tasks = 'Please add at least one task';
+      newErrors.tasks = t('routines.tasksRequired') || 'Please add at least one task';
+    } else {
+      // Check if any task has empty title
+      tasks.forEach((task, index) => {
+        if (task.title && !task.title.trim()) {
+          newErrors[`task_${index}_title`] = t('validation.titleRequired');
+        }
+      });
     }
 
     setErrors(newErrors);
@@ -846,9 +861,15 @@ const RoutineEditScreen: React.FC = () => {
     try {
       setLoading(true);
 
-      await routineService.updateRoutine(routineId, formData);
+      // Prepare form data - convert empty description to undefined
+      const routineData = {
+        ...formData,
+        description: formData.description?.trim() || undefined,
+      };
 
-      const validTasks = tasks.filter(t => t.title.trim());
+      await routineService.updateRoutine(routineId, routineData);
+
+      const validTasks = tasks.filter(t => t.title && t.title.trim());
 
       if (routine) {
         const existingTaskIds = validTasks.map(t => t.id).filter(Boolean);
@@ -864,17 +885,17 @@ const RoutineEditScreen: React.FC = () => {
         const task = validTasks[i];
         if (task.id) {
           await routineService.updateRoutineTask(task.id, {
-            title: task.title,
-            description: task.description || undefined,
+            title: task.title.trim(),
+            description: task.description?.trim() || undefined,
             order: i,
-            reminderTime: task.reminderTime || undefined,
+            reminderTime: task.reminderTime?.trim() || undefined,
           });
         } else {
           await routineService.addTaskToRoutine(routineId, {
-            title: task.title,
-            description: task.description || undefined,
+            title: task.title.trim(),
+            description: task.description?.trim() || undefined,
             order: i,
-            reminderTime: task.reminderTime || undefined,
+            reminderTime: task.reminderTime?.trim() || undefined,
           });
         }
       }
@@ -1003,11 +1024,15 @@ const RoutineEditScreen: React.FC = () => {
               mode="outlined"
               onPress={() => setShowTimePicker(true)}
               icon="clock"
-              style={styles.timeButton}
-              textColor={theme.colors.primary}
+              style={[
+                styles.timeButton,
+                errors.time && { borderColor: theme.colors.error }
+              ]}
+              textColor={errors.time ? theme.colors.error : theme.colors.primary}
             >
               {formData.schedule?.time || t('routines.selectTime')}
             </Button>
+            {errors.time && <Text style={styles.errorText}>{errors.time}</Text>}
             {showTimePicker && (
               <DateTimePicker
                 value={selectedTime}
