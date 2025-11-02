@@ -8,6 +8,7 @@ import { useNotification } from '@/contexts/NotificationContext';
 import { Project, ProjectStatus, ProjectRole } from '@/types/project';
 import { useProjectStore } from '@/store/projectStore';
 import { showDeleteConfirmation } from '@/components/ConfirmationDialog';
+import { useAuthStore } from '@/store/authStore';
 
 interface ProjectsScreenProps {
   navigation: any;
@@ -21,6 +22,7 @@ export const ProjectsScreen: React.FC<ProjectsScreenProps> = ({ navigation }) =>
   const { showSuccess, showError } = useNotification();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
+  const { user } = useAuthStore();
 
   const {
     projects,
@@ -43,12 +45,16 @@ export const ProjectsScreen: React.FC<ProjectsScreenProps> = ({ navigation }) =>
     updateMemberRole,
   } = useProjectStore();
 
+
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
 
   useEffect(() => {
     fetchProjects();
+
+    console.log("filteredProjects", filteredProjects, user);
+
   }, [fetchProjects]);
 
   const handleRefresh = async () => {
@@ -124,7 +130,7 @@ export const ProjectsScreen: React.FC<ProjectsScreenProps> = ({ navigation }) =>
                 </Text>
               )}
             </View>
-            <View style={styles.projectActions}>
+            {(user?.id === project.ownerId) && (<View style={styles.projectActions}>
               <IconButton
                 icon="account-plus"
                 size={20}
@@ -143,7 +149,7 @@ export const ProjectsScreen: React.FC<ProjectsScreenProps> = ({ navigation }) =>
                 iconColor={theme.colors.error}
                 onPress={() => handleDeleteProject(project)}
               />
-            </View>
+            </View>)}
           </View>
 
           <View style={styles.projectStatus}>

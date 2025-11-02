@@ -9,6 +9,21 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { apiClient } from '@/services/apiClient';
 import { logger } from '@/utils/logger';
 import { useAuthStore } from '@/store/authStore';
+import { ApiResponse } from '@/types';
+
+interface NotificationSettings {
+  pushNotifications: boolean;
+  emailNotifications: boolean;
+  taskReminders: boolean;
+  goalReminders: boolean;
+  projectInvitations: boolean;
+  taskAssignments: boolean;
+  taskComments: boolean;
+  dueDateReminders: boolean;
+  weeklyDigest: boolean;
+  monthlyReport: boolean;
+  marketingEmails: boolean;
+}
 
 export const NotificationSettingsScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -16,9 +31,9 @@ export const NotificationSettingsScreen: React.FC = () => {
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
-  const { user, updateUser } = useAuthStore();
+  const { user } = useAuthStore();
 
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<NotificationSettings>({
     pushNotifications: true,
     emailNotifications: false,
     taskReminders: true,
@@ -38,7 +53,7 @@ export const NotificationSettingsScreen: React.FC = () => {
 
   const loadSettings = async () => {
     try {
-      const response = await apiClient.get('/me/notification-settings');
+      const response = await apiClient.get<ApiResponse<NotificationSettings>>('/me/notification-settings');
       if (response.success && response.data) {
         setSettings({ ...settings, ...response.data });
       }
@@ -47,16 +62,20 @@ export const NotificationSettingsScreen: React.FC = () => {
     }
   };
 
-  const handleToggle = async (key: keyof typeof settings) => {
+  const handleToggle = async (key: keyof NotificationSettings) => {
+    const previousSettings = { ...settings };
     const newSettings = { ...settings, [key]: !settings[key] };
+    
+    // Optimistic update
     setSettings(newSettings);
 
     try {
-      await apiClient.put('/me/notification-settings', newSettings);
+      await apiClient.put<ApiResponse<NotificationSettings>>('/me/notification-settings', newSettings);
+      logger.info('Notification settings updated successfully', { key, value: newSettings[key] });
     } catch (error) {
       logger.error('Update notification settings error:', error);
       // Revert on error
-      setSettings(settings);
+      setSettings(previousSettings);
     }
   };
 

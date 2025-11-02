@@ -578,9 +578,6 @@ const ProjectInvitationsScreen: React.FC = () => {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-          {t('invitations.loading')}
-        </Text>
       </View>
     );
   }

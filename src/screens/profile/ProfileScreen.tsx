@@ -143,21 +143,21 @@ export const ProfileScreen: React.FC = () => {
             onPress={handleChangePassword}
           />
           <Divider />
-          <List.Item
+          {/* <List.Item
             title={t('profile.notifications')}
             description="Manage notification preferences"
             left={(props: any) => <List.Icon {...props} icon="bell" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleNotifications}
-          />
-          <Divider />
+          /> */}
+          {/* <Divider />
           <List.Item
             title="Privacy"
             description="Control your privacy settings"
             left={(props: any) => <List.Icon {...props} icon="shield-account" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
             onPress={handlePrivacy}
-          />
+          /> */}
         </Card.Content>
       </Card>
 
@@ -190,14 +190,14 @@ export const ProfileScreen: React.FC = () => {
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleDataStorage}
           />
-          <Divider />
+          {/* <Divider />
           <List.Item
             title="Export Data"
             description="Export your data"
             left={(props: any) => <List.Icon {...props} icon="download" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleExportData}
-          />
+          /> */}
         </Card.Content>
       </Card>
 

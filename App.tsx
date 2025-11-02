@@ -12,6 +12,7 @@ import { LoadingScreen } from './src/components/LoadingScreen';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
+import { pushNotificationService } from './src/services/pushNotificationService';
 import './src/i18n'; // Initialize i18n
 
 import { enableScreens } from 'react-native-screens';
@@ -19,12 +20,22 @@ import { enableScreens } from 'react-native-screens';
 enableScreens(); // Add this line
 
 const App: React.FC = () => {
-  const { initializeAuth, isInitialized, isLoading } = useAuthStore();
+  const { initializeAuth, isInitialized, isLoading, user, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
     console.log('🚀 App: Initializing authentication...');
     initializeAuth();
   }, [initializeAuth]);
+
+  // Initialize push notifications when user is authenticated
+  useEffect(() => {
+    if (isInitialized && isAuthenticated && user) {
+      console.log('🔔 App: Initializing push notifications...');
+      pushNotificationService.initialize().catch((error) => {
+        console.error('Failed to initialize push notifications:', error);
+      });
+    }
+  }, [isInitialized, isAuthenticated, user]);
 
   if (!isInitialized || isLoading) {
     return <LoadingScreen message="Initializing app..." />;

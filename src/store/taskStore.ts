@@ -20,7 +20,16 @@ interface TaskState {
 
 interface TaskActions {
   // Data fetching
-  fetchTasks: () => Promise<void>;
+  fetchTasks: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    priority?: string;
+    projectId?: string;
+    goalId?: string;
+    assigneeId?: string;
+  }) => Promise<void>;
   fetchTask: (id: string) => Promise<void>;
   refreshTasks: () => Promise<void>;
 
@@ -74,24 +83,70 @@ export const useTaskStore = create<TaskStore>()(
       sortOrder: 'asc',
 
       // Data fetching
-      fetchTasks: async () => {
+      fetchTasks: async (params?: {
+        page?: number;
+        limit?: number;
+        search?: string;
+        status?: string;
+        priority?: string;
+        projectId?: string;
+        goalId?: string;
+        assigneeId?: string;
+      }) => {
         console.log('**************************    7777777777 Fetching tasks', get());
         try {
           set({ isLoading: true, error: null });
 
-          const response = await taskService.getTasks();
+          const response = await taskService.getTasks(params);
           console.log('Fetching tasks Response:', response);
-          const tasks = response;
-          console.log('Fetching tasks Tasks:', tasks);
+          const serverTasks = response;
+          console.log('Fetching tasks Tasks:', serverTasks);
 
           // Sort tasks by order field
-          const sortedTasks = tasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+          const sortedServerTasks = serverTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
 
-          set({
-            tasks: sortedTasks,
-            filteredTasks: sortedTasks,
-            isLoading: false,
-          });
+          // Merge with existing tasks to preserve optimistic updates
+          // Server tasks take precedence, but keep local tasks that don't exist on server yet
+          const currentTasks = get().tasks;
+          const serverTaskIds = new Set(sortedServerTasks.map(t => t.id));
+          
+          if (params?.projectId || params?.goalId || params?.assigneeId) {
+            // If fetching with a filter, update only tasks that match the filter
+            // Keep tasks from other projects/goals/assignees intact
+            const filterKey = params.projectId ? 'projectId' : params.goalId ? 'goalId' : 'assigneeId';
+            const filterValue = params.projectId || params.goalId || params.assigneeId;
+            
+            // Remove existing tasks that match the filter (will be replaced by server tasks)
+            const tasksFromOtherFilters = currentTasks.filter(task => task[filterKey] !== filterValue);
+            
+            // Find local tasks that match the filter but aren't on server (newly created)
+            const localOnlyTasks = currentTasks.filter(task => {
+              return task[filterKey] === filterValue && !serverTaskIds.has(task.id);
+            });
+            
+            // Merge: tasks from other filters + server tasks + local-only tasks matching filter
+            const mergedTasks = [...tasksFromOtherFilters, ...sortedServerTasks, ...localOnlyTasks];
+            
+            // Sort merged tasks by order
+            const sortedMergedTasks = mergedTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+            
+            set({
+              tasks: sortedMergedTasks,
+              filteredTasks: sortedMergedTasks,
+              isLoading: false,
+            });
+          } else {
+            // No filter: merge all tasks, server tasks take precedence
+            const localOnlyTasks = currentTasks.filter(task => !serverTaskIds.has(task.id));
+            const mergedTasks = [...sortedServerTasks, ...localOnlyTasks];
+            const sortedMergedTasks = mergedTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+            
+            set({
+              tasks: sortedMergedTasks,
+              filteredTasks: sortedMergedTasks,
+              isLoading: false,
+            });
+          }
 
           // Apply current filters
           get().applyFilters();

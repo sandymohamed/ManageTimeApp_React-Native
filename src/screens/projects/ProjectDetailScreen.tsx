@@ -6,9 +6,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
-import { Project, ProjectRole, ProjectStatus, ProjectMilestone, ProjectTask, MilestoneStatus, TaskStatus, TaskPriority } from '@/types/project';
+import {
+  Project, ProjectRole, ProjectStatus,
+  ProjectMilestone, ProjectTask,
+  MilestoneStatus
+} from '@/types/project';
+import { TaskPriority, TaskStatus } from '@/types';
 import { useProjectStore } from '@/store/projectStore';
 import { useTaskStore } from '@/store/taskStore';
+import { useAuthStore } from '@/store/authStore';
 import { milestoneService } from '@/services/milestoneService';
 import { invitationService, ProjectInvitation } from '@/services/invitationService';
 import { showDeleteConfirmation } from '@/components/ConfirmationDialog';
@@ -32,6 +38,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
   const { projectId } = route.params;
   const { currentProject, fetchProject, updateProject, deleteProject, removeMember, updateMemberRole } = useProjectStore();
   const { tasks, fetchTasks } = useTaskStore();
+  const { user } = useAuthStore();
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [memberMenuVisible, setMemberMenuVisible] = useState<string | null>(null);
@@ -39,6 +46,9 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
   const [projectTasks, setProjectTasks] = useState<ProjectTask[]>([]);
   const [projectMilestones, setProjectMilestones] = useState<ProjectMilestone[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<ProjectInvitation[]>([]);
+
+  // Check if current user is the owner
+  const isOwner = currentProject && user && currentProject.ownerId === user.id;
 
   const fetchProjectMilestones = useCallback(async () => {
     try {
@@ -60,7 +70,8 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
 
   useEffect(() => {
     fetchProject(projectId);
-    fetchTasks();
+    // Fetch tasks filtered by projectId for better performance
+    fetchTasks({ projectId });
     fetchProjectMilestones();
     fetchPendingInvitations();
   }, [projectId, fetchProject, fetchTasks, fetchPendingInvitations]);
@@ -68,9 +79,20 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
   // Refetch data when screen comes back into focus
   useFocusEffect(
     React.useCallback(() => {
+      fetchProject(projectId);
+      // Fetch tasks with a small delay to ensure server has processed the new task
+      // Also fetch with projectId filter for better performance
+      const timeoutId = setTimeout(() => {
+        fetchTasks({ projectId });
+      }, 300);
       fetchProjectMilestones();
       fetchPendingInvitations();
-    }, [fetchProjectMilestones, fetchPendingInvitations])
+      
+      // Cleanup timeout on unmount
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    }, [projectId, fetchProject, fetchTasks, fetchProjectMilestones, fetchPendingInvitations])
   );
 
   useEffect(() => {
@@ -204,7 +226,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
       case TaskStatus?.TODO: return theme.colors.textSecondary;
       case TaskStatus?.IN_PROGRESS: return theme.colors.info;
       case TaskStatus?.DONE: return theme.colors.success;
-      case TaskStatus?.CANCELLED: return theme.colors.error;
+      case TaskStatus?.ARCHIVED: return theme.colors.error;
       default: return theme.colors.textSecondary;
     }
   };
@@ -269,45 +291,47 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
                 </Text>
               )}
             </View>
-            <Menu
-              visible={menuVisible}
-              onDismiss={() => setMenuVisible(false)}
-              anchor={
-                <IconButton
-                  icon="dots-vertical"
-                  size={24}
-                  iconColor={theme.colors.primary}
-                  onPress={() => setMenuVisible(true)}
+            {isOwner && (
+              <Menu
+                visible={menuVisible}
+                onDismiss={() => setMenuVisible(false)}
+                anchor={
+                  <IconButton
+                    icon="dots-vertical"
+                    size={24}
+                    iconColor={theme.colors.primary}
+                    onPress={() => setMenuVisible(true)}
+                  />
+                }
+              >
+                <Menu.Item
+                  onPress={() => {
+                    setMenuVisible(false);
+                    handleEditProject();
+                  }}
+                  title={t('projects.editProject')}
+                  leadingIcon="pencil"
                 />
-              }
-            >
-              <Menu.Item
-                onPress={() => {
-                  setMenuVisible(false);
-                  handleEditProject();
-                }}
-                title={t('projects.editProject')}
-                leadingIcon="pencil"
-              />
-              <Menu.Item
-                onPress={() => {
-                  setMenuVisible(false);
-                  handleInviteMember();
-                }}
-                title={t('projects.inviteMember')}
-                leadingIcon="account-plus"
-              />
-              <Divider />
-              <Menu.Item
-                onPress={() => {
-                  setMenuVisible(false);
-                  handleDeleteProject();
-                }}
-                title={t('projects.deleteProject')}
-                leadingIcon="delete"
-                titleStyle={{ color: theme.colors.error }}
-              />
-            </Menu>
+                <Menu.Item
+                  onPress={() => {
+                    setMenuVisible(false);
+                    handleInviteMember();
+                  }}
+                  title={t('projects.inviteMember')}
+                  leadingIcon="account-plus"
+                />
+                <Divider />
+                <Menu.Item
+                  onPress={() => {
+                    setMenuVisible(false);
+                    handleDeleteProject();
+                  }}
+                  title={t('projects.deleteProject')}
+                  leadingIcon="delete"
+                  titleStyle={{ color: theme.colors.error }}
+                />
+              </Menu>
+            )}
           </View>
 
           <View style={styles.projectStatus}>
@@ -318,14 +342,6 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
             >
               {t(`projects.status.${currentProject.status.toLowerCase()}`)}
             </Chip>
-
-            <IconButton
-              icon="dots-vertical"
-              size={20}
-              iconColor={theme.colors.textSecondary}
-              onPress={() => navigation.navigate('InvitationAccept', { token: '661195f05e2ae13502c4b0a8a720de664f5542b161dd99cda960c309d660d0f8' })}
-              
-            />
           </View>
 
           <View style={styles.projectMeta}>
@@ -391,14 +407,16 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
               {t('projects.members')} ({currentProject.members.length})
             </Text>
-            <Button
-              mode="outlined"
-              icon="account-plus"
-              onPress={handleInviteMember}
-              style={styles.inviteButton}
-            >
-              {t('projects.invite')}
-            </Button>
+            {isOwner && (
+              <Button
+                mode="outlined"
+                icon="account-plus"
+                onPress={handleInviteMember}
+                style={styles.inviteButton}
+              >
+                {t('projects.invite')}
+              </Button>
+            )}
           </View>
 
           {/* Pending Invitations */}
@@ -453,49 +471,47 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
                   >
                     {t(`projects.roles.${member.role.toLowerCase()}`)}
                   </Chip>
-                  <Menu
-                    visible={memberMenuVisible === member.id}
-                    onDismiss={() => setMemberMenuVisible(null)}
-                    anchor={
-                      <IconButton
-                        icon="dots-vertical"
-                        size={20}
-                        iconColor={theme.colors.textSecondary}
-                        onPress={() => setMemberMenuVisible(member.id)}
+                  {isOwner && member.role !== ProjectRole.OWNER && (
+                    <Menu
+                      visible={memberMenuVisible === member.id}
+                      onDismiss={() => setMemberMenuVisible(null)}
+                      anchor={
+                        <IconButton
+                          icon="dots-vertical"
+                          size={20}
+                          iconColor={theme.colors.textSecondary}
+                          onPress={() => setMemberMenuVisible(member.id)}
+                        />
+                      }
+                    >
+                      <Menu.Item
+                        onPress={() => {
+                          setMemberMenuVisible(null);
+                          handleUpdateMemberRole(member.id, ProjectRole.EDITOR);
+                        }}
+                        title={t('projects.makeEditor')}
+                        leadingIcon="pencil"
                       />
-                    }
-                  >
-                    {member.role !== ProjectRole.OWNER && (
-                      <>
-                        <Menu.Item
-                          onPress={() => {
-                            setMemberMenuVisible(null);
-                            handleUpdateMemberRole(member.id, ProjectRole.EDITOR);
-                          }}
-                          title={t('projects.makeEditor')}
-                          leadingIcon="pencil"
-                        />
-                        <Menu.Item
-                          onPress={() => {
-                            setMemberMenuVisible(null);
-                            handleUpdateMemberRole(member.id, ProjectRole.VIEWER);
-                          }}
-                          title={t('projects.makeViewer')}
-                          leadingIcon="eye"
-                        />
-                        <Divider />
-                        <Menu.Item
-                          onPress={() => {
-                            setMemberMenuVisible(null);
-                            handleRemoveMember(member.id, member.userName);
-                          }}
-                          title={t('projects.removeMember')}
-                          leadingIcon="account-remove"
-                          titleStyle={{ color: theme.colors.error }}
-                        />
-                      </>
-                    )}
-                  </Menu>
+                      <Menu.Item
+                        onPress={() => {
+                          setMemberMenuVisible(null);
+                          handleUpdateMemberRole(member.id, ProjectRole.VIEWER);
+                        }}
+                        title={t('projects.makeViewer')}
+                        leadingIcon="eye"
+                      />
+                      <Divider />
+                      <Menu.Item
+                        onPress={() => {
+                          setMemberMenuVisible(null);
+                          handleRemoveMember(member.id, member.userName);
+                        }}
+                        title={t('projects.removeMember')}
+                        leadingIcon="account-remove"
+                        titleStyle={{ color: theme.colors.error }}
+                      />
+                    </Menu>
+                  )}
                 </View>
               </View>
             ))}
@@ -825,7 +841,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: theme.colors.background,
     borderRadius: 8,
     marginBottom: 8,
   },
