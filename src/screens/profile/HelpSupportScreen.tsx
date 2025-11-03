@@ -8,6 +8,7 @@ import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { apiClient } from '@/services/apiClient';
 import { logger } from '@/utils/logger';
+import { ApiResponse } from '@/types';
 
 interface FAQItem {
   id: string;
@@ -25,8 +26,8 @@ export const HelpSupportScreen: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
-  const [supportMessage, setSupportMessage] = useState('');
-  const [sending, setSending] = useState(false);
+  // const [supportMessage, setSupportMessage] = useState('');
+  // const [sending, setSending] = useState(false);
 
   const faqs: FAQItem[] = [
     {
@@ -77,29 +78,29 @@ export const HelpSupportScreen: React.FC = () => {
     navigation.goBack();
   };
 
-  const handleSendSupport = async () => {
-    if (!supportMessage.trim()) {
-      Alert.alert(t('common.error'), t('help.pleaseEnterMessage'));
-      return;
-    }
+  // const handleSendSupport = async () => {
+  //   if (!supportMessage.trim()) {
+  //     Alert.alert(t('common.error'), t('help.pleaseEnterMessage'));
+  //     return;
+  //   }
 
-    try {
-      setSending(true);
-      const response = await apiClient.post('/support/message', {
-        message: supportMessage,
-      });
+  //   try {
+  //     setSending(true);
+  //     const response = await apiClient.post<ApiResponse<void>>('/support/message', {
+  //       message: supportMessage,
+  //     });
 
-      if (response.success) {
-        Alert.alert(t('common.success'), t('help.messageSent'));
-        setSupportMessage('');
-      }
-    } catch (error) {
-      logger.error('Send support message error:', error);
-      Alert.alert(t('common.error'), t('help.messageSendError'));
-    } finally {
-      setSending(false);
-    }
-  };
+  //     if (response.success) {
+  //       Alert.alert(t('common.success'), t('help.messageSent'));
+  //       setSupportMessage('');
+  //     }
+  //   } catch (error) {
+  //     logger.error('Send support message error:', error);
+  //     Alert.alert(t('common.error'), t('help.messageSendError'));
+  //   } finally {
+  //     setSending(false);
+  //   }
+  // };
 
   const handleOpenDocs = () => {
     Linking.openURL('https://your-app-url.com/docs');
@@ -127,40 +128,6 @@ export const HelpSupportScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Quick Links */}
-        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-          <Card.Content>
-            <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              {t('help.quickLinks')}
-            </Text>
-
-            <List.Item
-              title={t('help.documentation')}
-              description={t('help.documentationDesc')}
-              left={(props) => <List.Icon {...props} icon="book-open-variant" />}
-              right={(props) => <List.Icon {...props} icon="open-in-new" />}
-              onPress={handleOpenDocs}
-            />
-            <Divider style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
-
-            <List.Item
-              title={t('help.emailSupport')}
-              description="support@your-app-url.com"
-              left={(props) => <List.Icon {...props} icon="email" />}
-              right={(props) => <List.Icon {...props} icon="open-in-new" />}
-              onPress={handleOpenEmail}
-            />
-            <Divider style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
-
-            <List.Item
-              title={t('help.website')}
-              description="Visit our website for more info"
-              left={(props) => <List.Icon {...props} icon="web" />}
-              right={(props) => <List.Icon {...props} icon="open-in-new" />}
-              onPress={handleOpenWebsite}
-            />
-          </Card.Content>
-        </Card>
 
         {/* FAQ Section */}
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
@@ -215,7 +182,7 @@ export const HelpSupportScreen: React.FC = () => {
         </Card>
 
         {/* Contact Support */}
-        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+        {/* <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
               {t('help.contactSupport')}
@@ -247,7 +214,7 @@ export const HelpSupportScreen: React.FC = () => {
               {t('help.sendMessage')}
             </Button>
           </Card.Content>
-        </Card>
+        </Card> */}
 
         {/* App Info */}
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
