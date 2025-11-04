@@ -4,6 +4,8 @@ import { apiClient } from './apiClient';
 import { logger } from '@/utils/logger';
 import { useAuthStore } from '@/store/authStore';
 import { ApiResponse } from '@/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { navigate } from '@/utils/deepLinking';
 
 export interface PushTokenResponse {
   token: string;
@@ -15,6 +17,7 @@ class PushNotificationService {
   private static instance: PushNotificationService;
   private isInitialized = false;
   private currentToken: string | null = null;
+  private static TOKEN_KEY = 'push:lastToken';
 
   private constructor() {
     // Private constructor for singleton
@@ -64,13 +67,25 @@ class PushNotificationService {
   private configurePushNotifications(): void {
     try {
       PushNotification.configure({
-        // Called when a notification is received
+        // Called when a notification is received (foreground)
         onNotification: (notification: PushNotificationType) => {
           logger.info('Notification received:', notification);
           
-          // Handle notification based on type
+          const data = notification.data || notification.userInfo || {};
+          const notificationType = data.type;
+          
+          // Handle alarm notifications
+          if (notificationType === 'alarm') {
+            this.handleAlarmNotification(notification);
+          }
+          
+          // Handle timer notifications
+          if (notificationType === 'timer') {
+            this.handleTimerNotification(notification);
+          }
+          
+          // Handle notification tap
           if (notification.userInteraction) {
-            // User tapped on notification
             this.handleNotificationTap(notification);
           }
         },
@@ -82,7 +97,13 @@ class PushNotificationService {
           
           // Register token with backend
           try {
-            await this.sendTokenToBackend(token.token);
+            const lastToken = await AsyncStorage.getItem(PushNotificationService.TOKEN_KEY);
+            if (lastToken !== token.token) {
+              await this.sendTokenToBackend(token.token);
+              await AsyncStorage.setItem(PushNotificationService.TOKEN_KEY, token.token);
+            } else {
+              logger.info('Push token unchanged, skipping backend registration');
+            }
           } catch (error) {
             logger.error('Failed to send token to backend:', error);
           }
@@ -211,16 +232,89 @@ class PushNotificationService {
   }
 
   /**
+   * Handle alarm notification
+   */
+  private handleAlarmNotification(notification: PushNotificationType): void {
+    try {
+      const data = notification.data || {};
+      const alarmId = data.alarmId;
+      logger.info('Alarm notification triggered:', alarmId);
+      
+      // Trigger alarm event - this will be handled by AlarmsScreen
+      // We'll use an event emitter or store update
+      // For now, we'll just log it - the actual handling will be in AlarmsScreen
+      console.log('⏰ ALARM FIRED:', alarmId);
+      
+      // Emit event that AlarmsScreen can listen to
+      // Since we can't easily use events here, we'll rely on the notification system
+      // and AlarmsScreen will check for active alarms
+    } catch (error) {
+      logger.error('Failed to handle alarm notification:', error);
+    }
+  }
+
+  /**
+   * Handle timer notification
+   */
+  private handleTimerNotification(notification: PushNotificationType): void {
+    try {
+      const data = notification.data || {};
+      const timerId = data.timerId;
+      logger.info('Timer notification triggered:', timerId);
+      
+      console.log('⏱️ TIMER COMPLETED:', timerId);
+      
+      // Trigger timer completion - will be handled by AlarmsScreen
+    } catch (error) {
+      logger.error('Failed to handle timer notification:', error);
+    }
+  }
+
+  /**
    * Handle notification tap
    */
   private handleNotificationTap(notification: PushNotificationType): void {
     try {
       const data = notification.data;
       logger.info('Notification tapped:', data);
+      if (!data) return;
 
-      // Navigate based on notification type
-      // This will be handled by the navigation system
-      // The data will be passed to the notification handler in App.tsx
+      const type = (data.type || data.notificationType || '').toString();
+      // Common IDs possibly present in payload
+      const taskId = data.taskId || data.targetId;
+      const goalId = data.goalId || data.targetId;
+      const projectId = data.projectId || data.targetId;
+
+      // Map known backend types to app routes
+      switch (type) {
+        case 'PROJECT_INVITATION':
+          navigate('PendingInvitations');
+          break;
+        case 'TASK_ASSIGNMENT':
+        case 'TASK_COMMENT':
+        case 'TASK_REMINDER':
+        case 'DUE_DATE_REMINDER':
+          if (taskId) {
+            navigate('TaskDetail', { taskId: String(taskId) });
+          } else {
+            navigate('Tasks');
+          }
+          break;
+        case 'GOAL_REMINDER':
+          if (goalId) {
+            navigate('GoalDetail', { goalId: String(goalId) });
+          } else {
+            navigate('Goals');
+          }
+          break;
+        default:
+          // Fallbacks: try project detail if projectId exists, otherwise dashboard
+          if (projectId) {
+            navigate('ProjectDetail', { projectId: String(projectId) });
+          } else {
+            navigate('MainTabs');
+          }
+      }
     } catch (error) {
       logger.error('Failed to handle notification tap:', error);
     }

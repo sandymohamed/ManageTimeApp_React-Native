@@ -9,6 +9,8 @@ import {
   AppState, 
   Vibration
 } from 'react-native';
+import Sound from 'react-native-sound';
+import PushNotification from 'react-native-push-notification';
 import { Text, FAB, Card, Button, Chip, SegmentedButtons, Portal, Modal, TextInput } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -27,31 +29,74 @@ type NavigationProp = {
   goBack: () => void;
 };
 
-// Simple Sound Manager using React Native APIs
+// Sound Manager with audio playback and vibration
 class SoundManager {
   private vibrationInterval: NodeJS.Timeout | null = null;
+  private sound: Sound | null = null;
   private isPlaying = false;
 
   playAlarmSound() {
     try {
       console.log('🔊 Playing alarm sound with vibration');
       
-      // Stop any existing alarm first ********************
-      // this.stopSound();
+      // Stop any existing alarm first
+      this.stopSound();
+      
+      // Enable playback in silent mode (iOS)
+      Sound.setCategory('Playback', true);
       
       // Start vibration
       this.startVibration();
       
-      this.isPlaying = true;
+      // Try to play a system notification sound
+      // Note: For proper alarm sounds, you should bundle sound files in your app
+      // For now, we'll use the system notification sound which works differently per platform
+      try {
+        // On iOS, we can use system sounds
+        // On Android, we'll rely more on vibration and notification system
+        if (Platform.OS === 'ios') {
+          // iOS: Use system sound (this will play even in silent mode due to category)
+          // Create a simple beep pattern using vibration + system sound
+          this.sound = new Sound(
+            'default', // System default sound
+            Sound.MAIN_BUNDLE,
+            (error) => {
+              if (error) {
+                console.log('Failed to load sound on iOS, using vibration only:', error);
+                this.isPlaying = true;
+                return;
+              }
+              
+              // Play sound in loop
+              this.sound?.setNumberOfLoops(-1);
+              this.sound?.setVolume(1.0);
+              this.sound?.play((success) => {
+                if (success) {
+                  console.log('Sound playing successfully on iOS');
+                } else {
+                  console.log('Sound playback failed on iOS');
+                }
+              });
+              this.isPlaying = true;
+            }
+          );
+        } else {
+          // Android: The notification system will handle sound when app is in background
+          // For foreground, we'll use vibration primarily
+          // You can add a bundled sound file here if needed
+          console.log('Android: Using vibration and notification system for sound');
+          this.isPlaying = true;
+        }
+      } catch (soundError) {
+        console.log('Sound initialization failed, using vibration only:', soundError);
+        this.isPlaying = true;
+      }
       
     } catch (error) {
       console.error('Error playing alarm sound:', error);
-      // Fallback: just show alert without vibration
-      Alert.alert(
-        'Alarm Error',
-        'Could not play vibration. Please check app permissions.',
-        [{ text: 'OK' }]
-      );
+      // Fallback: just vibration
+      this.startVibration();
+      this.isPlaying = true;
     }
   }
 
@@ -77,6 +122,14 @@ class SoundManager {
   stopSound() {
     try {
       console.log('🔇 Stopping alarm sound');
+      
+      // Stop sound
+      if (this.sound) {
+        this.sound.stop(() => {
+          this.sound?.release();
+          this.sound = null;
+        });
+      }
       
       // Stop vibration
       Vibration.cancel();
@@ -131,23 +184,112 @@ export const AlarmsScreen: React.FC = () => {
     clearError,
     toggleAlarm,
     deleteAlarm,
+    snoozeAlarm,
+    dismissAlarm,
   } = useAlarmStore();
 
+  // Track which alarms have already fired to prevent duplicate alerts
+  const firedAlarmsRef = useRef<Set<string>>(new Set());
+  
+  // Handle alarm fired
+  const handleAlarmFired = React.useCallback((alarm: Alarm) => {
+    // Prevent duplicate alerts for the same alarm
+    if (firedAlarmsRef.current.has(alarm.id)) {
+      console.log(`⏸️ Alarm ${alarm.id} already fired, skipping duplicate`);
+      return;
+    }
+    
+    console.log('🎯 Handling alarm fired:', alarm.title, 'at', new Date().toISOString());
+    
+    // Mark this alarm as fired
+    firedAlarmsRef.current.add(alarm.id);
+    
+    // Play sound and vibration
+    soundManager.playAlarmSound();
+    setAlarmPlaying(true);
+    
+    // Show alert
+    Alert.alert(
+      '⏰ Alarm',
+      alarm.title,
+      [
+        {
+          text: 'Dismiss',
+          onPress: () => {
+            soundManager.stopSound();
+            setAlarmPlaying(false);
+            firedAlarmsRef.current.delete(alarm.id);
+            // Dismiss the alarm
+            dismissAlarm(alarm.id);
+          },
+        },
+        {
+          text: 'Snooze',
+          onPress: () => {
+            soundManager.stopSound();
+            setAlarmPlaying(false);
+            firedAlarmsRef.current.delete(alarm.id);
+            // Snooze the alarm
+            const snoozeDuration = alarm.snoozeConfig?.duration || 5;
+            snoozeAlarm(alarm.id, snoozeDuration);
+          },
+        },
+      ],
+      { 
+        cancelable: false,
+        onDismiss: () => {
+          soundManager.stopSound();
+          setAlarmPlaying(false);
+          firedAlarmsRef.current.delete(alarm.id);
+        }
+      }
+    );
+  }, [soundManager, dismissAlarm, snoozeAlarm]);
+  
+  // Check for alarms that should have fired
+  const checkAlarmsThatShouldHaveFired = React.useCallback(() => {
+    const now = new Date();
+    const currentAlarms = alarms; // Use current alarms from closure
+    
+    currentAlarms.forEach(alarm => {
+      if (alarm.enabled && !alarmPlaying) {
+        const alarmTime = new Date(alarm.time);
+        // Check if alarm time has passed (within the last 60 seconds to catch missed alarms)
+        const timeDiff = now.getTime() - alarmTime.getTime();
+        
+        // If alarm time has passed and it's within the last 60 seconds
+        if (timeDiff >= 0 && timeDiff < 60000) {
+          console.log(`⏰ Alarm "${alarm.title}" should fire now! Time: ${alarmTime.toISOString()}, Now: ${now.toISOString()}, Diff: ${Math.round(timeDiff / 1000)}s`);
+          handleAlarmFired(alarm);
+        }
+      }
+    });
+  }, [alarms, alarmPlaying, handleAlarmFired]);
+  
   // Initialize
   useEffect(() => {
     fetchAlarms();
     fetchTimers();
+
+    // Check for alarms that should fire every second (more aggressive)
+    const alarmCheckInterval = setInterval(() => {
+      checkAlarmsThatShouldHaveFired();
+    }, 1000); // Check every 1 second
 
     // Handle app state changes
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         fetchTimers();
         fetchAlarms();
+        
+        // Check for any alarms that should have fired
+        checkAlarmsThatShouldHaveFired();
       }
       appState.current = nextAppState;
     });
 
     return () => {
+      clearInterval(alarmCheckInterval);
       subscription.remove();
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
@@ -155,6 +297,33 @@ export const AlarmsScreen: React.FC = () => {
       soundManager.stopSound();
     };
   }, []);
+  
+  // Use effect to check alarms when alarms list changes
+  useEffect(() => {
+    // Check immediately when alarms list changes
+    checkAlarmsThatShouldHaveFired();
+    
+    // Also set up a more frequent check when we have active alarms
+    const enabledAlarms = alarms.filter(a => a.enabled);
+    if (enabledAlarms.length > 0) {
+      const quickCheckInterval = setInterval(() => {
+        checkAlarmsThatShouldHaveFired();
+      }, 1000); // Check every second when alarms are active
+      
+      return () => clearInterval(quickCheckInterval);
+    }
+  }, [alarms, checkAlarmsThatShouldHaveFired]);
+  
+  // Clear fired alarms when alarms list changes (new alarms added)
+  useEffect(() => {
+    const currentAlarmIds = new Set(alarms.map(a => a.id));
+    // Remove IDs that are no longer in the alarms list
+    firedAlarmsRef.current.forEach(id => {
+      if (!currentAlarmIds.has(id)) {
+        firedAlarmsRef.current.delete(id);
+      }
+    });
+  }, [alarms]);
 
   // Client-side timer countdown
   useEffect(() => {

@@ -110,7 +110,9 @@ export const AlarmEditScreen: React.FC = () => {
   };
 
   const handleTimeChange = (event: any, selectedDate?: Date) => {
-    setShowTimePicker(Platform.OS === 'ios');
+    if (Platform.OS === 'android') {
+      setShowTimePicker(false);
+    }
     if (selectedDate) {
       setSelectedTime(selectedDate);
     }

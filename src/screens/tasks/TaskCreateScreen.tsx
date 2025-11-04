@@ -72,9 +72,13 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
     }
 
     if (formData.dueDate) {
-      const dueDate = new Date(formData.dueDate);
+      // dueDate already includes time when hasTime is true (set by handleTimeChange/handleDateChange)
+      // So we can directly use it for validation
+      const dueDateTime = new Date(formData.dueDate);
       const now = new Date();
-      if (dueDate < now) {
+      // Allow a small buffer (1 minute) to account for timing issues
+      const bufferTime = new Date(now.getTime() - 60000);
+      if (dueDateTime < bufferTime) {
         newErrors.dueDate = t('validation.dueDateInPast');
       }
     }
@@ -153,11 +157,27 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
 
     if (selectedDate) {
       setSelectedDate(selectedDate);
-      // Set only the date part (without time)
-      const dateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      // Combine date with time if time is enabled, otherwise use start of selected day
+      let combinedDate: Date;
+      if (hasTime && formData.dueTime) {
+        // Combine selected date with existing time
+        const [hours, minutes] = formData.dueTime.split(':').map(Number);
+        combinedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), hours, minutes);
+      } else {
+        // If selecting today and no time set, use current time to avoid "past" error
+        const now = new Date();
+        const isToday = selectedDate.toDateString() === now.toDateString();
+        if (isToday && hasTime) {
+          // Use current time for today if time is enabled
+          combinedDate = new Date(now);
+        } else {
+          // For future dates or when time is disabled, use start of day
+          combinedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+        }
+      }
       setFormData(prev => ({
         ...prev,
-        dueDate: dateOnly.toISOString(),
+        dueDate: combinedDate.toISOString(),
       }));
       // Clear date error if it exists
       if (errors.dueDate) {
@@ -179,9 +199,22 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
       setSelectedTime(selectedTime);
       // Set only the time part in HH:mm format
       const timeString = `${selectedTime.getHours().toString().padStart(2, '0')}:${selectedTime.getMinutes().toString().padStart(2, '0')}`;
+      
+      // Combine with existing date if available
+      let combinedDate: Date;
+      if (formData.dueDate) {
+        const date = new Date(formData.dueDate);
+        combinedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), selectedTime.getHours(), selectedTime.getMinutes());
+      } else {
+        // If no date set, use today with selected time
+        const today = new Date();
+        combinedDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), selectedTime.getHours(), selectedTime.getMinutes());
+      }
+      
       setFormData(prev => ({
         ...prev,
         dueTime: timeString,
+        dueDate: combinedDate.toISOString(),
       }));
       // Clear date error if it exists
       if (errors.dueDate) {
@@ -198,28 +231,65 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
     setHasTime(!hasTime);
     if (!hasTime) {
       // When enabling time, set to current time
-      setSelectedTime(new Date());
       const now = new Date();
+      setSelectedTime(now);
       const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
+      // Combine with existing date if available, otherwise use current date/time
+      let combinedDate: Date;
+      if (formData.dueDate) {
+        const date = new Date(formData.dueDate);
+        combinedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), now.getHours(), now.getMinutes());
+      } else {
+        combinedDate = new Date(now);
+      }
+      
       setFormData(prev => ({
         ...prev,
         dueTime: timeString,
+        dueDate: combinedDate.toISOString(),
       }));
     } else {
-      // When disabling time, remove time component
-      setFormData(prev => ({
-        ...prev,
-        dueTime: undefined,
-      }));
+      // When disabling time, remove time component (keep date only at start of day)
+      if (formData.dueDate) {
+        const date = new Date(formData.dueDate);
+        const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        setFormData(prev => ({
+          ...prev,
+          dueTime: undefined,
+          dueDate: dateOnly.toISOString(),
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          dueTime: undefined,
+        }));
+      }
     }
   };
 
   const handleDateConfirm = () => {
-    // Set only the date part (without time)
-    const dateOnly = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    // Combine date with time if time is enabled, otherwise use start of selected day
+    let combinedDate: Date;
+    if (hasTime && formData.dueTime) {
+      // Combine selected date with existing time
+      const [hours, minutes] = formData.dueTime.split(':').map(Number);
+      combinedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), hours, minutes);
+    } else {
+      // If selecting today and no time set, use current time to avoid "past" error
+      const now = new Date();
+      const isToday = selectedDate.toDateString() === now.toDateString();
+      if (isToday && hasTime) {
+        // Use current time for today if time is enabled
+        combinedDate = new Date(now);
+      } else {
+        // For future dates or when time is disabled, use start of day
+        combinedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      }
+    }
     setFormData(prev => ({
       ...prev,
-      dueDate: dateOnly.toISOString(),
+      dueDate: combinedDate.toISOString(),
     }));
     setShowDatePicker(false);
   };
@@ -412,6 +482,7 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
                 </TouchableOpacity>
               </View>
             )}
+            
             {/* Time Toggle */}
             <TouchableOpacity
               style={[styles.timeToggle, { backgroundColor: hasTime ? theme.colors.primaryContainer : theme.colors.surfaceVariant }]}

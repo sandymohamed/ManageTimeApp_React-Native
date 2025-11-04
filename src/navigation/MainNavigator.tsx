@@ -295,7 +295,6 @@ import { Text, Badge } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { ModalNavigator } from './ModalNavigator';
 import { projectInvitationService } from '@/services/projectInvitationService';
-import { useFocusEffect } from '@react-navigation/native';
 
 // Import screens
 import { TasksScreen } from '@/screens/tasks/TasksScreen';
@@ -393,23 +392,31 @@ const SwipeableTabBar: React.FC<any> = ({ state, descriptors, navigation }) => {
   const [maxScroll, setMaxScroll] = useState(0);
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0);
 
-  // Fetch pending invitations count
+  // Fetch pending invitations count only when Profile tab is active
   const fetchPendingInvitations = useCallback(async () => {
     try {
       const data = await projectInvitationService.getAllUserProjectInvitations();
       const pendingReceived = data.received?.filter((inv: any) => inv.status === 'PENDING') || [];
       setPendingInvitationsCount(pendingReceived.length);
     } catch (error) {
-      console.error('Failed to fetch pending invitations:', error);
+      // Silently fail - don't show errors when fetching from other screens
+      // Only log in development
+      if (__DEV__) {
+        console.error('Failed to fetch pending invitations:', error);
+      }
     }
   }, []);
 
+  // Only fetch invitations when Profile tab is active
   useEffect(() => {
-    fetchPendingInvitations();
-    // Set up interval to refresh every 30 seconds
-    const interval = setInterval(fetchPendingInvitations, 30000);
-    return () => clearInterval(interval);
-  }, [fetchPendingInvitations]);
+    const currentRoute = state.routes[state.index];
+    if (currentRoute && currentRoute.name === 'Profile') {
+      fetchPendingInvitations();
+      // Set up interval to refresh every 30 seconds only when Profile tab is active
+      const interval = setInterval(fetchPendingInvitations, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [state.index, fetchPendingInvitations, state.routes]);
 
   const tabConfig = [
     { key: 'Dashboard', icon: 'view-dashboard', label: t('navigation.dashboard') || 'Dashboard', badge: 0 },

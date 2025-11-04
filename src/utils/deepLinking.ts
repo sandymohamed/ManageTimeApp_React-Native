@@ -7,6 +7,16 @@ export const setNavigationRef = (ref: NavigationContainerRef<any>) => {
   navigationRef = ref;
 };
 
+export const navigate = (name: string, params?: any) => {
+  if (!navigationRef) return;
+  try {
+    // @ts-ignore
+    navigationRef.navigate(name, params);
+  } catch (e) {
+    console.log('Navigation error', e);
+  }
+};
+
 export const handleDeepLink = (url: string) => {
   if (!navigationRef) return;
 

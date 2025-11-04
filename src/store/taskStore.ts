@@ -187,10 +187,17 @@ export const useTaskStore = create<TaskStore>()(
         try {
           set({ isLoading: true, error: null });
 
-          // Filter out undefined values before sending to backend
+          // Filter out undefined values before sending to backend, but always include description
           const filteredData = Object.fromEntries(
-            Object.entries(data).filter(([_, value]) => value !== undefined)
+            Object.entries(data).filter(([key, value]) => {
+              // Always include description (even if empty string)
+              if (key === 'description') return true;
+              return value !== undefined;
+            })
           ) as CreateTaskData;
+
+          // Ensure description is always a string (empty string if not provided)
+          filteredData.description = filteredData.description ?? '';
 
           const task = await taskService.createTask(filteredData);
 

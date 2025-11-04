@@ -339,7 +339,20 @@ const ProjectInvitationsScreen: React.FC = () => {
       setLoading(true);
       const data = await projectInvitationService.getAllUserProjectInvitations();
       setSentInvitations(data.sent || []);
-      setReceivedInvitations(data.received || []);
+      
+      // Sort received invitations: PENDING first, then others sorted by date (newest first)
+      const received = (data.received || []).sort((a, b) => {
+        // If one is PENDING and the other is not, PENDING comes first
+        if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
+        if (a.status !== 'PENDING' && b.status === 'PENDING') return 1;
+        
+        // Both have same status priority, sort by date (newest first)
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+      
+      setReceivedInvitations(received);
     } catch (error) {
       console.error('Error loading invitations:', error);
       Alert.alert(t('common.error'), t('invitations.loadError'));

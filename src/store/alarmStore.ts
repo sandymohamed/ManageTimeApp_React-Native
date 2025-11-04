@@ -416,6 +416,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       // Show timer start notification
       timerNotificationService.showTimerStartNotification(updatedTimer);
 
+      // Schedule notification for timer completion (for background execution)
+      notificationService.scheduleTimer(updatedTimer.id, updatedTimer.title, updatedTimer.remainingTime);
+
       // Start countdown
       console.log('Starting timer:', updatedTimer.title, 'with remaining time:', updatedTimer.remainingTime);
       get().startCountdown();
@@ -464,6 +467,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
 
       // Show timer pause notification
       timerNotificationService.showTimerPauseNotification(updatedTimer);
+
+      // Cancel scheduled notification when pausing
+      notificationService.cancelTimer(id);
 
       // Stop countdown when pausing
       get().stopCountdown();
@@ -514,6 +520,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
 
       // Show timer stop notification
       timerNotificationService.showTimerStopNotification(updatedTimer);
+
+      // Cancel scheduled notification when stopping
+      notificationService.cancelTimer(id);
 
       // Stop countdown when stopping
       get().stopCountdown();

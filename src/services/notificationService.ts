@@ -1,5 +1,8 @@
 import { ApiResponse } from '@/types';
 import { apiClient } from './apiClient';
+import PushNotification from 'react-native-push-notification';
+import { Platform } from 'react-native';
+import { Alarm } from '@/types/alarm';
 
 export interface InvitationNotification {
   id: string;
@@ -20,6 +23,52 @@ export interface UnreadCountResponse {
 }
 
 class NotificationService {
+  private alarmChannelId = 'alarm-channel';
+  private timerChannelId = 'timer-channel';
+  private initialized = false;
+
+  constructor() {
+    this.initializeChannels();
+  }
+
+  private initializeChannels() {
+    if (this.initialized || Platform.OS !== 'android') return;
+    
+    try {
+      // Create alarm channel for Android
+      PushNotification.createChannel(
+        {
+          channelId: this.alarmChannelId,
+          channelName: 'Alarms',
+          channelDescription: 'Notifications for alarms',
+          playSound: true,
+          soundName: 'default',
+          importance: 5, // Urgent - makes sound and appears on screen
+          vibrate: true,
+        },
+        (created) => console.log(`Alarm channel created: ${created}`)
+      );
+
+      // Create timer channel for Android
+      PushNotification.createChannel(
+        {
+          channelId: this.timerChannelId,
+          channelName: 'Timers',
+          channelDescription: 'Notifications for timers',
+          playSound: true,
+          soundName: 'default',
+          importance: 5, // Urgent
+          vibrate: true,
+        },
+        (created) => console.log(`Timer channel created: ${created}`)
+      );
+
+      this.initialized = true;
+    } catch (error) {
+      console.error('Failed to initialize notification channels:', error);
+    }
+  }
+
   async getNotifications(): Promise<InvitationNotification[]> {
     try {
       const response = await apiClient.get<ApiResponse<InvitationNotification[]>>('/notifications');
@@ -55,6 +104,183 @@ class NotificationService {
     } catch (error) {
       console.error('Failed to delete notification:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Schedule a single alarm notification
+   */
+  scheduleAlarm(alarm: Alarm): void {
+    if (!alarm.enabled) {
+      console.log(`Alarm ${alarm.id} is disabled, skipping scheduling`);
+      return;
+    }
+
+    try {
+      const alarmTime = new Date(alarm.time);
+      const now = new Date();
+      
+      // Don't schedule if alarm time is in the past (more than 1 minute ago)
+      // Allow scheduling if it's within the last minute to catch alarms that just passed
+      const timeDiff = alarmTime.getTime() - now.getTime();
+      if (timeDiff < -60000) {
+        console.log(`Alarm ${alarm.id} time is too far in the past, skipping scheduling`);
+        return;
+      }
+
+      // Calculate delay in milliseconds
+      const delay = alarmTime.getTime() - now.getTime();
+
+      console.log(`📅 Scheduling alarm ${alarm.id} "${alarm.title}" for ${alarmTime.toISOString()} (in ${Math.round(delay / 1000)}s)`);
+
+      // Schedule local notification
+      // Convert alarm ID to numeric ID for notification (notifications need numeric IDs)
+      const notificationId = parseInt(alarm.id.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(alarm.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+      
+      // Cancel any existing notification with this ID first
+      PushNotification.cancelLocalNotifications({ id: notificationId.toString() });
+      
+      PushNotification.localNotificationSchedule({
+        id: notificationId.toString(),
+        title: '⏰ Alarm',
+        message: alarm.title,
+        date: alarmTime,
+        soundName: 'default', // System default sound
+        playSound: true,
+        vibrate: true,
+        vibration: 1000,
+        channelId: Platform.OS === 'android' ? this.alarmChannelId : undefined,
+        data: {
+          type: 'alarm',
+          alarmId: alarm.id,
+        },
+        userInfo: {
+          type: 'alarm',
+          alarmId: alarm.id,
+        },
+        repeatType: this.getRepeatType(alarm.recurrenceRule),
+        actions: ['["Dismiss", "Snooze"]'],
+      });
+      
+      console.log(`✅ Alarm ${alarm.id} scheduled successfully with notification ID: ${notificationId}`);
+
+      // Handle recurrence
+      if (alarm.recurrenceRule) {
+        this.handleRecurrence(alarm);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to schedule alarm ${alarm.id}:`, error);
+    }
+  }
+
+  /**
+   * Schedule all alarms
+   */
+  scheduleAllAlarms(alarms: Alarm[]): void {
+    console.log(`Scheduling ${alarms.length} alarms`);
+    
+    // Cancel all existing alarm notifications first
+    PushNotification.cancelAllLocalNotifications();
+    
+    // Schedule each enabled alarm
+    alarms.forEach(alarm => {
+      if (alarm.enabled) {
+        this.scheduleAlarm(alarm);
+      }
+    });
+  }
+
+  /**
+   * Cancel a scheduled alarm
+   */
+  cancelAlarm(alarmId: string): void {
+    try {
+      console.log(`Cancelling alarm notification ${alarmId}`);
+      // Convert alarm ID to numeric ID for notification
+      const notificationId = parseInt(alarmId.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(alarmId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+      PushNotification.cancelLocalNotifications({ id: notificationId.toString() });
+    } catch (error) {
+      console.error(`Failed to cancel alarm ${alarmId}:`, error);
+    }
+  }
+
+  /**
+   * Schedule a timer notification
+   */
+  scheduleTimer(timerId: string, title: string, remainingSeconds: number): void {
+    try {
+      const triggerTime = new Date(Date.now() + remainingSeconds * 1000);
+      
+      console.log(`Scheduling timer ${timerId} for ${triggerTime.toISOString()}`);
+
+      // Convert timer ID to numeric ID for notification
+      const notificationId = parseInt(timerId.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(timerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+
+      PushNotification.localNotificationSchedule({
+        id: notificationId,
+        title: '⏱️ Timer Complete',
+        message: `${title} is complete!`,
+        date: triggerTime,
+        soundName: 'default',
+        playSound: true,
+        vibrate: true,
+        vibration: 1000,
+        channelId: Platform.OS === 'android' ? this.timerChannelId : undefined,
+        data: {
+          type: 'timer',
+          timerId: timerId,
+        },
+        userInfo: {
+          type: 'timer',
+          timerId: timerId,
+        },
+      });
+    } catch (error) {
+      console.error(`Failed to schedule timer ${timerId}:`, error);
+    }
+  }
+
+  /**
+   * Cancel a timer notification
+   */
+  cancelTimer(timerId: string): void {
+    try {
+      // Convert timer ID to numeric ID for notification
+      const notificationId = parseInt(timerId.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(timerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+      PushNotification.cancelLocalNotifications({ id: notificationId.toString() });
+    } catch (error) {
+      console.error(`Failed to cancel timer ${timerId}:`, error);
+    }
+  }
+
+  /**
+   * Get repeat type for notification based on recurrence rule
+   */
+  private getRepeatType(recurrenceRule?: string): string | undefined {
+    if (!recurrenceRule) return undefined;
+    
+    if (recurrenceRule.includes('FREQ=DAILY')) {
+      return 'day';
+    }
+    if (recurrenceRule.includes('FREQ=WEEKLY')) {
+      return 'week';
+    }
+    // For weekdays/weekends, we'll need custom handling
+    return undefined;
+  }
+
+  /**
+   * Handle recurrence for alarms (weekdays, weekends, etc.)
+   */
+  private handleRecurrence(alarm: Alarm): void {
+    // For complex recurrence rules like weekdays/weekends,
+    // we would need to schedule multiple notifications
+    // This is a simplified version - for full implementation,
+    // you'd need to calculate all occurrences
+    if (alarm.recurrenceRule === 'weekdays' || alarm.recurrenceRule === 'weekends') {
+      // For now, we'll schedule daily and filter in the notification handler
+      // A full implementation would schedule all occurrences
+      console.log(`Complex recurrence rule detected: ${alarm.recurrenceRule}`);
     }
   }
 }
