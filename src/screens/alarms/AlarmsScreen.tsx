@@ -188,21 +188,49 @@ export const AlarmsScreen: React.FC = () => {
     dismissAlarm,
   } = useAlarmStore();
 
-  // Track which alarms have already fired to prevent duplicate alerts
+  // Track which alarms have already fired per minute to prevent duplicate alerts
+  // Key format: "alarmId:YYYY-MM-DD-HH-MM"
   const firedAlarmsRef = useRef<Set<string>>(new Set());
+  
+  // Get minute key for an alarm (uses current date for recurring alarms)
+  const getAlarmMinuteKey = (alarmId: string, alarmTime: Date, isRecurring: boolean = false): string => {
+    const dateToUse = isRecurring ? new Date() : alarmTime;
+    const year = dateToUse.getFullYear();
+    const month = String(dateToUse.getMonth() + 1).padStart(2, '0');
+    const day = String(dateToUse.getDate()).padStart(2, '0');
+    const hour = String(alarmTime.getHours()).padStart(2, '0'); // Always use alarm time's hour/minute
+    const minute = String(alarmTime.getMinutes()).padStart(2, '0');
+    return `${alarmId}:${year}-${month}-${day}-${hour}-${minute}`;
+  };
   
   // Handle alarm fired
   const handleAlarmFired = React.useCallback((alarm: Alarm) => {
-    // Prevent duplicate alerts for the same alarm
-    if (firedAlarmsRef.current.has(alarm.id)) {
-      console.log(`⏸️ Alarm ${alarm.id} already fired, skipping duplicate`);
+    const alarmTime = new Date(alarm.time);
+    const isRecurring = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none');
+    const minuteKey = getAlarmMinuteKey(alarm.id, alarmTime, isRecurring);
+    
+    // Prevent duplicate alerts for the same alarm in the same minute
+    if (firedAlarmsRef.current.has(minuteKey)) {
+      console.log(`⏸️ Alarm ${alarm.id} already fired this minute, skipping duplicate`);
       return;
     }
     
     console.log('🎯 Handling alarm fired:', alarm.title, 'at', new Date().toISOString());
     
-    // Mark this alarm as fired
-    firedAlarmsRef.current.add(alarm.id);
+    // Mark this alarm as fired for this minute
+    firedAlarmsRef.current.add(minuteKey);
+    
+    // Clean up old keys (older than 1 hour) to prevent memory leak
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    firedAlarmsRef.current.forEach(key => {
+      const [, datePart] = key.split(':');
+      const [year, month, day, hour, minute] = datePart.split('-').map(Number);
+      const keyDate = new Date(year, month - 1, day, hour, minute);
+      if (keyDate < oneHourAgo) {
+        firedAlarmsRef.current.delete(key);
+      }
+    });
     
     // Play sound and vibration
     soundManager.playAlarmSound();
@@ -218,7 +246,7 @@ export const AlarmsScreen: React.FC = () => {
           onPress: () => {
             soundManager.stopSound();
             setAlarmPlaying(false);
-            firedAlarmsRef.current.delete(alarm.id);
+            // Note: We don't delete the minuteKey here so it won't fire again this minute
             // Dismiss the alarm
             dismissAlarm(alarm.id);
           },
@@ -228,7 +256,7 @@ export const AlarmsScreen: React.FC = () => {
           onPress: () => {
             soundManager.stopSound();
             setAlarmPlaying(false);
-            firedAlarmsRef.current.delete(alarm.id);
+            // Note: We don't delete the minuteKey here so it won't fire again this minute
             // Snooze the alarm
             const snoozeDuration = alarm.snoozeConfig?.duration || 5;
             snoozeAlarm(alarm.id, snoozeDuration);
@@ -240,12 +268,43 @@ export const AlarmsScreen: React.FC = () => {
         onDismiss: () => {
           soundManager.stopSound();
           setAlarmPlaying(false);
-          firedAlarmsRef.current.delete(alarm.id);
+          // Note: We don't delete the minuteKey here so it won't fire again this minute
         }
       }
     );
   }, [soundManager, dismissAlarm, snoozeAlarm]);
   
+  // Check if alarm should fire based on recurrence
+  const shouldAlarmFireToday = (alarm: Alarm, now: Date): boolean => {
+    if (!alarm.recurrenceRule || alarm.recurrenceRule === 'none') {
+      // One-time alarm: check if it's the exact date
+      const alarmTime = new Date(alarm.time);
+      return (
+        now.getFullYear() === alarmTime.getFullYear() &&
+        now.getMonth() === alarmTime.getMonth() &&
+        now.getDate() === alarmTime.getDate()
+      );
+    }
+
+    const currentDay = now.getDay(); // 0 = Sunday, 6 = Saturday
+
+    switch (alarm.recurrenceRule) {
+      case 'daily':
+        return true; // Fire every day
+      case 'weekdays':
+        return currentDay >= 1 && currentDay <= 5; // Monday to Friday
+      case 'weekends':
+        return currentDay === 0 || currentDay === 6; // Saturday or Sunday
+      case 'weekly':
+        // Fire on the same day of the week as when it was created
+        const alarmTime = new Date(alarm.time);
+        return currentDay === alarmTime.getDay();
+      default:
+        // For RFC 5545 or other formats, default to daily
+        return true;
+    }
+  };
+
   // Check for alarms that should have fired
   const checkAlarmsThatShouldHaveFired = React.useCallback(() => {
     const now = new Date();
@@ -254,12 +313,42 @@ export const AlarmsScreen: React.FC = () => {
     currentAlarms.forEach(alarm => {
       if (alarm.enabled && !alarmPlaying) {
         const alarmTime = new Date(alarm.time);
-        // Check if alarm time has passed (within the last 60 seconds to catch missed alarms)
-        const timeDiff = now.getTime() - alarmTime.getTime();
+        const isRecurring = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none');
+        const minuteKey = getAlarmMinuteKey(alarm.id, alarmTime, isRecurring);
         
-        // If alarm time has passed and it's within the last 60 seconds
-        if (timeDiff >= 0 && timeDiff < 60000) {
-          console.log(`⏰ Alarm "${alarm.title}" should fire now! Time: ${alarmTime.toISOString()}, Now: ${now.toISOString()}, Diff: ${Math.round(timeDiff / 1000)}s`);
+        // Check if alarm time has passed and we're in the same minute
+        const nowMinutes = now.getMinutes();
+        const alarmMinutes = alarmTime.getMinutes();
+        const nowHours = now.getHours();
+        const alarmHours = alarmTime.getHours();
+        const nowDate = now.getDate();
+        const alarmDate = alarmTime.getDate();
+        const nowMonth = now.getMonth();
+        const alarmMonth = alarmTime.getMonth();
+        const nowYear = now.getFullYear();
+        const alarmYear = alarmTime.getFullYear();
+        
+        // Check if we're in the exact minute when the alarm should fire
+        const isSameMinute = 
+          nowYear === alarmYear &&
+          nowMonth === alarmMonth &&
+          nowDate === alarmDate &&
+          nowHours === alarmHours &&
+          nowMinutes === alarmMinutes;
+        
+        // For recurring alarms, check if it should fire today (based on recurrence rule)
+        // and if the time matches
+        const shouldFireToday = shouldAlarmFireToday(alarm, now);
+        const timeMatches = nowHours === alarmHours && nowMinutes === alarmMinutes;
+        
+        // For one-time alarms, check exact date and time
+        // For recurring alarms, check if it should fire today and time matches
+        const shouldFire = alarm.recurrenceRule && alarm.recurrenceRule !== 'none'
+          ? (shouldFireToday && timeMatches && !firedAlarmsRef.current.has(minuteKey))
+          : (isSameMinute && !firedAlarmsRef.current.has(minuteKey));
+        
+        if (shouldFire) {
+          console.log(`⏰ Alarm "${alarm.title}" should fire now! Time: ${alarmTime.toISOString()}, Now: ${now.toISOString()}, Recurrence: ${alarm.recurrenceRule || 'none'}`);
           handleAlarmFired(alarm);
         }
       }

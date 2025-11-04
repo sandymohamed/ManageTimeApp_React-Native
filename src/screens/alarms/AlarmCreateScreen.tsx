@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Platform } from 'react-native';
-import { Text, Button, Card, TextInput, Switch, Chip, SegmentedButtons } from 'react-native-paper';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Platform, Modal } from 'react-native';
+import { Text, Button, Card, TextInput, SegmentedButtons, IconButton } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -13,52 +13,40 @@ export const AlarmCreateScreen: React.FC = () => {
   const navigation = useNavigation();
   const { createAlarm, loading } = useAlarmStore();
 
-  // Form state
-  const [title, setTitle] = useState('');
-  const [selectedTime, setSelectedTime] = useState(new Date());
-  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  const [enabled, setEnabled] = useState(true);
+  // Initialize time with current time plus 1 hour (default to future time)
+  const getDefaultTime = () => {
+    const date = new Date();
+    date.setHours(date.getHours() + 1);
+    date.setMinutes(0);
+    date.setSeconds(0);
+    date.setMilliseconds(0);
+    return date;
+  };
+
+  // Use ref to maintain time value and prevent resets
+  const timeRef = useRef<Date>(getDefaultTime());
+  const [title, setTitle] = useState('new alarm');
+  const [selectedTime, setSelectedTime] = useState<Date>(timeRef.current);
+  const [timezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [recurrence, setRecurrence] = useState('none');
-  const [toneUrl, setToneUrl] = useState('default');
-  const [smartWakeWindow, setSmartWakeWindow] = useState(0);
-  const [snoozeDuration, setSnoozeDuration] = useState(5);
-  const [maxSnoozes, setMaxSnoozes] = useState(3);
 
   // UI state
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const recurrenceOptions = [
-    { value: 'none', label: t('alarms.recurrence.none') },
-    { value: 'daily', label: t('alarms.recurrence.daily') },
-    { value: 'weekdays', label: t('alarms.recurrence.weekdays') },
-    { value: 'weekends', label: t('alarms.recurrence.weekends') },
-    { value: 'weekly', label: t('alarms.recurrence.weekly') },
+    { value: 'none', label: t('alarms.recurrence.none') || 'None' },
+    { value: 'daily', label: t('alarms.recurrence.daily') || 'Daily' },
+    { value: 'weekdays', label: t('alarms.recurrence.weekdays') || 'Weekdays' },
+    { value: 'weekends', label: t('alarms.recurrence.weekends') || 'Weekends' },
+    { value: 'weekly', label: t('alarms.recurrence.weekly') || 'Weekly' },
   ];
-
-  const toneOptions = [
-    { value: 'default', label: t('alarms.tones.default') },
-    { value: 'gentle', label: t('alarms.tones.gentle') },
-    { value: 'classic', label: t('alarms.tones.classic') },
-    { value: 'digital', label: t('alarms.tones.digital') },
-    { value: 'nature', label: t('alarms.tones.nature') },
-  ];
-
-  const snoozeOptions = [5, 10, 15, 30];
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!title.trim()) {
-      newErrors.title = t('alarms.titleRequired');
-    }
-
-    if (title.length > 100) {
-      newErrors.title = t('alarms.titleTooLong');
-    }
-
-    if (smartWakeWindow < 0 || smartWakeWindow > 60) {
-      newErrors.smartWakeWindow = t('alarms.smartWakeWindowInvalid');
+      newErrors.title = t('alarms.titleRequired') || 'Title is required';
     }
 
     setErrors(newErrors);
@@ -69,18 +57,15 @@ export const AlarmCreateScreen: React.FC = () => {
     if (!validateForm()) return;
 
     try {
+      // Use the ref value to ensure we have the latest time
+      const alarmTime = timeRef.current;
+      
       const alarmData: CreateAlarmData = {
-        title: title.trim(),
-        time: selectedTime.toISOString(),
+        title: title.trim() || 'new alarm',
+        time: alarmTime.toISOString(),
         timezone,
-        enabled,
+        enabled: true,
         recurrenceRule: recurrence === 'none' ? undefined : recurrence,
-        toneUrl: toneUrl === 'default' ? undefined : toneUrl,
-        smartWakeWindow: smartWakeWindow > 0 ? smartWakeWindow : undefined,
-        snoozeConfig: {
-          duration: snoozeDuration,
-          maxSnoozes,
-        },
       };
 
       await createAlarm(alarmData);
@@ -95,6 +80,8 @@ export const AlarmCreateScreen: React.FC = () => {
       setShowTimePicker(false);
     }
     if (selectedDate) {
+      // Update both ref and state
+      timeRef.current = selectedDate;
       setSelectedTime(selectedDate);
     }
   };
@@ -103,75 +90,45 @@ export const AlarmCreateScreen: React.FC = () => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const formatDate = (date: Date): string => {
-    return date.toLocaleDateString([], { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  };
-
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <Card style={styles.card}>
           <Card.Content>
-            <Text variant="headlineSmall" style={styles.title}>
-              {t('alarms.createAlarm')}
-            </Text>
-
-            {/* Alarm Title */}
+            {/* Title */}
             <TextInput
-              label={t('alarms.alarmTitle')}
+              label={t('alarms.title') || 'Title'}
               value={title}
               onChangeText={setTitle}
-              style={styles.input}
               mode="outlined"
+              style={styles.input}
               error={!!errors.title}
-              placeholder={t('alarms.alarmTitlePlaceholder')}
+              placeholder="new alarm"
             />
             {errors.title && (
-              <Text variant="bodySmall" style={styles.errorText}>
-                {errors.title}
-              </Text>
+              <Text style={styles.errorText}>{errors.title}</Text>
             )}
 
-            {/* Time Selection */}
-            <View style={styles.timeSection}>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                {t('alarms.alarmTime')}
+            {/* Time Picker */}
+            <View style={styles.timeContainer}>
+              <Text variant="bodyLarge" style={styles.label}>
+                {t('alarms.time') || 'Time'}
               </Text>
-              
               <Button
                 mode="outlined"
                 onPress={() => setShowTimePicker(true)}
+                icon="clock-outline"
                 style={styles.timeButton}
-                icon="clock-outline">
+              >
                 {formatTime(selectedTime)}
               </Button>
-              
-              <Text variant="bodySmall" style={styles.dateText}>
-                {formatDate(selectedTime)}
-              </Text>
-
-              {showTimePicker && (
-                <DateTimePicker
-                  value={selectedTime}
-                  mode="time"
-                  is24Hour={true}
-                  display="default"
-                  onChange={handleTimeChange}
-                />
-              )}
             </View>
 
             {/* Recurrence */}
-            <View style={styles.section}>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                {t('alarms.recurrence.title')}
+            <View style={styles.recurrenceContainer}>
+              <Text variant="bodyLarge" style={styles.label}>
+                {t('alarms.recurrence.title') || 'Recurrence'}
               </Text>
-              
               <SegmentedButtons
                 value={recurrence}
                 onValueChange={setRecurrence}
@@ -180,102 +137,80 @@ export const AlarmCreateScreen: React.FC = () => {
               />
             </View>
 
-            {/* Tone Selection */}
-            <View style={styles.section}>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                {t('alarms.sound')}
-              </Text>
-              
-              <View style={styles.chipContainer}>
-                {toneOptions.map((tone) => (
-                  <Chip
-                    key={tone.value}
-                    selected={toneUrl === tone.value}
-                    onPress={() => setToneUrl(tone.value)}
-                    style={styles.chip}>
-                    {tone.label}
-                  </Chip>
-                ))}
-              </View>
-            </View>
-
-            {/* Smart Wake */}
-            <View style={styles.section}>
-              <View style={styles.switchRow}>
-                <Text variant="titleMedium" style={styles.sectionTitle}>
-                  {t('alarms.smartWake')}
-                </Text>
-                <Switch
-                  value={smartWakeWindow > 0}
-                  onValueChange={(value) => setSmartWakeWindow(value ? 15 : 0)}
-                />
-              </View>
-              
-              {smartWakeWindow > 0 && (
-                <Text variant="bodySmall" style={styles.smartWakeDescription}>
-                  {t('alarms.smartWakeDescription', { minutes: smartWakeWindow })}
-                </Text>
-              )}
-            </View>
-
-            {/* Snooze Settings */}
-            <View style={styles.section}>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                {t('alarms.snooze')}
-              </Text>
-              
-              <View style={styles.snoozeContainer}>
-                <Text variant="bodyMedium" style={styles.snoozeLabel}>
-                  {t('alarms.snoozeDuration')}:
-                </Text>
-                <View style={styles.chipContainer}>
-                  {snoozeOptions.map((duration) => (
-                    <Chip
-                      key={duration}
-                      selected={snoozeDuration === duration}
-                      onPress={() => setSnoozeDuration(duration)}
-                      style={styles.chip}>
-                      {duration} min
-                    </Chip>
-                  ))}
-                </View>
-              </View>
-            </View>
-
-            {/* Enable/Disable */}
-            <View style={styles.section}>
-              <View style={styles.switchRow}>
-                <Text variant="titleMedium" style={styles.sectionTitle}>
-                  {t('alarms.enabled')}
-                </Text>
-                <Switch
-                  value={enabled}
-                  onValueChange={setEnabled}
-                />
-              </View>
+            {/* Action Buttons */}
+            <View style={styles.buttonContainer}>
+              <Button
+                mode="outlined"
+                onPress={() => navigation.goBack()}
+                style={styles.cancelButton}
+                disabled={loading}
+              >
+                {t('common.cancel') || 'Cancel'}
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleCreateAlarm}
+                style={styles.saveButton}
+                loading={loading}
+                disabled={loading}
+              >
+                {t('common.save') || 'Save'}
+              </Button>
             </View>
           </Card.Content>
         </Card>
       </ScrollView>
 
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <Button
-          mode="outlined"
-          onPress={() => navigation.goBack()}
-          style={styles.button}
-          disabled={loading}>
-          {t('common.cancel')}
-        </Button>
-        <Button
-          mode="contained"
-          onPress={handleCreateAlarm}
-          style={styles.button}
-          loading={loading}
-          disabled={loading}>
-          {t('alarms.createAlarm')}
-        </Button>
-      </View>
+      {/* Time Picker Modal */}
+      {showTimePicker && (
+        <Modal
+          visible={showTimePicker}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowTimePicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text variant="headlineSmall" style={styles.modalTitle}>
+                  {t('alarms.selectTime') || 'Select Time'}
+                </Text>
+                <IconButton
+                  icon="close"
+                  size={24}
+                  onPress={() => setShowTimePicker(false)}
+                />
+              </View>
+
+              <DateTimePicker
+                value={selectedTime}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={handleTimeChange}
+                style={styles.datePicker}
+              />
+              {Platform.OS === 'ios' && (
+                <View style={styles.modalActions}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setShowTimePicker(false)}
+                    style={styles.modalButton}
+                  >
+                    {t('common.cancel') || 'Cancel'}
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={() => setShowTimePicker(false)}
+                    style={styles.modalButton}
+                  >
+                    {t('common.confirm') || 'Confirm'}
+                  </Button>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };
@@ -283,80 +218,86 @@ export const AlarmCreateScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.background || '#F5F5F5',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    padding: theme.spacing.md,
+    padding: 16,
   },
   card: {
-    marginBottom: theme.spacing.md,
-  },
-  title: {
-    marginBottom: theme.spacing.lg,
-    textAlign: 'center',
+    elevation: 2,
   },
   input: {
-    marginBottom: theme.spacing.md,
+    marginBottom: 16,
   },
   errorText: {
-    color: theme.colors.error,
-    marginTop: -theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
+    color: theme.colors.error || '#B00020',
+    fontSize: 12,
+    marginTop: -12,
+    marginBottom: 8,
+    marginLeft: 12,
   },
-  section: {
-    marginBottom: theme.spacing.lg,
+  timeContainer: {
+    marginBottom: 24,
   },
-  sectionTitle: {
-    marginBottom: theme.spacing.md,
-    color: theme.colors.primary,
-  },
-  timeSection: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
+  label: {
+    marginBottom: 8,
+    fontWeight: '600',
   },
   timeButton: {
-    marginBottom: theme.spacing.sm,
-    minWidth: 120,
+    marginTop: 8,
   },
-  dateText: {
-    color: theme.colors.textSecondary,
+  recurrenceContainer: {
+    marginBottom: 24,
   },
   segmentedButtons: {
-    marginTop: theme.spacing.sm,
+    marginTop: 8,
   },
-  chipContainer: {
+  buttonContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.sm,
+    justifyContent: 'space-between',
+    marginTop: 24,
+    gap: 12,
   },
-  chip: {
-    marginBottom: theme.spacing.xs,
+  cancelButton: {
+    flex: 1,
   },
-  switchRow: {
+  saveButton: {
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: theme.colors.surface || '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '50%',
+  },
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 20,
   },
-  smartWakeDescription: {
-    color: theme.colors.textSecondary,
-    marginTop: theme.spacing.sm,
+  modalTitle: {
+    fontWeight: 'bold',
   },
-  snoozeContainer: {
-    marginTop: theme.spacing.sm,
+  datePicker: {
+    width: '100%',
   },
-  snoozeLabel: {
-    marginBottom: theme.spacing.sm,
-  },
-  actionButtons: {
+  modalActions: {
     flexDirection: 'row',
-    padding: theme.spacing.md,
-    gap: theme.spacing.md,
+    justifyContent: 'space-between',
+    marginTop: 20,
+    gap: 12,
   },
-  button: {
+  modalButton: {
     flex: 1,
   },
 });

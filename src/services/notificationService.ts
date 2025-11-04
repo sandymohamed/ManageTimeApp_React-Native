@@ -259,28 +259,38 @@ class NotificationService {
   private getRepeatType(recurrenceRule?: string): string | undefined {
     if (!recurrenceRule) return undefined;
     
-    if (recurrenceRule.includes('FREQ=DAILY')) {
-      return 'day';
+    // Handle simple recurrence strings from the alarm form
+    switch (recurrenceRule) {
+      case 'daily':
+        return 'day';
+      case 'weekly':
+        return 'week';
+      case 'weekdays':
+      case 'weekends':
+        // These require custom handling - schedule daily and check day
+        return 'day';
+      default:
+        // Handle RFC 5545 format if present
+        if (recurrenceRule.includes('FREQ=DAILY')) {
+          return 'day';
+        }
+        if (recurrenceRule.includes('FREQ=WEEKLY')) {
+          return 'week';
+        }
+        return undefined;
     }
-    if (recurrenceRule.includes('FREQ=WEEKLY')) {
-      return 'week';
-    }
-    // For weekdays/weekends, we'll need custom handling
-    return undefined;
   }
 
   /**
    * Handle recurrence for alarms (weekdays, weekends, etc.)
    */
   private handleRecurrence(alarm: Alarm): void {
-    // For complex recurrence rules like weekdays/weekends,
-    // we would need to schedule multiple notifications
-    // This is a simplified version - for full implementation,
-    // you'd need to calculate all occurrences
-    if (alarm.recurrenceRule === 'weekdays' || alarm.recurrenceRule === 'weekends') {
-      // For now, we'll schedule daily and filter in the notification handler
-      // A full implementation would schedule all occurrences
-      console.log(`Complex recurrence rule detected: ${alarm.recurrenceRule}`);
+    // For weekdays/weekends, we schedule daily and check the day when it fires
+    // The alarm checking logic in AlarmsScreen will handle filtering
+    if (alarm.recurrenceRule && ['weekdays', 'weekends'].includes(alarm.recurrenceRule)) {
+      console.log(`Recurrence rule: ${alarm.recurrenceRule} - will be handled by daily scheduling`);
+      // Note: The actual filtering happens in the alarm checking logic
+      // since local notifications can't easily handle complex recurrence
     }
   }
 }
