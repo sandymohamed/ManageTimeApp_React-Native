@@ -215,6 +215,9 @@ export const AlarmsScreen: React.FC = () => {
     return `${alarmId}:${year}-${month}-${day}-${hour}-${minute}`;
   };
 
+  // Track alarm deletion timeouts
+  const alarmDeleteTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
   // Stop alarm - improved to prevent multiple calls
   const handleStopAlarm = React.useCallback(async (alarmId: string) => {
     console.log('🛑 Stopping alarm:', alarmId, 'activeAlarmId:', activeAlarmId, 'isStopping:', isStopping);
@@ -232,18 +235,31 @@ export const AlarmsScreen: React.FC = () => {
     // Also try to stop any ongoing vibration
     Vibration.cancel();
     
-    // Check if alarm is one-time and delete it after dismissing
+    // Clear any existing delete timeout for this alarm
+    const existingTimeout = alarmDeleteTimeoutsRef.current.get(alarmId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+      alarmDeleteTimeoutsRef.current.delete(alarmId);
+    }
+    
+    // Check if alarm is one-time and schedule deletion after 30 seconds
     const alarm = alarms.find(a => a.id === alarmId);
     if (alarm) {
-      // Auto-delete one-time alarms after they fire
+      // Auto-delete one-time alarms after 30 seconds
       const isOneTimeAlarm = !alarm.recurrenceRule || alarm.recurrenceRule === 'none';
       if (isOneTimeAlarm) {
-        try {
-          await deleteAlarm(alarmId);
-          console.log('🗑️ Auto-deleted one-time alarm:', alarm.title);
-        } catch (error) {
-          console.error('Failed to auto-delete alarm:', error);
-        }
+        const deleteTimeout = setTimeout(async () => {
+          try {
+            await deleteAlarm(alarmId);
+            console.log('🗑️ Auto-deleted one-time alarm after 30s:', alarm.title);
+            alarmDeleteTimeoutsRef.current.delete(alarmId);
+          } catch (error) {
+            console.error('Failed to auto-delete alarm:', error);
+            alarmDeleteTimeoutsRef.current.delete(alarmId);
+          }
+        }, 30000); // 30 seconds delay
+        
+        alarmDeleteTimeoutsRef.current.set(alarmId, deleteTimeout);
       }
     }
     
@@ -289,9 +305,13 @@ export const AlarmsScreen: React.FC = () => {
           text: 'Dismiss',
           onPress: async () => {
             console.log('👆 Dismiss pressed for alarm:', alarm.id);
-            // Stop immediately before dismissing
+            // Dismiss first, then stop
+            try {
+              await dismissAlarm(alarm.id);
+            } catch (error) {
+              console.log('Dismiss failed (alarm may already be deleted):', error);
+            }
             await handleStopAlarm(alarm.id);
-            await dismissAlarm(alarm.id);
           },
         },
       ],
@@ -299,6 +319,11 @@ export const AlarmsScreen: React.FC = () => {
         cancelable: false,
         onDismiss: async () => {
           console.log('👆 Alert dismissed for alarm:', alarm.id);
+          try {
+            await dismissAlarm(alarm.id);
+          } catch (error) {
+            console.log('Dismiss failed (alarm may already be deleted):', error);
+          }
           await handleStopAlarm(alarm.id);
         }
       }
@@ -532,6 +557,11 @@ export const AlarmsScreen: React.FC = () => {
         clearInterval(timerIntervalRef.current);
       }
       soundManager.stopSound();
+      // Clean up all alarm deletion timeouts
+      alarmDeleteTimeoutsRef.current.forEach((timeout) => {
+        clearTimeout(timeout);
+      });
+      alarmDeleteTimeoutsRef.current.clear();
     };
   }, [fetchAlarms, fetchTimers]);
 
@@ -731,10 +761,20 @@ export const AlarmsScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteAlarm(alarmId);
-              if (activeAlarmId === alarmId) {
-                handleStopAlarm(alarmId);
+              // Clear any pending deletion timeout for this alarm
+              const existingTimeout = alarmDeleteTimeoutsRef.current.get(alarmId);
+              if (existingTimeout) {
+                clearTimeout(existingTimeout);
+                alarmDeleteTimeoutsRef.current.delete(alarmId);
               }
+              
+              // Stop alarm if it's active
+              if (activeAlarmId === alarmId) {
+                await handleStopAlarm(alarmId);
+              }
+              
+              // Delete the alarm
+              await deleteAlarm(alarmId);
             } catch (error) {
               Alert.alert('Error', 'Failed to delete alarm');
             }
