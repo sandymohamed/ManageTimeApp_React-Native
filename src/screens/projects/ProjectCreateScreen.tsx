@@ -33,8 +33,8 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
   const route = useRoute<ProjectCreateScreenRouteProp>();
   const { isRTL } = useLanguage();
   const paperTheme = useTheme();
-  const customTheme = useCustomTheme();
   const { showSuccess, showError } = useNotification();
+  const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
 

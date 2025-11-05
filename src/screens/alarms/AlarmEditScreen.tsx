@@ -34,7 +34,7 @@ export const AlarmEditScreen: React.FC = () => {
   // Use ref to maintain time value and prevent resets
   const timeRef = useRef<Date>(getInitialTime());
   const [title, setTitle] = useState(alarm?.title || 'new alarm');
-  const [selectedTime, setSelectedTime] = useState<Date>(timeRef.current);
+  const [selectedTime, setSelectedTime] = useState<Date>(() => new Date(timeRef.current));
   const [timezone] = useState(alarm?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [recurrence, setRecurrence] = useState(alarm?.recurrenceRule || 'none');
 
@@ -48,7 +48,7 @@ export const AlarmEditScreen: React.FC = () => {
       setTitle(alarm.title);
       const alarmTime = new Date(alarm.time);
       timeRef.current = alarmTime;
-      setSelectedTime(alarmTime);
+      setSelectedTime(new Date(alarmTime));
       setRecurrence(alarm.recurrenceRule || 'none');
     }
   }, [alarm]);
@@ -93,14 +93,32 @@ export const AlarmEditScreen: React.FC = () => {
     }
   };
 
+  // Sync selectedTime with timeRef when opening picker
+  const handleOpenTimePicker = () => {
+    setSelectedTime(new Date(timeRef.current));
+    setShowTimePicker(true);
+  };
+
+  // Handle iOS confirm - save the current picker value
+  const handleConfirmTime = () => {
+    timeRef.current = new Date(selectedTime);
+    setShowTimePicker(false);
+  };
+
   const handleTimeChange = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowTimePicker(false);
-    }
     if (selectedDate) {
-      // Update both ref and state
-      timeRef.current = selectedDate;
-      setSelectedTime(selectedDate);
+      // Always update state immediately (for iOS spinner mode)
+      const newDate = new Date(selectedDate);
+      setSelectedTime(newDate);
+      // Also update ref immediately
+      timeRef.current = newDate;
+      
+      // On Android, close immediately after selection
+      if (Platform.OS === 'android') {
+        setShowTimePicker(false);
+      }
+    } else if (Platform.OS === 'android' && event.type === 'dismissed') {
+      setShowTimePicker(false);
     }
   };
 
@@ -149,11 +167,11 @@ export const AlarmEditScreen: React.FC = () => {
               </Text>
               <Button
                 mode="outlined"
-                onPress={() => setShowTimePicker(true)}
+                onPress={handleOpenTimePicker}
                 icon="clock-outline"
                 style={styles.timeButton}
               >
-                {formatTime(selectedTime)}
+                {formatTime(timeRef.current)}
               </Button>
             </View>
 
@@ -233,7 +251,7 @@ export const AlarmEditScreen: React.FC = () => {
                   </Button>
                   <Button
                     mode="contained"
-                    onPress={() => setShowTimePicker(false)}
+                    onPress={handleConfirmTime}
                     style={styles.modalButton}
                   >
                     {t('common.confirm') || 'Confirm'}

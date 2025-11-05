@@ -17,7 +17,6 @@ import { GoalDetailScreen } from '@/screens/goals/GoalDetailScreen';
 import { GoalAnalyticsScreen } from '@/screens/goals/GoalAnalyticsScreen';
 import { MilestoneManagementScreen } from '@/screens/goals/MilestoneManagementScreen';
 import { AlarmCreateScreen } from '@/screens/alarms/AlarmCreateScreen';
-import { AlarmEditScreen } from '@/screens/alarms/AlarmEditScreen';
 import { SettingsScreen } from '@/screens/settings/SettingsScreen';
 import { ProjectEditScreen } from '@/screens/projects/ProjectEditScreen';
 import { InvitationAcceptScreen } from '@/screens/invitations/InvitationAcceptScreen';
@@ -39,7 +38,6 @@ export type ModalStackParamList = {
   GoalAnalytics: { goalId: string };
   MilestoneManagement: { goalId: string };
   AlarmCreate: undefined;
-  AlarmEdit: { alarmId: string };
   Settings: undefined;
   InvitationAccept: { token: string };
   PendingInvitations: undefined;
@@ -165,14 +163,6 @@ export const ModalNavigator: React.FC = () => {
       <Stack.Screen
         name="AlarmCreate"
         component={AlarmCreateScreen}
-        options={{
-          headerShown: false,
-          presentation: 'modal',
-        }}
-      />
-      <Stack.Screen
-        name="AlarmEdit"
-        component={AlarmEditScreen}
         options={{
           headerShown: false,
           presentation: 'modal',

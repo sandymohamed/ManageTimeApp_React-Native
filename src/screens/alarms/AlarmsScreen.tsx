@@ -6,133 +6,131 @@ import {
   Switch, 
   Alert, 
   Platform, 
-  AppState, 
+  AppState,
+  AppStateStatus,
   Vibration
 } from 'react-native';
 import Sound from 'react-native-sound';
-import PushNotification from 'react-native-push-notification';
-import { Text, FAB, Card, Button, Chip, SegmentedButtons, Portal, Modal, TextInput } from 'react-native-paper';
+import { Text, FAB, Card, Button, Chip, SegmentedButtons, Portal, Modal, TextInput, IconButton } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
-import { theme } from '@/utils/theme';
+import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useAlarmStore } from '@/store/alarmStore';
-import { Alarm, Timer, CreateTimerData } from '@/types/alarm';
+import { Alarm, Timer } from '@/types/alarm';
+import { notificationService } from '@/services/notificationService';
 
 // Navigation types
 type RootStackParamList = {
   AlarmCreate: undefined;
-  AlarmEdit: { alarmId: string };
 };
 
 type NavigationProp = {
-  navigate: (screen: keyof RootStackParamList, params?: any) => void;
-  goBack: () => void;
+  navigate: (screen: keyof RootStackParamList) => void;
 };
 
-// Sound Manager with audio playback and vibration
+// Sound Manager - simplified and more reliable
 class SoundManager {
-  private vibrationInterval: NodeJS.Timeout | null = null;
   private sound: Sound | null = null;
+  private vibrationInterval: NodeJS.Timeout | null = null;
   private isPlaying = false;
+  private isStopping = false;
 
   playAlarmSound() {
+    if (this.isPlaying || this.isStopping) {
+      console.log('⚠️ Sound play blocked - already playing or stopping');
+      return;
+    }
+    
     try {
-      console.log('🔊 Playing alarm sound with vibration');
+      console.log('🔊 Playing alarm sound');
+      this.isPlaying = true;
+      this.isStopping = false;
       
-      // Stop any existing alarm first
-      this.stopSound();
-      
-      // Enable playback in silent mode (iOS)
+      // Enable playback in silent mode
       Sound.setCategory('Playback', true);
       
       // Start vibration
       this.startVibration();
       
-      // Try to play a system notification sound
-      // Note: For proper alarm sounds, you should bundle sound files in your app
-      // For now, we'll use the system notification sound which works differently per platform
-      try {
-        // On iOS, we can use system sounds
-        // On Android, we'll rely more on vibration and notification system
-        if (Platform.OS === 'ios') {
-          // iOS: Use system sound (this will play even in silent mode due to category)
-          // Create a simple beep pattern using vibration + system sound
-          this.sound = new Sound(
-            'default', // System default sound
-            Sound.MAIN_BUNDLE,
-            (error) => {
-              if (error) {
-                console.log('Failed to load sound on iOS, using vibration only:', error);
-                this.isPlaying = true;
-                return;
-              }
-              
-              // Play sound in loop
-              this.sound?.setNumberOfLoops(-1);
-              this.sound?.setVolume(1.0);
-              this.sound?.play((success) => {
-                if (success) {
-                  console.log('Sound playing successfully on iOS');
-                } else {
-                  console.log('Sound playback failed on iOS');
-                }
-              });
-              this.isPlaying = true;
+      // Try to play sound
+      if (Platform.OS === 'ios') {
+        this.sound = new Sound(
+          'default',
+          Sound.MAIN_BUNDLE,
+          (error) => {
+            if (error) {
+              console.log('Sound failed, using vibration only');
+              this.isPlaying = false;
+              return;
             }
-          );
-        } else {
-          // Android: The notification system will handle sound when app is in background
-          // For foreground, we'll use vibration primarily
-          // You can add a bundled sound file here if needed
-          console.log('Android: Using vibration and notification system for sound');
-          this.isPlaying = true;
-        }
-      } catch (soundError) {
-        console.log('Sound initialization failed, using vibration only:', soundError);
-        this.isPlaying = true;
+            if (this.sound && !this.isStopping) {
+              this.sound.setNumberOfLoops(-1);
+              this.sound.setVolume(1.0);
+              this.sound.play(() => {
+                console.log('Sound playback finished');
+              });
+            }
+          }
+        );
+      } else {
+        // Android: vibration is primary, notification handles sound
+        console.log('Android: Using vibration');
       }
-      
     } catch (error) {
-      console.error('Error playing alarm sound:', error);
-      // Fallback: just vibration
+      console.error('Error playing alarm:', error);
+      this.isPlaying = false;
       this.startVibration();
-      this.isPlaying = true;
     }
   }
 
   startVibration() {
     try {
-      // More noticeable vibration pattern
+      // Clear any existing vibration first
+      if (this.vibrationInterval) {
+        clearInterval(this.vibrationInterval);
+        this.vibrationInterval = null;
+      }
+      Vibration.cancel();
+      
       if (Platform.OS === 'android') {
-        // Android: Use pattern vibration
+        // Android: use pattern vibration
         Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
       } else {
-        // iOS: Use interval-based vibration
+        // iOS: use interval-based vibration
         this.vibrationInterval = setInterval(() => {
-          Vibration.vibrate(1000);
+          if (!this.isStopping) {
+            Vibration.vibrate(1000);
+          }
         }, 2000);
       }
-      console.log('Vibration started');
     } catch (error) {
       console.error('Vibration error:', error);
-      throw error; // Re-throw to handle in calling function
     }
   }
 
   stopSound() {
     try {
-      console.log('🔇 Stopping alarm sound');
+      console.log('🔇 Stopping alarm sound - force stop');
+      this.isStopping = true;
+      this.isPlaying = false;
       
-      // Stop sound
+      // Force stop sound immediately
       if (this.sound) {
-        this.sound.stop(() => {
-          this.sound?.release();
-          this.sound = null;
-        });
+        try {
+          this.sound.stop();
+          this.sound.release();
+        } catch (e) {
+          console.log('Error stopping sound:', e);
+        }
+        this.sound = null;
       }
       
-      // Stop vibration
-      Vibration.cancel();
+      // Force stop vibration
+      try {
+        Vibration.cancel();
+      } catch (e) {
+        console.log('Error canceling vibration:', e);
+      }
       
       // Clear vibration interval
       if (this.vibrationInterval) {
@@ -140,9 +138,13 @@ class SoundManager {
         this.vibrationInterval = null;
       }
       
+      // Reset flags immediately
       this.isPlaying = false;
+      this.isStopping = false;
     } catch (error) {
       console.error('Error stopping sound:', error);
+      this.isPlaying = false;
+      this.isStopping = false;
     }
   }
 
@@ -154,16 +156,29 @@ class SoundManager {
 export const AlarmsScreen: React.FC = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
-  const [activeTab, setActiveTab] = useState('timers');
+  const [activeTab, setActiveTab] = useState<'alarms' | 'timers'>('alarms');
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [timerTitle, setTimerTitle] = useState('New Timer');
   const [timerDuration, setTimerDuration] = useState(25);
-  const [alarmPlaying, setAlarmPlaying] = useState(false);
-  const [completedTimerId, setCompletedTimerId] = useState<string | null>(null);
+  
+  // Alarm/timer playing state - single source of truth
+  const [activeAlarmId, setActiveAlarmId] = useState<string | null>(null);
+  const [activeTimerId, setActiveTimerId] = useState<string | null>(null);
+  const [isStopping, setIsStopping] = useState(false);
+  const [timeUpdateKey, setTimeUpdateKey] = useState(0); // Force re-render for time updates
+
+  const customTheme = useCustomTheme();
+  const theme = customTheme.theme;
+  const styles = createStyles(theme);
 
   const soundManager = useRef(new SoundManager()).current;
-  const appState = useRef(AppState.currentState);
+  const appState = useRef<AppStateStatus>(AppState.currentState);
+  
+  // Timer background tracking
+  const timerStartTimeRef = useRef<number | null>(null);
+  const timerPausedTimeRef = useRef<number>(0);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const backgroundTimerRef = useRef<number | null>(null);
 
   const {
     alarms,
@@ -184,58 +199,87 @@ export const AlarmsScreen: React.FC = () => {
     clearError,
     toggleAlarm,
     deleteAlarm,
-    snoozeAlarm,
     dismissAlarm,
   } = useAlarmStore();
 
-  // Track which alarms have already fired per minute to prevent duplicate alerts
-  // Key format: "alarmId:YYYY-MM-DD-HH-MM"
+  // Track fired alarms per minute to prevent duplicates
   const firedAlarmsRef = useRef<Set<string>>(new Set());
-  
-  // Get minute key for an alarm (uses current date for recurring alarms)
-  const getAlarmMinuteKey = (alarmId: string, alarmTime: Date, isRecurring: boolean = false): string => {
+
+  const getAlarmMinuteKey = (alarmId: string, alarmTime: Date, isRecurring: boolean): string => {
     const dateToUse = isRecurring ? new Date() : alarmTime;
     const year = dateToUse.getFullYear();
     const month = String(dateToUse.getMonth() + 1).padStart(2, '0');
     const day = String(dateToUse.getDate()).padStart(2, '0');
-    const hour = String(alarmTime.getHours()).padStart(2, '0'); // Always use alarm time's hour/minute
+    const hour = String(alarmTime.getHours()).padStart(2, '0');
     const minute = String(alarmTime.getMinutes()).padStart(2, '0');
     return `${alarmId}:${year}-${month}-${day}-${hour}-${minute}`;
   };
-  
-  // Handle alarm fired
+
+  // Stop alarm - improved to prevent multiple calls
+  const handleStopAlarm = React.useCallback(async (alarmId: string) => {
+    console.log('🛑 Stopping alarm:', alarmId, 'activeAlarmId:', activeAlarmId, 'isStopping:', isStopping);
+    
+    // Force stop immediately regardless of state
+    setIsStopping(true);
+    setActiveAlarmId(null);
+    
+    // Cancel the scheduled notification first
+    notificationService.cancelAlarm(alarmId);
+    
+    // Force stop the sound immediately
+    soundManager.stopSound();
+    
+    // Also try to stop any ongoing vibration
+    Vibration.cancel();
+    
+    // Check if alarm is one-time and delete it after dismissing
+    const alarm = alarms.find(a => a.id === alarmId);
+    if (alarm) {
+      // Auto-delete one-time alarms after they fire
+      const isOneTimeAlarm = !alarm.recurrenceRule || alarm.recurrenceRule === 'none';
+      if (isOneTimeAlarm) {
+        try {
+          await deleteAlarm(alarmId);
+          console.log('🗑️ Auto-deleted one-time alarm:', alarm.title);
+        } catch (error) {
+          console.error('Failed to auto-delete alarm:', error);
+        }
+      }
+    }
+    
+    // Clear stopping flag after sound stops
+    setTimeout(() => {
+      setIsStopping(false);
+    }, 600);
+  }, [alarms, deleteAlarm]);
+
+  // Handle alarm fired - simplified
   const handleAlarmFired = React.useCallback((alarm: Alarm) => {
+    // Prevent multiple triggers
+    if (activeAlarmId === alarm.id || isStopping) {
+      console.log('⚠️ Alarm firing blocked - already active or stopping');
+      return;
+    }
+
     const alarmTime = new Date(alarm.time);
     const isRecurring = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none');
     const minuteKey = getAlarmMinuteKey(alarm.id, alarmTime, isRecurring);
     
-    // Prevent duplicate alerts for the same alarm in the same minute
+    // Check if already fired this minute
     if (firedAlarmsRef.current.has(minuteKey)) {
-      console.log(`⏸️ Alarm ${alarm.id} already fired this minute, skipping duplicate`);
+      console.log('⚠️ Alarm already fired this minute:', minuteKey);
       return;
     }
+
+    console.log('🎯 Alarm fired:', alarm.title);
     
-    console.log('🎯 Handling alarm fired:', alarm.title, 'at', new Date().toISOString());
-    
-    // Mark this alarm as fired for this minute
+    // Mark as fired FIRST to prevent re-triggering
     firedAlarmsRef.current.add(minuteKey);
+    setActiveAlarmId(alarm.id);
     
-    // Clean up old keys (older than 1 hour) to prevent memory leak
-    const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-    firedAlarmsRef.current.forEach(key => {
-      const [, datePart] = key.split(':');
-      const [year, month, day, hour, minute] = datePart.split('-').map(Number);
-      const keyDate = new Date(year, month - 1, day, hour, minute);
-      if (keyDate < oneHourAgo) {
-        firedAlarmsRef.current.delete(key);
-      }
-    });
-    
-    // Play sound and vibration
+    // Play sound immediately
     soundManager.playAlarmSound();
-    setAlarmPlaying(true);
-    
+
     // Show alert
     Alert.alert(
       '⏰ Alarm',
@@ -243,41 +287,27 @@ export const AlarmsScreen: React.FC = () => {
       [
         {
           text: 'Dismiss',
-          onPress: () => {
-            soundManager.stopSound();
-            setAlarmPlaying(false);
-            // Note: We don't delete the minuteKey here so it won't fire again this minute
-            // Dismiss the alarm
-            dismissAlarm(alarm.id);
-          },
-        },
-        {
-          text: 'Snooze',
-          onPress: () => {
-            soundManager.stopSound();
-            setAlarmPlaying(false);
-            // Note: We don't delete the minuteKey here so it won't fire again this minute
-            // Snooze the alarm
-            const snoozeDuration = alarm.snoozeConfig?.duration || 5;
-            snoozeAlarm(alarm.id, snoozeDuration);
+          onPress: async () => {
+            console.log('👆 Dismiss pressed for alarm:', alarm.id);
+            // Stop immediately before dismissing
+            await handleStopAlarm(alarm.id);
+            await dismissAlarm(alarm.id);
           },
         },
       ],
       { 
         cancelable: false,
-        onDismiss: () => {
-          soundManager.stopSound();
-          setAlarmPlaying(false);
-          // Note: We don't delete the minuteKey here so it won't fire again this minute
+        onDismiss: async () => {
+          console.log('👆 Alert dismissed for alarm:', alarm.id);
+          await handleStopAlarm(alarm.id);
         }
       }
     );
-  }, [soundManager, dismissAlarm, snoozeAlarm]);
-  
-  // Check if alarm should fire based on recurrence
+  }, [activeAlarmId, isStopping, dismissAlarm, handleStopAlarm]);
+
+  // Check if alarm should fire today
   const shouldAlarmFireToday = (alarm: Alarm, now: Date): boolean => {
     if (!alarm.recurrenceRule || alarm.recurrenceRule === 'none') {
-      // One-time alarm: check if it's the exact date
       const alarmTime = new Date(alarm.time);
       return (
         now.getFullYear() === alarmTime.getFullYear() &&
@@ -286,204 +316,260 @@ export const AlarmsScreen: React.FC = () => {
       );
     }
 
-    const currentDay = now.getDay(); // 0 = Sunday, 6 = Saturday
-
+    const currentDay = now.getDay();
     switch (alarm.recurrenceRule) {
       case 'daily':
-        return true; // Fire every day
+        return true;
       case 'weekdays':
-        return currentDay >= 1 && currentDay <= 5; // Monday to Friday
+        return currentDay >= 1 && currentDay <= 5;
       case 'weekends':
-        return currentDay === 0 || currentDay === 6; // Saturday or Sunday
+        return currentDay === 0 || currentDay === 6;
       case 'weekly':
-        // Fire on the same day of the week as when it was created
         const alarmTime = new Date(alarm.time);
         return currentDay === alarmTime.getDay();
       default:
-        // For RFC 5545 or other formats, default to daily
         return true;
     }
   };
 
-  // Check for alarms that should have fired
+  // Ref to store the latest alarm check function
+  const checkAlarmsRef = useRef<() => void>(() => {});
+
+  // Check alarms that should fire - simplified logic
   const checkAlarmsThatShouldHaveFired = React.useCallback(() => {
+    if (activeAlarmId || isStopping) {
+      return;
+    }
+    
     const now = new Date();
-    const currentAlarms = alarms; // Use current alarms from closure
+    const currentAlarms = alarms; // Get current alarms from closure
     
     currentAlarms.forEach(alarm => {
-      if (alarm.enabled && !alarmPlaying) {
-        const alarmTime = new Date(alarm.time);
-        const isRecurring = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none');
-        const minuteKey = getAlarmMinuteKey(alarm.id, alarmTime, isRecurring);
+      // Skip disabled alarms, active alarms, or if we're stopping
+      if (!alarm.enabled || activeAlarmId === alarm.id || isStopping) {
+        return;
+      }
+      
+      let alarmTime = new Date(alarm.time);
+      const isRecurring = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none');
+      
+      // For one-time alarms, if the alarm time is tomorrow but the time today hasn't passed yet,
+      // adjust it to today. This fixes cases where alarms were created with the wrong date.
+      if (!isRecurring) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const alarmDate = new Date(alarmTime);
+        alarmDate.setHours(0, 0, 0, 0);
         
-        // Check if alarm time has passed and we're in the same minute
-        const nowMinutes = now.getMinutes();
-        const alarmMinutes = alarmTime.getMinutes();
-        const nowHours = now.getHours();
-        const alarmHours = alarmTime.getHours();
-        const nowDate = now.getDate();
-        const alarmDate = alarmTime.getDate();
-        const nowMonth = now.getMonth();
-        const alarmMonth = alarmTime.getMonth();
-        const nowYear = now.getFullYear();
-        const alarmYear = alarmTime.getFullYear();
+        // If alarm is scheduled for tomorrow but the time today hasn't passed
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
         
-        // Check if we're in the exact minute when the alarm should fire
-        const isSameMinute = 
-          nowYear === alarmYear &&
-          nowMonth === alarmMonth &&
-          nowDate === alarmDate &&
-          nowHours === alarmHours &&
-          nowMinutes === alarmMinutes;
+        if (alarmDate.getTime() === tomorrow.getTime()) {
+          const alarmTimeToday = new Date(today);
+          alarmTimeToday.setHours(alarmTime.getHours(), alarmTime.getMinutes(), 0, 0);
+          
+          // Only adjust if the time today hasn't passed
+          if (alarmTimeToday.getTime() > now.getTime()) {
+            alarmTime = alarmTimeToday;
+          }
+        }
         
-        // For recurring alarms, check if it should fire today (based on recurrence rule)
-        // and if the time matches
-        const shouldFireToday = shouldAlarmFireToday(alarm, now);
-        const timeMatches = nowHours === alarmHours && nowMinutes === alarmMinutes;
-        
-        // For one-time alarms, check exact date and time
-        // For recurring alarms, check if it should fire today and time matches
-        const shouldFire = alarm.recurrenceRule && alarm.recurrenceRule !== 'none'
-          ? (shouldFireToday && timeMatches && !firedAlarmsRef.current.has(minuteKey))
-          : (isSameMinute && !firedAlarmsRef.current.has(minuteKey));
-        
-        if (shouldFire) {
-          console.log(`⏰ Alarm "${alarm.title}" should fire now! Time: ${alarmTime.toISOString()}, Now: ${now.toISOString()}, Recurrence: ${alarm.recurrenceRule || 'none'}`);
-          handleAlarmFired(alarm);
+        // Auto-delete passed one-time alarms (after 1 minute past)
+        if (alarmTime.getTime() <= now.getTime() - 60000) {
+          console.log(`🗑️ Auto-deleting passed one-time alarm: ${alarm.id}`);
+          deleteAlarm(alarm.id).catch(err => console.error('Failed to auto-delete alarm:', err));
+          return;
         }
       }
+      
+      const minuteKey = getAlarmMinuteKey(alarm.id, alarmTime, isRecurring);
+      
+      // Simple time comparison - just check hour and minute match
+      const nowMinutes = now.getMinutes();
+      const alarmMinutes = alarmTime.getMinutes();
+      const nowHours = now.getHours();
+      const alarmHours = alarmTime.getHours();
+      
+      // For one-time alarms, also check date
+      const nowDate = now.getDate();
+      const alarmDate = alarmTime.getDate();
+      const nowMonth = now.getMonth();
+      const alarmMonth = alarmTime.getMonth();
+      const nowYear = now.getFullYear();
+      const alarmYear = alarmTime.getFullYear();
+      
+      const isSameMinute = 
+        nowYear === alarmYear &&
+        nowMonth === alarmMonth &&
+        nowDate === alarmDate &&
+        nowHours === alarmHours &&
+        nowMinutes === alarmMinutes;
+      
+      const shouldFireToday = shouldAlarmFireToday(alarm, now);
+      const timeMatches = nowHours === alarmHours && nowMinutes === alarmMinutes;
+      
+      const shouldFire = isRecurring
+        ? (shouldFireToday && timeMatches && !firedAlarmsRef.current.has(minuteKey))
+        : (isSameMinute && !firedAlarmsRef.current.has(minuteKey));
+      
+      // Debug: log when we're close to alarm time
+      const timeDiff = Math.abs((alarmTime.getTime() - now.getTime()) / 1000);
+      if (timeDiff <= 65) { // Within 65 seconds
+        console.log(`🔍 Alarm check - ${alarm.id}:`, {
+          alarmTime: alarmTime.toLocaleString(),
+          now: now.toLocaleString(),
+          timeDiff: `${Math.floor(timeDiff)}s`,
+          isSameMinute,
+          timeMatches,
+          shouldFire,
+          alreadyFired: firedAlarmsRef.current.has(minuteKey),
+        });
+      }
+      
+      if (shouldFire) {
+        console.log('🎯 Alarm should fire:', {
+          alarmId: alarm.id,
+          alarmTime: alarmTime.toLocaleString(),
+          now: now.toLocaleString(),
+          isSameMinute,
+          shouldFire,
+        });
+        handleAlarmFired(alarm);
+      }
     });
-  }, [alarms, alarmPlaying, handleAlarmFired]);
-  
+  }, [alarms, activeAlarmId, isStopping, handleAlarmFired, deleteAlarm]);
+
+  // Update ref when function changes
+  useEffect(() => {
+    checkAlarmsRef.current = checkAlarmsThatShouldHaveFired;
+  }, [checkAlarmsThatShouldHaveFired]);
+
+  // Timer countdown with background support
+  const startTimerCountdown = (timer: Timer) => {
+    // Clear any existing interval
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+    }
+
+    // Calculate start time
+    const now = Date.now();
+    timerStartTimeRef.current = now;
+    timerPausedTimeRef.current = 0;
+
+    // Start countdown
+    timerIntervalRef.current = setInterval(() => {
+      const currentTimer = timers.find(t => t.id === timer.id);
+      if (!currentTimer || !currentTimer.isRunning || currentTimer.isPaused) {
+        if (timerIntervalRef.current) {
+          clearInterval(timerIntervalRef.current);
+          timerIntervalRef.current = null;
+        }
+        return;
+      }
+
+      // Calculate elapsed time accounting for background
+      const elapsed = Math.floor((Date.now() - (timerStartTimeRef.current || now)) / 1000) - timerPausedTimeRef.current;
+      const newRemaining = Math.max(0, timer.duration * 60 - elapsed);
+
+      if (newRemaining <= 0) {
+        handleTimerCompletion(currentTimer);
+      } else {
+        updateTimerRemainingTime(currentTimer.id, newRemaining);
+      }
+    }, 1000);
+  };
+
+  // Handle app state changes for timer
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      const previousState = appState.current;
+      appState.current = nextAppState;
+
+      // App came to foreground
+      if (previousState.match(/inactive|background/) && nextAppState === 'active') {
+        // Refresh timers to sync with server
+        fetchTimers();
+        fetchAlarms();
+        
+        // Resume timer countdown if needed
+        const runningTimer = timers.find(t => t.isRunning && !t.isPaused);
+        if (runningTimer && timerStartTimeRef.current) {
+          // Recalculate remaining time based on elapsed time
+          const elapsed = Math.floor((Date.now() - timerStartTimeRef.current) / 1000) - timerPausedTimeRef.current;
+          const newRemaining = Math.max(0, runningTimer.duration * 60 - elapsed);
+          updateTimerRemainingTime(runningTimer.id, newRemaining);
+          startTimerCountdown(runningTimer);
+        }
+        
+        checkAlarmsThatShouldHaveFired();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [timers, fetchTimers, fetchAlarms, updateTimerRemainingTime]);
+
   // Initialize
   useEffect(() => {
     fetchAlarms();
     fetchTimers();
 
-    // Check for alarms that should fire every second (more aggressive)
+    // Check alarms every second - use ref to get latest function
     const alarmCheckInterval = setInterval(() => {
-      checkAlarmsThatShouldHaveFired();
-    }, 1000); // Check every 1 second
+      checkAlarmsRef.current();
+    }, 1000);
 
-    // Handle app state changes
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        fetchTimers();
-        fetchAlarms();
-        
-        // Check for any alarms that should have fired
-        checkAlarmsThatShouldHaveFired();
-      }
-      appState.current = nextAppState;
-    });
+    // Update time-until display every minute
+    const timeUpdateInterval = setInterval(() => {
+      // Force re-render by updating state
+      setTimeUpdateKey(prev => prev + 1);
+    }, 60000);
 
     return () => {
       clearInterval(alarmCheckInterval);
-      subscription.remove();
+      clearInterval(timeUpdateInterval);
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
       }
       soundManager.stopSound();
     };
-  }, []);
-  
-  // Use effect to check alarms when alarms list changes
-  useEffect(() => {
-    // Check immediately when alarms list changes
-    checkAlarmsThatShouldHaveFired();
-    
-    // Also set up a more frequent check when we have active alarms
-    const enabledAlarms = alarms.filter(a => a.enabled);
-    if (enabledAlarms.length > 0) {
-      const quickCheckInterval = setInterval(() => {
-        checkAlarmsThatShouldHaveFired();
-      }, 1000); // Check every second when alarms are active
-      
-      return () => clearInterval(quickCheckInterval);
-    }
-  }, [alarms, checkAlarmsThatShouldHaveFired]);
-  
-  // Clear fired alarms when alarms list changes (new alarms added)
-  useEffect(() => {
-    const currentAlarmIds = new Set(alarms.map(a => a.id));
-    // Remove IDs that are no longer in the alarms list
-    firedAlarmsRef.current.forEach(id => {
-      if (!currentAlarmIds.has(id)) {
-        firedAlarmsRef.current.delete(id);
-      }
-    });
-  }, [alarms]);
+  }, [fetchAlarms, fetchTimers]);
 
-  // Client-side timer countdown
+  // Watch for timer changes
   useEffect(() => {
-    // Clear any existing interval
-    if (timerIntervalRef.current) {
+    const runningTimer = timers.find(t => t.isRunning && !t.isPaused);
+    
+    if (runningTimer && !timerIntervalRef.current) {
+      startTimerCountdown(runningTimer);
+    } else if (!runningTimer && timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
-
-    // Find running timer
-    const runningTimer = timers.find(t => t.isRunning && !t.isPaused && t.remainingTime > 0);
-
-    if (runningTimer) {
-      console.log('Starting countdown for:', runningTimer.title, 'Remaining:', runningTimer.remainingTime);
-      
-      timerIntervalRef.current = setInterval(() => {
-        // Get fresh timer data
-        const currentTimer = timers.find(t => t.id === runningTimer.id);
-        
-        if (!currentTimer || !currentTimer.isRunning || currentTimer.isPaused) {
-          // Timer was stopped or paused
-          if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
-          }
-          return;
-        }
-
-        const updatedTime = currentTimer.remainingTime - 1;
-        
-        if (updatedTime <= 0) {
-          // Timer completed!
-          console.log('⏰ Timer completed!', currentTimer.title);
-          
-          if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
-          }
-          
-          handleTimerCompletion(currentTimer);
-        } else {
-          // Update remaining time
-          updateTimerRemainingTime(currentTimer.id, updatedTime);
-        }
-      }, 1000);
-    }
-
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
   }, [timers]);
 
   // Handle timer completion
   const handleTimerCompletion = async (timer: Timer) => {
-    try {
-      console.log('🎯 Handling timer completion:', timer.title);
-      
-      // Play sound and vibration
-      soundManager.playAlarmSound();
-      setAlarmPlaying(true);
-      setCompletedTimerId(timer.id);
+    if (activeTimerId === timer.id || isStopping) return;
 
-      // Stop the timer in store
+    try {
+      console.log('🎯 Timer completed:', timer.title);
+      setActiveTimerId(timer.id);
+      
+      // Play sound
+      soundManager.playAlarmSound();
+
+      // Stop timer
       await stopTimer(timer.id);
       if (activeTimer?.id === timer.id) {
         setActiveTimer(null);
       }
 
-      // Show alert with option to stop alarm
+      // Clear interval
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+
       Alert.alert(
         '⏰ Timer Complete!',
         `${timer.title} is complete!`,
@@ -491,49 +577,45 @@ export const AlarmsScreen: React.FC = () => {
           {
             text: 'Stop Alarm',
             onPress: () => {
-              soundManager.stopSound();
-              setAlarmPlaying(false);
-              setCompletedTimerId(null);
+              handleStopTimer(timer.id);
             },
           },
         ],
         { 
           cancelable: false,
           onDismiss: () => {
-            // Auto-stop when alert is dismissed
-            soundManager.stopSound();
-            setAlarmPlaying(false);
-            setCompletedTimerId(null);
+            handleStopTimer(timer.id);
           }
         }
       );
     } catch (error) {
       console.error('Error handling timer completion:', error);
-      // Fallback: show alert without vibration
-      Alert.alert(
-        '⏰ Timer Complete!',
-        `${timer.title}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setAlarmPlaying(false);
-              setCompletedTimerId(null);
-            },
-          },
-        ]
-      );
+      handleStopTimer(timer.id);
     }
   };
 
-  // Handle errors
+  // Stop timer alarm - improved
+  const handleStopTimer = (timerId: string) => {
+    if (isStopping || activeTimerId !== timerId) return;
+    
+    setIsStopping(true);
+    soundManager.stopSound();
+    setActiveTimerId(null);
+    
+    setTimeout(() => {
+      setIsStopping(false);
+    }, 600);
+  };
+
+  // Error handling
   useEffect(() => {
     if (error) {
       Alert.alert('Error', error);
       clearError();
     }
-  }, [error]);
+  }, [error, clearError]);
 
+  // Timer handlers
   const handleCreateTimer = async () => {
     if (!timerTitle.trim()) {
       Alert.alert('Error', 'Please enter a timer title');
@@ -541,13 +623,12 @@ export const AlarmsScreen: React.FC = () => {
     }
 
     try {
-      const timerData: CreateTimerData = {
+      await createTimer({
         title: timerTitle.trim(),
         duration: timerDuration,
-      };
-      await createTimer(timerData);
+      });
       setShowTimerModal(false);
-      setTimerTitle('');
+      setTimerTitle('New Timer');
       setTimerDuration(25);
     } catch (error) {
       Alert.alert('Error', 'Failed to create timer');
@@ -558,6 +639,8 @@ export const AlarmsScreen: React.FC = () => {
     try {
       await startTimer(timer.id);
       setActiveTimer(timer);
+      timerStartTimeRef.current = Date.now();
+      timerPausedTimeRef.current = 0;
     } catch (error) {
       Alert.alert('Error', 'Failed to start timer');
     }
@@ -565,24 +648,27 @@ export const AlarmsScreen: React.FC = () => {
 
   const handlePauseTimer = async (timer: Timer) => {
     try {
+      if (timerStartTimeRef.current) {
+        const elapsed = Math.floor((Date.now() - timerStartTimeRef.current) / 1000);
+        timerPausedTimeRef.current += elapsed;
+      }
       await pauseTimer(timer.id);
     } catch (error) {
       Alert.alert('Error', 'Failed to pause timer');
     }
   };
 
-  const handleStopTimer = async (timer: Timer) => {
+  const handleStopTimerAction = async (timer: Timer) => {
     try {
       await stopTimer(timer.id);
       if (activeTimer?.id === timer.id) {
         setActiveTimer(null);
       }
+      timerStartTimeRef.current = null;
+      timerPausedTimeRef.current = 0;
       
-      // Stop alarm if this timer is ringing
-      if (alarmPlaying && completedTimerId === timer.id) {
-        soundManager.stopSound();
-        setAlarmPlaying(false);
-        setCompletedTimerId(null);
+      if (activeTimerId === timer.id) {
+        handleStopTimer(timer.id);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to stop timer');
@@ -592,6 +678,8 @@ export const AlarmsScreen: React.FC = () => {
   const handleResetTimer = async (timer: Timer) => {
     try {
       await resetTimer(timer.id);
+      timerStartTimeRef.current = null;
+      timerPausedTimeRef.current = 0;
     } catch (error) {
       Alert.alert('Error', 'Failed to reset timer');
     }
@@ -612,12 +700,8 @@ export const AlarmsScreen: React.FC = () => {
               if (activeTimer?.id === timer.id) {
                 setActiveTimer(null);
               }
-              
-              // Stop alarm if this timer is ringing
-              if (alarmPlaying && completedTimerId === timer.id) {
-                soundManager.stopSound();
-                setAlarmPlaying(false);
-                setCompletedTimerId(null);
+              if (activeTimerId === timer.id) {
+                handleStopTimer(timer.id);
               }
             } catch (error) {
               Alert.alert('Error', 'Failed to delete timer');
@@ -648,8 +732,44 @@ export const AlarmsScreen: React.FC = () => {
           onPress: async () => {
             try {
               await deleteAlarm(alarmId);
+              if (activeAlarmId === alarmId) {
+                handleStopAlarm(alarmId);
+              }
             } catch (error) {
               Alert.alert('Error', 'Failed to delete alarm');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAllAlarms = () => {
+    if (alarms.length === 0) return;
+    
+    Alert.alert(
+      'Confirm Delete All',
+      `Are you sure you want to delete all ${alarms.length} alarm${alarms.length === 1 ? '' : 's'}? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Stop any active alarms first
+              if (activeAlarmId) {
+                soundManager.stopSound();
+                setActiveAlarmId(null);
+              }
+              
+              // Delete all alarms in parallel
+              const deletePromises = alarms.map(alarm => deleteAlarm(alarm.id));
+              await Promise.all(deletePromises);
+              
+              console.log('🗑️ Deleted all alarms');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete some alarms');
             }
           },
         },
@@ -664,47 +784,85 @@ export const AlarmsScreen: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getTimerStatusColor = (timer: Timer) => {
-    if (timer.isCompleted) return theme.colors.success;
-    if (timer.isRunning) return theme.colors.primary;
-    if (timer.isPaused) return theme.colors.warning;
-    return theme.colors.outline;
-  };
-
-  const getTimerStatusText = (timer: Timer) => {
-    if (timer.isCompleted) return 'Completed';
-    if (timer.isRunning) return 'Running';
-    if (timer.isPaused) return 'Paused';
-    return 'Stopped';
-  };
-
-  const getAlarmDaysText = (alarm: Alarm) => {
-    if (!alarm.recurrenceRule) return 'Once';
-    if (alarm.recurrenceRule.includes('FREQ=DAILY')) return 'Every day';
+  const getRecurrenceText = (alarm: Alarm): string => {
+    if (!alarm.recurrenceRule || alarm.recurrenceRule === 'none') return 'Once';
+    if (alarm.recurrenceRule === 'daily') return 'Daily';
+    if (alarm.recurrenceRule === 'weekdays') return 'Weekdays';
+    if (alarm.recurrenceRule === 'weekends') return 'Weekends';
+    if (alarm.recurrenceRule === 'weekly') return 'Weekly';
     return 'Custom';
+  };
+
+  // Calculate time until alarm rings
+  const getTimeUntilAlarm = (alarm: Alarm): string => {
+    let alarmTime = new Date(alarm.time);
+    const now = new Date();
+    
+    // For one-time alarms, if the alarm time is tomorrow but the time today hasn't passed yet,
+    // adjust it to today for display purposes.
+    const isRecurring = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none');
+    if (!isRecurring) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const alarmDate = new Date(alarmTime);
+      alarmDate.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      if (alarmDate.getTime() === tomorrow.getTime()) {
+        const alarmTimeToday = new Date(today);
+        alarmTimeToday.setHours(alarmTime.getHours(), alarmTime.getMinutes(), 0, 0);
+        
+        // Only adjust if the time today hasn't passed
+        if (alarmTimeToday.getTime() > now.getTime()) {
+          alarmTime = alarmTimeToday;
+        }
+      }
+    }
+    
+    const diffMs = alarmTime.getTime() - now.getTime();
+    
+    if (diffMs <= 0) {
+      return 'Ringing now';
+    }
+    
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffDays > 0) {
+      const remainingHours = diffHours % 24;
+      const remainingMinutes = diffMinutes % 60;
+      if (remainingHours > 0) {
+        return `${diffDays}d ${remainingHours}h ${remainingMinutes}m`;
+      }
+      return `${diffDays}d ${remainingMinutes}m`;
+    } else if (diffHours > 0) {
+      const remainingMinutes = diffMinutes % 60;
+      if (remainingMinutes > 0) {
+        return `${diffHours}h ${remainingMinutes}m`;
+      }
+      return `${diffHours}h`;
+    } else {
+      return `${diffMinutes}min`;
+    }
   };
 
   // Render functions
   const renderTimer = ({ item }: { item: Timer }) => {
-    const isRinging = alarmPlaying && completedTimerId === item.id;
+    const isRinging = activeTimerId === item.id;
 
     return (
-      <Card style={[
-        styles.timerCard,
-        activeTimer?.id === item.id && styles.activeTimerCard,
-        isRinging && styles.ringingTimerCard,
-      ]}>
+      <Card style={[styles.card, isRinging && styles.ringingCard]}>
         <Card.Content>
-          <View style={styles.timerHeader}>
-            <View style={styles.timerInfo}>
-              <Text variant="titleMedium" style={styles.timerTitle}>
+          <View style={styles.itemHeader}>
+            <View style={styles.itemInfo}>
+              <Text variant="titleMedium" style={styles.itemTitle}>
                 {item.title}
               </Text>
-              <Text variant="headlineLarge" style={[styles.timerTime, { color: getTimerStatusColor(item) }]}>
+              <Text variant="headlineLarge" style={[styles.timerTime, { color: theme.colors.primary }]}>
                 {formatTime(item.remainingTime)}
-              </Text>
-              <Text variant="bodySmall" style={[styles.timerStatus, { color: getTimerStatusColor(item) }]}>
-                {getTimerStatusText(item)}
               </Text>
               {isRinging && (
                 <Chip mode="flat" style={styles.ringingChip} textStyle={styles.ringingText}>
@@ -714,66 +872,52 @@ export const AlarmsScreen: React.FC = () => {
             </View>
           </View>
 
-          <View style={styles.timerDetails}>
-            <View style={styles.detailRow}>
-              <Text variant="bodySmall" style={styles.detailLabel}>
-                Duration:
-              </Text>
-              <Text variant="bodySmall" style={styles.detailValue}>
-                {item.duration} minutes
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.timerActions}>
-            {isRinging && (
+          <View style={styles.actions}>
+            {isRinging ? (
               <Button 
                 mode="contained" 
-                onPress={() => {
-                  soundManager.stopSound();
-                  setAlarmPlaying(false);
-                  setCompletedTimerId(null);
-                }} 
-                style={[styles.actionButton, styles.stopAlarmButton]}
-                icon="bell-off"
-                buttonColor={theme.colors.error}>
+                onPress={() => handleStopTimer(item.id)} 
+                style={styles.actionButton}
+                buttonColor={theme.colors.error}
+                icon="bell-off">
                 Stop Alarm
               </Button>
-            )}
-            {!isRinging && !item.isRunning && !item.isCompleted && (
-              <Button mode="contained" onPress={() => handleStartTimer(item)} style={styles.actionButton} icon="play">
-                Start
-              </Button>
-            )}
-            {!isRinging && item.isRunning && !item.isPaused && (
-              <Button mode="outlined" onPress={() => handlePauseTimer(item)} style={styles.actionButton} icon="pause">
-                Pause
-              </Button>
-            )}
-            {!isRinging && item.isPaused && (
-              <Button mode="contained" onPress={() => handleStartTimer(item)} style={styles.actionButton} icon="play">
-                Resume
-              </Button>
-            )}
-            {!isRinging && (item.isRunning || item.isPaused) && (
-              <Button mode="outlined" onPress={() => handleStopTimer(item)} style={styles.actionButton} icon="stop">
-                Stop
-              </Button>
-            )}
-            {!isRinging && item.isCompleted && (
-              <Button mode="outlined" onPress={() => handleResetTimer(item)} style={styles.actionButton} icon="refresh">
-                Reset
-              </Button>
-            )}
-            {!isRinging && (
-              <Button
-                mode="text"
-                onPress={() => handleDeleteTimer(item)}
-                textColor={theme.colors.error}
-                style={styles.actionButton}
-                icon="delete">
-                Delete
-              </Button>
+            ) : (
+              <>
+                {!item.isRunning && !item.isCompleted && (
+                  <Button mode="contained" onPress={() => handleStartTimer(item)} icon="play" style={styles.actionButton}>
+                    Start
+                  </Button>
+                )}
+                {item.isRunning && !item.isPaused && (
+                  <Button mode="outlined" onPress={() => handlePauseTimer(item)} icon="pause" style={styles.actionButton}>
+                    Pause
+                  </Button>
+                )}
+                {item.isPaused && (
+                  <Button mode="contained" onPress={() => handleStartTimer(item)} icon="play" style={styles.actionButton}>
+                    Resume
+                  </Button>
+                )}
+                {(item.isRunning || item.isPaused) && (
+                  <Button mode="outlined" onPress={() => handleStopTimerAction(item)} icon="stop" style={styles.actionButton}>
+                    Stop
+                  </Button>
+                )}
+                {item.isCompleted && (
+                  <Button mode="outlined" onPress={() => handleResetTimer(item)} icon="refresh" style={styles.actionButton}>
+                    Reset
+                  </Button>
+                )}
+                <Button
+                  mode="text"
+                  onPress={() => handleDeleteTimer(item)}
+                  textColor={theme.colors.error}
+                  icon="delete"
+                  style={styles.actionButton}>
+                  Delete
+                </Button>
+              </>
             )}
           </View>
         </Card.Content>
@@ -781,49 +925,74 @@ export const AlarmsScreen: React.FC = () => {
     );
   };
 
-  const renderAlarm = ({ item }: { item: Alarm }) => (
-    <Card style={styles.alarmCard}>
-      <Card.Content>
-        <View style={styles.alarmHeader}>
-          <View style={styles.alarmInfo}>
-            <Text variant="titleMedium" style={styles.alarmTitle}>
-              {item.title}
-            </Text>
-            <Text variant="headlineSmall" style={styles.alarmTime}>
-              {new Date(item.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-            <Chip mode="outlined" compact style={styles.daysChip}>
-              {getAlarmDaysText(item)}
-            </Chip>
+  const renderAlarm = ({ item }: { item: Alarm }) => {
+    const timeUntil = getTimeUntilAlarm(item);
+    let alarmTime = new Date(item.time);
+    const now = new Date();
+    
+    // For one-time alarms, adjust date if needed for display
+    const isRecurring = !!(item.recurrenceRule && item.recurrenceRule !== 'none');
+    if (!isRecurring) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const alarmDate = new Date(alarmTime);
+      alarmDate.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      if (alarmDate.getTime() === tomorrow.getTime()) {
+        const alarmTimeToday = new Date(today);
+        alarmTimeToday.setHours(alarmTime.getHours(), alarmTime.getMinutes(), 0, 0);
+        if (alarmTimeToday.getTime() > now.getTime()) {
+          alarmTime = alarmTimeToday;
+        }
+      }
+    }
+    
+    const isPast = alarmTime.getTime() <= now.getTime();
+    
+    return (
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.itemHeader}>
+            <View style={styles.itemInfo}>
+              <Text variant="titleMedium" style={styles.itemTitle}>
+                {item.title}
+              </Text>
+              <Text variant="headlineSmall" style={[styles.alarmTime, { color: theme.colors.primary }]}>
+                {alarmTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+              <Text variant="bodySmall" style={[styles.timeUntilText, { color: theme.colors.onSurfaceVariant }]}>
+                {isPast && !isRecurring ? 'Alarm passed' : `Alarm rings in ${timeUntil}`}
+              </Text>
+              <Chip mode="outlined" compact style={styles.chip}>
+                {getRecurrenceText(item)}
+              </Chip>
+            </View>
+            <Switch
+              value={item.enabled}
+              onValueChange={() => handleToggleAlarm(item.id)}
+              trackColor={{ false: theme.colors.outline, true: theme.colors.primary }}
+              thumbColor={item.enabled ? theme.colors.onPrimary : theme.colors.surface}
+            />
           </View>
-          <Switch
-            value={item.enabled}
-            onValueChange={() => handleToggleAlarm(item.id)}
-            trackColor={{ false: theme.colors.outline, true: theme.colors.primary }}
-            thumbColor={item.enabled ? theme.colors.onPrimary : theme.colors.surface}
-          />
-        </View>
 
-        <View style={styles.alarmActions}>
-          <Button
-            mode="text"
-            onPress={() => navigation.navigate('AlarmEdit', { alarmId: item.id })}
-            style={styles.actionButton}
-            icon="pencil">
-            Edit
-          </Button>
-          <Button
-            mode="text"
-            onPress={() => handleDeleteAlarm(item.id)}
-            textColor={theme.colors.error}
-            style={styles.actionButton}
-            icon="delete">
-            Delete
-          </Button>
-        </View>
-      </Card.Content>
-    </Card>
-  );
+          <View style={styles.actions}>
+            <Button
+              mode="text"
+              onPress={() => handleDeleteAlarm(item.id)}
+              textColor={theme.colors.error}
+              icon="delete"
+              style={styles.actionButton}>
+              Delete
+            </Button>
+          </View>
+        </Card.Content>
+      </Card>
+    );
+  };
+
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -847,15 +1016,26 @@ export const AlarmsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <SegmentedButtons
-        value={activeTab}
-        onValueChange={setActiveTab}
-        buttons={[
-          { value: 'alarms', label: 'Alarms', icon: 'alarm' },
-          { value: 'timers', label: 'Timers', icon: 'timer' },
-        ]}
-        style={styles.segmentedButtons}
-      />
+      <View style={styles.headerContainer}>
+        <SegmentedButtons
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as 'alarms' | 'timers')}
+          buttons={[
+            { value: 'alarms', label: 'Alarms', icon: 'alarm' },
+            { value: 'timers', label: 'Timers', icon: 'timer' },
+          ]}
+          style={styles.segmentedButtons}
+        />
+        {activeTab === 'alarms' && alarms.length > 0 && (
+          <IconButton
+            icon="delete-sweep"
+            size={24}
+            iconColor={theme.colors.error}
+            onPress={handleDeleteAllAlarms}
+            style={styles.deleteAllButton}
+          />
+        )}
+      </View>
 
       {activeTab === 'alarms' ? (
         <FlatList<Alarm>
@@ -867,6 +1047,7 @@ export const AlarmsScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           refreshing={loading}
           onRefresh={fetchAlarms}
+          extraData={timeUpdateKey} // Force re-render when time updates
         />
       ) : (
         <FlatList<Timer>
@@ -881,7 +1062,7 @@ export const AlarmsScreen: React.FC = () => {
         />
       )}
 
-      {!alarmPlaying && (
+      {!activeAlarmId && !activeTimerId && (
         <FAB
           icon="plus"
           style={styles.fab}
@@ -957,49 +1138,53 @@ export const AlarmsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+  },
   segmentedButtons: {
-    margin: theme.spacing.sm,
+    flex: 1,
+  },
+  deleteAllButton: {
+    margin: 0,
+    marginLeft: theme.spacing.sm,
   },
   listContent: {
-    padding: theme.spacing.sm,
+    padding: theme.spacing.md,
     flexGrow: 1,
   },
-  timerCard: {
-    marginVertical: theme.spacing.xs,
+  card: {
+    marginVertical: theme.spacing.sm,
     marginHorizontal: theme.spacing.sm,
-    elevation: 2,
+    backgroundColor: theme.colors.surface,
   },
-  activeTimerCard: {
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
-    elevation: 8,
-  },
-  ringingTimerCard: {
+  ringingCard: {
     borderWidth: 3,
     borderColor: theme.colors.error,
-    backgroundColor: theme.colors.error + '15',
-    elevation: 12,
+    backgroundColor: theme.colors.errorContainer + '30',
   },
-  alarmCard: {
-    marginVertical: theme.spacing.xs,
-    marginHorizontal: theme.spacing.sm,
-    elevation: 2,
-  },
-  timerHeader: {
+  itemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: theme.spacing.md,
   },
-  timerInfo: {
+  itemInfo: {
+    flex: 1,
     alignItems: 'center',
   },
-  timerTitle: {
+  itemTitle: {
     marginBottom: theme.spacing.sm,
-    textAlign: 'center',
     fontWeight: '600',
+    color: theme.colors.onSurface,
   },
   timerTime: {
     fontWeight: 'bold',
@@ -1007,9 +1192,20 @@ const styles = StyleSheet.create({
     fontSize: 48,
     letterSpacing: 2,
   },
-  timerStatus: {
-    fontWeight: '500',
+  alarmTime: {
+    fontWeight: 'bold',
     marginBottom: theme.spacing.xs,
+    fontSize: 28,
+  },
+  timeUntilText: {
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.xs,
+    fontSize: 12,
+    opacity: 0.7,
+  },
+  chip: {
+    alignSelf: 'center',
+    marginTop: theme.spacing.xs,
   },
   ringingChip: {
     backgroundColor: theme.colors.error,
@@ -1019,23 +1215,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: 'bold',
   },
-  timerDetails: {
-    marginBottom: theme.spacing.md,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.xs,
-  },
-  detailLabel: {
-    color: theme.colors.textSecondary,
-  },
-  detailValue: {
-    color: theme.colors.text,
-    fontWeight: '500',
-  },
-  timerActions: {
+  actions: {
     flexDirection: 'row',
     justifyContent: 'center',
     flexWrap: 'wrap',
@@ -1043,36 +1223,6 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     minWidth: 90,
-  },
-  stopAlarmButton: {
-    minWidth: 150,
-  },
-  alarmHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: theme.spacing.md,
-  },
-  alarmInfo: {
-    flex: 1,
-  },
-  alarmTitle: {
-    marginBottom: theme.spacing.xs,
-    fontWeight: '600',
-  },
-  alarmTime: {
-    color: theme.colors.primary,
-    fontWeight: 'bold',
-    marginBottom: theme.spacing.xs,
-    fontSize: 28,
-  },
-  daysChip: {
-    alignSelf: 'flex-start',
-    height: 24,
-  },
-  alarmActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
   },
   emptyState: {
     flex: 1,
@@ -1089,7 +1239,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.lg,
-    lineHeight: 22,
   },
   createButton: {
     marginTop: theme.spacing.sm,
@@ -1099,14 +1248,12 @@ const styles = StyleSheet.create({
     margin: theme.spacing.md,
     right: 0,
     bottom: 0,
-    borderRadius: 28,
   },
   modalContent: {
     backgroundColor: theme.colors.surface,
     padding: theme.spacing.lg,
     margin: theme.spacing.lg,
-    borderRadius: theme.spacing.md,
-    maxHeight: '80%',
+    borderRadius: theme.borderRadius.lg,
   },
   modalTitle: {
     marginBottom: theme.spacing.lg,
@@ -1123,7 +1270,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: theme.spacing.md,
     fontWeight: '600',
-    fontSize: 18,
   },
   durationButtons: {
     flexDirection: 'row',
@@ -1153,5 +1299,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-
-

@@ -309,7 +309,6 @@ import { GoalAnalyticsScreen } from '@/screens/goals/GoalAnalyticsScreen';
 import { MilestoneManagementScreen } from '@/screens/goals/MilestoneManagementScreen';
 import { AlarmsScreen } from '@/screens/alarms/AlarmsScreen';
 import { AlarmCreateScreen } from '@/screens/alarms/AlarmCreateScreen';
-import { AlarmEditScreen } from '@/screens/alarms/AlarmEditScreen';
 import { AnalyticsScreen } from '@/screens/analytics/AnalyticsScreen';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
 import { EditProfileScreen } from '@/screens/profile/EditProfileScreen';
@@ -365,7 +364,6 @@ export type RootStackParamList = {
   GoalAnalytics: { goalId: string };
   MilestoneManagement: { goalId: string };
   AlarmCreate: undefined;
-  AlarmEdit: { alarmId: string };
   RoutineCreate: undefined;
   RoutineEdit: { routineId: string };
   Settings: undefined;
@@ -794,14 +792,6 @@ export const MainNavigator: React.FC = () => {
       <Stack.Screen
         name="AlarmCreate"
         component={AlarmCreateScreen}
-        options={{
-          headerShown: false,
-          presentation: 'modal',
-        }}
-      />
-      <Stack.Screen
-        name="AlarmEdit"
-        component={AlarmEditScreen}
         options={{
           headerShown: false,
           presentation: 'modal',

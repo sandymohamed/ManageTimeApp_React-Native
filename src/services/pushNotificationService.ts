@@ -1,4 +1,4 @@
-import PushNotification, { PushNotification as PushNotificationType } from 'react-native-push-notification';
+import PushNotification, { ReceivedNotification } from 'react-native-push-notification';
 import { Platform, PermissionsAndroid } from 'react-native';
 import { apiClient } from './apiClient';
 import { logger } from '@/utils/logger';
@@ -68,25 +68,25 @@ class PushNotificationService {
     try {
       PushNotification.configure({
         // Called when a notification is received (foreground)
-        onNotification: (notification: PushNotificationType) => {
+        onNotification: (notification: Omit<ReceivedNotification, 'userInfo'>) => {
           logger.info('Notification received:', notification);
           
-          const data = notification.data || notification.userInfo || {};
+          const data = (notification as any).data || (notification as any).userInfo || {};
           const notificationType = data.type;
           
           // Handle alarm notifications
           if (notificationType === 'alarm') {
-            this.handleAlarmNotification(notification);
+            this.handleAlarmNotification(notification as any);
           }
           
           // Handle timer notifications
           if (notificationType === 'timer') {
-            this.handleTimerNotification(notification);
+            this.handleTimerNotification(notification as any);
           }
           
           // Handle notification tap
-          if (notification.userInteraction) {
-            this.handleNotificationTap(notification);
+          if ((notification as any).userInteraction) {
+            this.handleNotificationTap(notification as any);
           }
         },
 
@@ -234,20 +234,25 @@ class PushNotificationService {
   /**
    * Handle alarm notification
    */
-  private handleAlarmNotification(notification: PushNotificationType): void {
+  private handleAlarmNotification(notification: any): void {
     try {
-      const data = notification.data || {};
+      const data = notification.data || notification.userInfo || {};
       const alarmId = data.alarmId;
       logger.info('Alarm notification triggered:', alarmId);
       
-      // Trigger alarm event - this will be handled by AlarmsScreen
-      // We'll use an event emitter or store update
-      // For now, we'll just log it - the actual handling will be in AlarmsScreen
-      console.log('⏰ ALARM FIRED:', alarmId);
+      // When alarm notification fires, the notification itself handles the sound/vibration
+      // This will work even if the app is in background or closed
+      console.log('⏰ ALARM FIRED FROM NOTIFICATION:', alarmId);
       
-      // Emit event that AlarmsScreen can listen to
-      // Since we can't easily use events here, we'll rely on the notification system
-      // and AlarmsScreen will check for active alarms
+      // Note: The actual alarm sound/vibration is handled by the local notification
+      // when the app is in background. When the app comes to foreground, AlarmsScreen
+      // will check for alarms that should have fired and handle them.
+      
+      // Cancel the notification after it fires (so it doesn't keep ringing)
+      // The notification should auto-cancel, but we'll ensure it's cancelled
+      if (notification.id) {
+        PushNotification.cancelLocalNotifications({ id: notification.id.toString() });
+      }
     } catch (error) {
       logger.error('Failed to handle alarm notification:', error);
     }
@@ -256,9 +261,9 @@ class PushNotificationService {
   /**
    * Handle timer notification
    */
-  private handleTimerNotification(notification: PushNotificationType): void {
+  private handleTimerNotification(notification: any): void {
     try {
-      const data = notification.data || {};
+      const data = notification.data || notification.userInfo || {};
       const timerId = data.timerId;
       logger.info('Timer notification triggered:', timerId);
       
@@ -273,9 +278,9 @@ class PushNotificationService {
   /**
    * Handle notification tap
    */
-  private handleNotificationTap(notification: PushNotificationType): void {
+  private handleNotificationTap(notification: any): void {
     try {
-      const data = notification.data;
+      const data = notification.data || notification.userInfo || {};
       logger.info('Notification tapped:', data);
       if (!data) return;
 
@@ -342,7 +347,7 @@ class PushNotificationService {
     return new Promise((resolve) => {
       PushNotification.checkPermissions((permissions) => {
         const granted = permissions.alert && permissions.badge && permissions.sound;
-        resolve(granted);
+        resolve(granted || false);
       });
     });
   }
@@ -355,8 +360,11 @@ class PushNotificationService {
       PushNotification.localNotification({
         title,
         message,
-        data,
-        channelId: 'default-channel-id',
+        userInfo: {
+          type: 'push',
+          ...(data || {}),
+        },
+        channelId: Platform.OS === 'android' ? 'default-channel-id' : undefined,
         playSound: true,
         soundName: 'default',
       });

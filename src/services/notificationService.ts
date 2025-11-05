@@ -35,16 +35,18 @@ class NotificationService {
     if (this.initialized || Platform.OS !== 'android') return;
     
     try {
-      // Create alarm channel for Android
+      // Create alarm channel for Android with highest priority
       PushNotification.createChannel(
         {
           channelId: this.alarmChannelId,
           channelName: 'Alarms',
-          channelDescription: 'Notifications for alarms',
+          channelDescription: 'Notifications for alarms - will wake device and play sound',
           playSound: true,
           soundName: 'default',
-          importance: 5, // Urgent - makes sound and appears on screen
+          importance: 5, // Urgent - makes sound and appears on screen (highest priority)
           vibrate: true,
+          lights: true,
+          lightColor: '#FF0000',
         },
         (created) => console.log(`Alarm channel created: ${created}`)
       );
@@ -117,14 +119,51 @@ class NotificationService {
     }
 
     try {
-      const alarmTime = new Date(alarm.time);
+      let alarmTime = new Date(alarm.time);
       const now = new Date();
+      
+      // For one-time alarms, if the alarm time is tomorrow but the time today hasn't passed yet,
+      // adjust it to today. This fixes cases where alarms were created with the wrong date.
+      const isOneTimeAlarm = !alarm.recurrenceRule || alarm.recurrenceRule === 'none';
+      if (isOneTimeAlarm) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const alarmDate = new Date(alarmTime);
+        alarmDate.setHours(0, 0, 0, 0);
+        
+        // If alarm is scheduled for tomorrow but the time today hasn't passed
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        if (alarmDate.getTime() === tomorrow.getTime()) {
+          const alarmTimeToday = new Date(today);
+          alarmTimeToday.setHours(alarmTime.getHours(), alarmTime.getMinutes(), 0, 0);
+          
+          // Only adjust if the time today hasn't passed
+          if (alarmTimeToday.getTime() > now.getTime()) {
+            console.log(`🔧 Adjusting alarm ${alarm.id} from tomorrow to today`);
+            alarmTime = alarmTimeToday;
+          }
+        }
+      }
+      
+      // Debug logging
+      console.log(`🔍 Alarm scheduling debug for ${alarm.id}:`, {
+        alarmTimeISO: alarm.time,
+        alarmTimeParsed: alarmTime.toISOString(),
+        alarmTimeLocal: alarmTime.toLocaleString(),
+        nowISO: now.toISOString(),
+        nowLocal: now.toLocaleString(),
+        timezone: alarm.timezone,
+        isOneTime: isOneTimeAlarm,
+      });
       
       // Don't schedule if alarm time is in the past (more than 1 minute ago)
       // Allow scheduling if it's within the last minute to catch alarms that just passed
       const timeDiff = alarmTime.getTime() - now.getTime();
       if (timeDiff < -60000) {
-        console.log(`Alarm ${alarm.id} time is too far in the past, skipping scheduling`);
+        console.log(`⚠️ Alarm ${alarm.id} time is too far in the past (${Math.round(timeDiff / 1000)}s), skipping scheduling`);
+        console.log(`   Alarm time: ${alarmTime.toLocaleString()}, Now: ${now.toLocaleString()}`);
         return;
       }
 
@@ -160,6 +199,16 @@ class NotificationService {
         },
         repeatType: this.getRepeatType(alarm.recurrenceRule),
         actions: ['["Dismiss", "Snooze"]'],
+        // Ensure notification works when app is closed
+        ongoing: false,
+        autoCancel: true,
+        // For Android: ensure it wakes up device and plays sound
+        wakeUp: true,
+        tag: `alarm_${alarm.id}`,
+        // For iOS: ensure sound plays even in silent mode
+        ...(Platform.OS === 'ios' && {
+          category: 'ALARM',
+        }),
       });
       
       console.log(`✅ Alarm ${alarm.id} scheduled successfully with notification ID: ${notificationId}`);
