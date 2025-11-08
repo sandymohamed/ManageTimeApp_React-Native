@@ -96,6 +96,26 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ navigation, 
     }
   };
 
+  const formatDueTime = (time?: string) => {
+    if (!time) {
+      return null;
+    }
+
+    try {
+      const [hours, minutes] = time.split(':').map(part => parseInt(part, 10));
+      if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+        return time;
+      }
+
+      const date = new Date();
+      date.setHours(hours, minutes, 0, 0);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (error) {
+      console.warn('Failed to format due time:', error);
+      return time;
+    }
+  };
+
   const styles = createStyles(theme);
 
   if (isLoading) {
@@ -200,14 +220,15 @@ export const TaskDetailScreen: React.FC<TaskDetailScreenProps> = ({ navigation, 
               </Chip>
             </View>
 
-            {task.dueDate && (
+            {(task.dueDate || task.dueTime) && (
               <View style={styles.infoRow}>
                 <IconButton icon="calendar" size={20} iconColor={theme.colors.primary} />
                 <Text style={[styles.infoLabel, { color: theme.colors.textSecondary }]}>
                   {t('tasks.dueDate')}:
                 </Text>
                 <Text style={[styles.infoValue, { color: theme.colors.text }]}>
-                  {new Date(task.dueDate).toLocaleDateString()}
+                  {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : t('common.notSet')}
+                  {task.dueTime ? ` • ${formatDueTime(task.dueTime)}` : ''}
                 </Text>
               </View>
             )}
