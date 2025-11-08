@@ -23,8 +23,6 @@ export const TaskCreateScreen: React.FC<TaskCreateScreenProps> = ({ navigation, 
   const theme = customTheme.theme;
   const { createTask, isLoading } = useTaskStore();
 
-  console.log("navigation, route", navigation, route);
-
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',

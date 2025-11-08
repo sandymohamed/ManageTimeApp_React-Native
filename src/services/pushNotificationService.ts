@@ -66,13 +66,42 @@ class PushNotificationService {
    */
   private configurePushNotifications(): void {
     try {
-      PushNotification.configure({
+      const configureOptions: any = {
+        senderID: '93362201097',
         // Called when a notification is received (foreground)
         onNotification: (notification: Omit<ReceivedNotification, 'userInfo'>) => {
           logger.info('Notification received:', notification);
           
-          const data = (notification as any).data || (notification as any).userInfo || {};
-          const notificationType = data.type;
+          const payload = (notification as any).data || (notification as any).userInfo || {};
+          const notificationType = payload.type;
+          const isLocalNotification = payload?.__local === 'true';
+          const isForeground = (notification as any).foreground === true;
+
+          // Show a banner when the app is in the foreground.
+          if (Platform.OS === 'android' && isForeground && !isLocalNotification) {
+            try {
+              PushNotification.localNotification({
+                title:
+                  (notification as any).title ||
+                  payload.title ||
+                  'Manage Time',
+                message:
+                  (notification as any).message ||
+                  payload.body ||
+                  payload.alert ||
+                  'You have a new notification',
+                channelId: 'default-channel-id',
+                userInfo: {
+                  ...payload,
+                  __local: 'true',
+                },
+                playSound: true,
+                soundName: 'default',
+              });
+            } catch (error) {
+              logger.error('Failed to display foreground notification:', error);
+            }
+          }
           
           // Handle alarm notifications
           if (notificationType === 'alarm') {
@@ -126,7 +155,9 @@ class PushNotificationService {
 
         // Whether pop initial notification
         popInitialNotification: true,
-      });
+      };
+
+      PushNotification.configure(configureOptions);
 
       // Create notification channel for Android
       if (Platform.OS === 'android') {
@@ -155,6 +186,14 @@ class PushNotificationService {
   private async requestPermissions(): Promise<void> {
     try {
       if (Platform.OS === 'android') {
+        const requestPushToken = () => {
+          try {
+            PushNotification.requestPermissions();
+          } catch (error) {
+            logger.error('Failed to request push token permissions:', error);
+          }
+        };
+
         // Android 13+ requires explicit permission
         if (Platform.Version >= 33) {
           const granted = await PermissionsAndroid.request(
@@ -172,6 +211,10 @@ class PushNotificationService {
             logger.warn('Notification permission not granted');
             throw new Error('Notification permission denied');
           }
+
+          requestPushToken();
+        } else {
+          requestPushToken();
         }
       } else if (Platform.OS === 'ios') {
         // iOS permissions are requested via configure
@@ -196,8 +239,22 @@ class PushNotificationService {
       // Wait a bit for token to be available
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      if (this.currentToken) {
-        await this.sendTokenToBackend(this.currentToken);
+      let tokenToSend = this.currentToken;
+
+      if (!tokenToSend) {
+        // Attempt to reuse previously stored token if available
+        const storedToken = await AsyncStorage.getItem(PushNotificationService.TOKEN_KEY);
+        if (storedToken) {
+          logger.info('Using stored push token from AsyncStorage');
+          this.currentToken = storedToken;
+          tokenToSend = storedToken;
+        }
+      }
+
+      if (tokenToSend) {
+        await this.sendTokenToBackend(tokenToSend);
+      } else {
+        logger.warn('No push token available to register with backend');
       }
     } catch (error) {
       logger.error('Failed to register token:', error);

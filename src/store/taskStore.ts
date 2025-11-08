@@ -93,14 +93,11 @@ export const useTaskStore = create<TaskStore>()(
         goalId?: string;
         assigneeId?: string;
       }) => {
-        console.log('**************************    7777777777 Fetching tasks', get());
         try {
           set({ isLoading: true, error: null });
 
           const response = await taskService.getTasks(params);
-          console.log('Fetching tasks Response:', response);
           const serverTasks = response;
-          console.log('Fetching tasks Tasks:', serverTasks);
 
           // Sort tasks by order field
           const sortedServerTasks = serverTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -232,8 +229,6 @@ export const useTaskStore = create<TaskStore>()(
       updateTask: async (id: string, data: UpdateTaskData) => {
         try {
           set({ isLoading: true, error: null });
-
-          console.log("data", data);
 
           // Filter out undefined values before sending to backend
           const filteredData = Object.fromEntries(

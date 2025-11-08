@@ -14,12 +14,10 @@ class TaskService {
     goalId?: string;
     assigneeId?: string;
   }): Promise<Task[]> {
-    console.log('Get tasks:', params);
     try {
       const response = await apiClient.get<ApiResponse<Task[]>>('/tasks', {
         params,
       });
-      console.log('Response TaskService:', response.data);
 
 
       if (!response.success) {
@@ -180,13 +178,10 @@ class TaskService {
 
   async updateTaskOrder(taskOrders: { id: string; order: number }[]): Promise<void> {
     try {
-
-      console.log(" taskOrders in update task order", taskOrders);
       const response = await apiClient.patch<ApiResponse<void>>('/tasks/reorder', {
         taskOrders,
       });
 
-      console.log(" response in update task order", response);
       if (!response.success) {
         throw new Error(response.error || 'Failed to update task order');
       }

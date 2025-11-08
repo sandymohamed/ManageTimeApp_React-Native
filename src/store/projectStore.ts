@@ -156,7 +156,6 @@ export const useProjectStore = create<ProjectStore>()(
           set({ isLoading: true, error: null });
 
           const response = await projectService.getProjects();
-          console.log('response fetchProjects', response);
           const projects = response?.data || [];
 
           set({

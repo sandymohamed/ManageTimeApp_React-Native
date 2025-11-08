@@ -481,7 +481,6 @@ const SwipeableTabBar: React.FC<any> = ({ state, descriptors, navigation }) => {
             const route = state.routes.find((r: any) => r.name === tab.key);
             if (!route) return null;
 
-            console.log(' state.index === index', state.index, index);
             const { options } = descriptors[route.key];
             const isFocused = state.index === index;
 

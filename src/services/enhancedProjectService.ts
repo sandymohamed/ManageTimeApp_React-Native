@@ -34,8 +34,6 @@ class EnhancedProjectService {
         params: filters,
       });
 
-      console.log('🔍  ******************** response:', response);
-
       if (!response.success) {
         throw new Error(response.error || 'Failed to get projects');
       }

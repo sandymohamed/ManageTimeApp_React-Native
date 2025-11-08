@@ -177,13 +177,15 @@ class NotificationService {
       const notificationId = parseInt(alarm.id.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(alarm.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
       
       // Cancel any existing notification with this ID first
-      PushNotification.cancelLocalNotifications({ id: notificationId.toString() });
+      PushNotification.cancelLocalNotification(notificationId.toString());
       
       PushNotification.localNotificationSchedule({
         id: notificationId.toString(),
         title: '⏰ Alarm',
         message: alarm.title,
         date: alarmTime,
+        allowWhileIdle: true,
+        ignoreInForeground: false,
         soundName: 'default', // System default sound
         playSound: true,
         vibrate: true,
@@ -247,7 +249,7 @@ class NotificationService {
       console.log(`Cancelling alarm notification ${alarmId}`);
       // Convert alarm ID to numeric ID for notification
       const notificationId = parseInt(alarmId.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(alarmId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
-      PushNotification.cancelLocalNotifications({ id: notificationId.toString() });
+      PushNotification.cancelLocalNotification(notificationId.toString());
     } catch (error) {
       console.error(`Failed to cancel alarm ${alarmId}:`, error);
     }
@@ -270,6 +272,8 @@ class NotificationService {
         title: '⏱️ Timer Complete',
         message: `${title} is complete!`,
         date: triggerTime,
+        allowWhileIdle: true,
+        ignoreInForeground: false,
         soundName: 'default',
         playSound: true,
         vibrate: true,
@@ -296,7 +300,7 @@ class NotificationService {
     try {
       // Convert timer ID to numeric ID for notification
       const notificationId = parseInt(timerId.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(timerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
-      PushNotification.cancelLocalNotifications({ id: notificationId.toString() });
+      PushNotification.cancelLocalNotification(notificationId.toString());
     } catch (error) {
       console.error(`Failed to cancel timer ${timerId}:`, error);
     }
