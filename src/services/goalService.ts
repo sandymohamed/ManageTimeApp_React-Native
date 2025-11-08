@@ -96,7 +96,11 @@ class GoalService {
 
   async generateAIPlan(data: AIPlanRequest): Promise<GeneratedPlanResult> {
     try {
-      const response = await apiClient.post<ApiResponse<GeneratedPlanResult>>('/ai/generate-plan', data);
+      const response = await apiClient.post<ApiResponse<GeneratedPlanResult>>(
+        '/ai/generate-plan',
+        data,
+        { timeout: 60000 }
+      );
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to generate AI plan');
