@@ -1,7 +1,16 @@
-import {apiClient} from './apiClient';
-import {Goal, CreateGoalData, UpdateGoalData, AIPlanRequest, GeneratedPlan, Milestone, CreateMilestoneData, UpdateMilestoneData} from '@/types/goal';
-import {ApiResponse, PaginatedResponse} from '@/types';
-import {logger} from '@/utils/logger';
+import { apiClient } from './apiClient';
+import {
+  Goal,
+  CreateGoalData,
+  UpdateGoalData,
+  AIPlanRequest,
+  GeneratedPlanResult,
+  Milestone,
+  CreateGoalMilestoneData,
+  UpdateGoalMilestoneData,
+} from '@/types/goal';
+import { ApiResponse } from '@/types';
+import { logger } from '@/utils/logger';
 
 class GoalService {
   async getGoals(params?: {
@@ -85,9 +94,9 @@ class GoalService {
     }
   }
 
-  async generateAIPlan(data: AIPlanRequest): Promise<GeneratedPlan> {
+  async generateAIPlan(data: AIPlanRequest): Promise<GeneratedPlanResult> {
     try {
-      const response = await apiClient.post<ApiResponse<GeneratedPlan>>('/ai/generate-plan', data);
+      const response = await apiClient.post<ApiResponse<GeneratedPlanResult>>('/ai/generate-plan', data);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to generate AI plan');
@@ -100,9 +109,9 @@ class GoalService {
     }
   }
 
-  async generateSimplePlan(goalTitle: string): Promise<GeneratedPlan> {
+  async generateSimplePlan(goalTitle: string): Promise<GeneratedPlanResult> {
     try {
-      const response = await apiClient.post<ApiResponse<GeneratedPlan>>('/ai/generate-simple-plan', {
+      const response = await apiClient.post<ApiResponse<GeneratedPlanResult>>('/ai/generate-simple-plan', {
         goalTitle,
       });
 
@@ -143,9 +152,14 @@ class GoalService {
     }
   }
 
-  async createMilestone(goalId: string, data: CreateMilestoneData): Promise<Milestone> {
+  async createMilestone(goalId: string, data: CreateGoalMilestoneData): Promise<Milestone> {
     try {
-      const response = await apiClient.post<ApiResponse<Milestone>>(`/goals/${goalId}/milestones`, data);
+      const payload = {
+        ...data,
+        dueDate: data.dueDate ?? data.targetDate,
+      };
+
+      const response = await apiClient.post<ApiResponse<Milestone>>(`/goals/${goalId}/milestones`, payload);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to create milestone');
@@ -158,9 +172,14 @@ class GoalService {
     }
   }
 
-  async updateMilestone(goalId: string, milestoneId: string, data: UpdateMilestoneData): Promise<Milestone> {
+  async updateMilestone(goalId: string, milestoneId: string, data: UpdateGoalMilestoneData): Promise<Milestone> {
     try {
-      const response = await apiClient.put<ApiResponse<Milestone>>(`/goals/${goalId}/milestones/${milestoneId}`, data);
+      const payload = {
+        ...data,
+        dueDate: data.dueDate ?? data.targetDate,
+      };
+
+      const response = await apiClient.put<ApiResponse<Milestone>>(`/goals/${goalId}/milestones/${milestoneId}`, payload);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to update milestone');

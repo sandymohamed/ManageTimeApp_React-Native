@@ -2,9 +2,11 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { goalService } from '@/services/goalService';
-import { Goal, CreateGoalData, UpdateGoalData, GoalStatus, GoalPriority, Milestone, CreateMilestoneData, UpdateMilestoneData, MilestoneStatus } from '@/types/goal';
+import { Goal, CreateGoalData, UpdateGoalData, GoalStatus, GoalPriority, AIPlanRequest } from '@/types/goal';
+import { CreateGoalMilestoneData, MilestoneStatus, UpdateGoalMilestoneData } from '@/types';
 import { logger } from '@/utils/logger';
 import { format } from 'date-fns';
+import { useAuthStore } from './authStore';
 
 interface GoalState {
   goals: Goal[];
@@ -47,13 +49,13 @@ interface GoalActions {
   cancelGoal: (id: string) => Promise<void>;
 
   // Milestone management
-  createMilestone: (goalId: string, data: CreateMilestoneData) => Promise<void>;
-  updateMilestone: (goalId: string, milestoneId: string, data: UpdateMilestoneData) => Promise<void>;
+  createMilestone: (goalId: string, data: CreateGoalMilestoneData) => Promise<void>;
+  updateMilestone: (goalId: string, milestoneId: string, data: UpdateGoalMilestoneData) => Promise<void>;
   deleteMilestone: (goalId: string, milestoneId: string) => Promise<void>;
   completeMilestone: (goalId: string, milestoneId: string) => Promise<void>;
 
   // AI Planning
-  generateAIPlan: (goalId: string, prompt?: string) => Promise<void>;
+  generateAIPlan: (goalId: string, promptOptions?: AIPlanRequest['promptOptions']) => Promise<Goal>;
 
   // Analytics
   getGoalAnalytics: (goalId: string, timeRange?: string) => Promise<any>;
@@ -111,6 +113,11 @@ export const useGoalStore = create<GoalStore>()(
       // Data fetching
       fetchGoals: async (page = 1, limit = 20) => {
         try {
+          if (!useAuthStore.getState().isAuthenticated) {
+            set({ isLoading: false, error: null });
+            return;
+          }
+
           set({ isLoading: true, error: null });
 
           const response = await goalService.getGoals({
@@ -149,6 +156,11 @@ export const useGoalStore = create<GoalStore>()(
 
       fetchGoal: async (id: string) => {
         try {
+          if (!useAuthStore.getState().isAuthenticated) {
+            set({ isLoading: false, error: null });
+            return;
+          }
+
           set({ isLoading: true, error: null });
 
           const goal = await goalService.getGoal(id);
@@ -319,7 +331,7 @@ export const useGoalStore = create<GoalStore>()(
       },
 
       // Milestone management
-      createMilestone: async (goalId: string, data: CreateMilestoneData) => {
+      createMilestone: async (goalId: string, data: CreateGoalMilestoneData) => {
         try {
           const milestone = await goalService.createMilestone(goalId, data);
 
@@ -341,7 +353,7 @@ export const useGoalStore = create<GoalStore>()(
         }
       },
 
-      updateMilestone: async (goalId: string, milestoneId: string, data: UpdateMilestoneData) => {
+      updateMilestone: async (goalId: string, milestoneId: string, data: UpdateGoalMilestoneData) => {
         try {
           const milestone = await goalService.updateMilestone(goalId, milestoneId, data);
 
@@ -574,71 +586,30 @@ export const useGoalStore = create<GoalStore>()(
       },
 
       // AI Planning
-      generateAIPlan: async (goalId: string, prompt?: string) => {
+      generateAIPlan: async (goalId: string, promptOptions?: AIPlanRequest['promptOptions']) => {
         try {
           set({ isLoading: true, error: null });
 
-          // This would integrate with the AI service
-          // For now, we'll simulate AI planning
-          const goal = get().goals.find(g => g.id === goalId);
-          if (!goal) return;
+          await goalService.generateAIPlan({ goalId, promptOptions });
 
-          // Simulate AI-generated milestones based on goal
-          const aiMilestones = [
-            {
-              id: `ai_milestone_${Date.now()}_1`,
-              goalId,
-              title: `Research and plan ${goal.title.toLowerCase()}`,
-              description: `Gather information and create a detailed plan for achieving ${goal.title}`,
-              status: MilestoneStatus.TODO,
-              targetDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week from now
-              order: 0,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              isDeleted: false,
-            },
-            {
-              id: `ai_milestone_${Date.now()}_2`,
-              goalId,
-              title: `Take first action towards ${goal.title.toLowerCase()}`,
-              description: `Begin implementing your plan with the first concrete step`,
-              status: MilestoneStatus.TODO,
-              targetDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks from now
-              order: 1,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              isDeleted: false,
-            },
-            {
-              id: `ai_milestone_${Date.now()}_3`,
-              goalId,
-              title: `Review and adjust approach`,
-              description: `Evaluate progress and make necessary adjustments to your strategy`,
-              status: MilestoneStatus.TODO,
-              targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 1 month from now
-              order: 2,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              isDeleted: false,
-            }
-          ];
+          const updatedGoal = await goalService.getGoal(goalId);
 
-          const updatedGoal = {
-            ...goal,
-            milestones: [...goal.milestones, ...aiMilestones],
-            updatedAt: new Date().toISOString(),
-          };
+          const updateGoalInList = (goals: Goal[]) =>
+            goals.map(g => (g.id === goalId ? updatedGoal : g));
 
           set((state) => ({
-            goals: state.goals.map(g => g.id === goalId ? updatedGoal : g),
+            goals: updateGoalInList(state.goals),
+            filteredGoals: updateGoalInList(state.filteredGoals),
             currentGoal: state.currentGoal?.id === goalId ? updatedGoal : state.currentGoal,
             isLoading: false,
           }));
 
           get().applyFilters();
+
+          return updatedGoal;
         } catch (error: any) {
           logger.error('Generate AI plan error:', error);
-          set({ error: error.message, isLoading: false });
+          set({ error: error.message || 'Failed to generate AI plan', isLoading: false });
           throw error;
         }
       },

@@ -671,7 +671,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useGoalStore } from '@/store/goalStore';
-import { Goal, Milestone, MilestoneStatus } from '@/types/goal';
+import { Milestone  } from '@/types/goal';
+import {  MilestoneStatus } from '@/types';
 import { format, isAfter, isBefore, differenceInDays } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
 

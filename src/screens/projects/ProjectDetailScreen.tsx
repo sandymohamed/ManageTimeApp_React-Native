@@ -210,8 +210,6 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
     }
   };
 
-  // TODO: all get colors have problems !!!!
-
   const getRoleColor = (role: ProjectRole) => {
     switch (role) {
       case ProjectRole.OWNER: return theme.colors.error;

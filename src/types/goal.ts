@@ -1,4 +1,5 @@
-import { MilestoneStatus } from "./project";
+import { Task } from './task';
+import { MilestoneStatus } from './project';
 
 export enum GoalStatus {
   DRAFT = 'DRAFT',
@@ -27,7 +28,7 @@ export interface Goal {
   progress: number;
   userId: string;
   milestones: Milestone[];
-  tasks: string[];
+  tasks: Task[];
   createdAt: string;
   updatedAt: string;
   syncedAt?: string;
@@ -74,20 +75,24 @@ export interface UpdateGoalData {
   completedAt?: string;
 }
 
-// export interface CreateMilestoneData {
-//   title: string;
-//   description?: string;
-//   targetDate?: string;
-//   order?: number;
-// }
+export interface CreateGoalMilestoneData {
+  title: string;
+  description?: string;
+  targetDate?: string;
+  dueDate?: string;
+  startDate?: string;
+  order?: number;
+}
 
-// export interface UpdateMilestoneData {
-//   title?: string;
-//   description?: string;
-//   status?: MilestoneStatus;
-//   targetDate?: string;
-//   order?: number;
-// }
+export interface UpdateGoalMilestoneData {
+  title?: string;
+  description?: string;
+  status?: MilestoneStatus;
+  targetDate?: string;
+  dueDate?: string;
+  startDate?: string;
+  order?: number;
+}
 
 export interface AIPlanRequest {
   goalId: string;
@@ -103,6 +108,12 @@ export interface GeneratedPlan {
   milestones: GeneratedMilestone[];
   tasks: GeneratedTask[];
   notes?: string;
+}
+
+export interface GeneratedPlanResult {
+  plan: GeneratedPlan;
+  milestones: Milestone[];
+  tasks: Task[];
 }
 
 export interface GeneratedMilestone {

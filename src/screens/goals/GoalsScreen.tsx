@@ -943,9 +943,9 @@ export const GoalsScreen: React.FC<GoalsScreenProps> = ({ navigation }) => {
         { text: t('common.cancel'), style: 'cancel' },
         {
           text: t('goals.generatePlan'),
-          onPress: () => {
+          onPress: async () => {
             try {
-              generateAIPlan(goal.id);
+              await generateAIPlan(goal.id);
               showSuccess(t('goals.aiPlanGenerated'));
             } catch (error: any) {
               showError(error.message || t('goals.aiPlanError'));
@@ -1734,6 +1734,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   modalIcon: {
     marginBottom: 16,
+
   },
   goalModalTitle: {
     textAlign: 'center',

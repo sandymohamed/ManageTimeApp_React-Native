@@ -630,7 +630,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useGoalStore } from '@/store/goalStore';
-import { Goal, GoalStatus, GoalPriority, Milestone, MilestoneStatus } from '@/types/goal';
+import { Goal, GoalStatus, GoalPriority, Milestone, MilestoneStatus } from '@/types';
 import { format, isAfter, isBefore, differenceInDays, isToday, isTomorrow } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -664,6 +664,7 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
     updateMilestone,
     completeMilestone,
     deleteMilestone,
+    generateAIPlan,
     isLoading
   } = useGoalStore();
 
@@ -790,6 +791,29 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
     } catch (error: any) {
       showError(error.message || t('goals.milestoneUpdateError'));
     }
+  };
+
+  const handleAIPlanning = () => {
+    if (!currentGoal) return;
+
+    Alert.alert(
+      t('goals.aiPlanning'),
+      t('goals.aiPlanningDescription'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('goals.generatePlan'),
+          onPress: async () => {
+            try {
+              await generateAIPlan(currentGoal.id);
+              showSuccess(t('goals.aiPlanGenerated'));
+            } catch (error: any) {
+              showError(error.message || t('goals.aiPlanError'));
+            }
+          },
+        },
+      ],
+    );
   };
 
   const validateMilestoneForm = () => {
@@ -1056,7 +1080,7 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
     if (!currentGoal) return null;
 
     const timeStatus = getTimeStatus(currentGoal.targetDate);
-    const completedMilestones = currentGoal.milestones.filter(m => m.status === MilestoneStatus.DONE).length;
+    const completedMilestones = currentGoal?.milestones?.filter(m => m.status === MilestoneStatus.DONE).length;
     const totalMilestones = currentGoal.milestones.length;
     const progressColor = getProgressColor(currentGoal.progress);
 
@@ -1179,7 +1203,7 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
   const renderMilestones = () => {
     if (!currentGoal) return null;
 
-    const completedCount = currentGoal.milestones.filter(m => m.status === MilestoneStatus.DONE).length;
+    const completedCount = currentGoal?.milestones?.filter(m => m.status === MilestoneStatus.DONE).length;
     const totalCount = currentGoal.milestones.length;
 
     return (
@@ -1390,6 +1414,16 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
               contentStyle={styles.actionButtonContent}
             >
               {t('goals.analytics')}
+            </Button>
+
+            <Button
+              mode="outlined"
+              onPress={handleAIPlanning}
+              style={styles.actionButton}
+              icon="robot"
+              contentStyle={styles.actionButtonContent}
+            >
+              {t('goals.aiPlan')}
             </Button>
           </View>
         </Card.Content>
