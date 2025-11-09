@@ -11,9 +11,9 @@ import {
   Vibration
 } from 'react-native';
 import Sound from 'react-native-sound';
-import { Text, FAB, Card, Button, Chip, SegmentedButtons, Portal, Modal, TextInput, IconButton } from 'react-native-paper';
+import { Text, FAB, Card, Button, Chip, SegmentedButtons, Portal, Modal, TextInput, IconButton, Dialog, Avatar } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useAlarmStore } from '@/store/alarmStore';
 import { Alarm, Timer } from '@/types/alarm';
@@ -173,12 +173,16 @@ export const AlarmsScreen: React.FC = () => {
 
   const soundManager = useRef(new SoundManager()).current;
   const appState = useRef<AppStateStatus>(AppState.currentState);
+  const isFocused = useIsFocused();
+  const [pendingAlarm, setPendingAlarm] = useState<Alarm | null>(null);
+  const [pendingTimer, setPendingTimer] = useState<{ id: string; title: string } | null>(null);
   
   // Timer background tracking
   const timerStartTimeRef = useRef<number | null>(null);
   const timerPausedTimeRef = useRef<number>(0);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const backgroundTimerRef = useRef<number | null>(null);
+  const backgroundRemainingRef = useRef<number | null>(null);
 
   const {
     alarms,
@@ -225,6 +229,7 @@ export const AlarmsScreen: React.FC = () => {
     // Force stop immediately regardless of state
     setIsStopping(true);
     setActiveAlarmId(null);
+    setPendingAlarm(null);
     
     // Cancel the scheduled notification first
     notificationService.cancelAlarm(alarmId);
@@ -267,7 +272,7 @@ export const AlarmsScreen: React.FC = () => {
     setTimeout(() => {
       setIsStopping(false);
     }, 600);
-  }, [alarms, deleteAlarm]);
+  }, [alarms, deleteAlarm, notificationService, soundManager, activeAlarmId, isStopping]);
 
   // Handle alarm fired - simplified
   const handleAlarmFired = React.useCallback((alarm: Alarm) => {
@@ -295,40 +300,9 @@ export const AlarmsScreen: React.FC = () => {
     
     // Play sound immediately
     soundManager.playAlarmSound();
-
-    // Show alert
-    Alert.alert(
-      '⏰ Alarm',
-      alarm.title,
-      [
-        {
-          text: 'Dismiss',
-          onPress: async () => {
-            console.log('👆 Dismiss pressed for alarm:', alarm.id);
-            // Dismiss first, then stop
-            try {
-              await dismissAlarm(alarm.id);
-            } catch (error) {
-              console.log('Dismiss failed (alarm may already be deleted):', error);
-            }
-            await handleStopAlarm(alarm.id);
-          },
-        },
-      ],
-      { 
-        cancelable: false,
-        onDismiss: async () => {
-          console.log('👆 Alert dismissed for alarm:', alarm.id);
-          try {
-            await dismissAlarm(alarm.id);
-          } catch (error) {
-            console.log('Dismiss failed (alarm may already be deleted):', error);
-          }
-          await handleStopAlarm(alarm.id);
-        }
-      }
-    );
-  }, [activeAlarmId, isStopping, dismissAlarm, handleStopAlarm]);
+    notificationService.triggerImmediateAlarmNotification(alarm);
+    setPendingAlarm(alarm);
+  }, [activeAlarmId, isStopping, dismissAlarm, handleStopAlarm, soundManager]);
 
   // Check if alarm should fire today
   const shouldAlarmFireToday = (alarm: Alarm, now: Date): boolean => {
@@ -511,22 +485,36 @@ export const AlarmsScreen: React.FC = () => {
       const previousState = appState.current;
       appState.current = nextAppState;
 
-      // App came to foreground
+      if (nextAppState.match(/inactive|background/)) {
+        const runningTimer = timers.find(t => t.isRunning && !t.isPaused);
+        if (runningTimer) {
+          backgroundTimerRef.current = Date.now();
+          backgroundRemainingRef.current = runningTimer.remainingTime;
+        }
+      }
+
       if (previousState.match(/inactive|background/) && nextAppState === 'active') {
-        // Refresh timers to sync with server
         fetchTimers();
         fetchAlarms();
-        
-        // Resume timer countdown if needed
+
         const runningTimer = timers.find(t => t.isRunning && !t.isPaused);
-        if (runningTimer && timerStartTimeRef.current) {
-          // Recalculate remaining time based on elapsed time
-          const elapsed = Math.floor((Date.now() - timerStartTimeRef.current) / 1000) - timerPausedTimeRef.current;
-          const newRemaining = Math.max(0, runningTimer.duration * 60 - elapsed);
-          updateTimerRemainingTime(runningTimer.id, newRemaining);
-          startTimerCountdown(runningTimer);
+        if (runningTimer && backgroundTimerRef.current) {
+          const elapsed = Math.floor((Date.now() - backgroundTimerRef.current) / 1000);
+          const baseRemaining = backgroundRemainingRef.current ?? runningTimer.remainingTime;
+          const recalculatedRemaining = Math.max(0, baseRemaining - elapsed);
+
+          if (recalculatedRemaining !== runningTimer.remainingTime) {
+            updateTimerRemainingTime(runningTimer.id, recalculatedRemaining);
+
+            if (recalculatedRemaining <= 0) {
+              handleTimerCompletion({ ...runningTimer, remainingTime: 0 });
+            }
+          }
         }
-        
+
+        backgroundTimerRef.current = null;
+        backgroundRemainingRef.current = null;
+
         checkAlarmsThatShouldHaveFired();
       }
     });
@@ -580,6 +568,7 @@ export const AlarmsScreen: React.FC = () => {
   // Handle timer completion
   const handleTimerCompletion = async (timer: Timer) => {
     if (activeTimerId === timer.id || isStopping) return;
+    const isTimerViewActive = isFocused && activeTab === 'timers';
 
     try {
       console.log('🎯 Timer completed:', timer.title);
@@ -587,6 +576,8 @@ export const AlarmsScreen: React.FC = () => {
       
       // Play sound
       soundManager.playAlarmSound();
+
+      notificationService.triggerImmediateTimerNotification({ id: timer.id, title: timer.title });
 
       // Stop timer
       await stopTimer(timer.id);
@@ -600,24 +591,9 @@ export const AlarmsScreen: React.FC = () => {
         timerIntervalRef.current = null;
       }
 
-      Alert.alert(
-        '⏰ Timer Complete!',
-        `${timer.title} is complete!`,
-        [
-          {
-            text: 'Stop Alarm',
-            onPress: () => {
-              handleStopTimer(timer.id);
-            },
-          },
-        ],
-        { 
-          cancelable: false,
-          onDismiss: () => {
-            handleStopTimer(timer.id);
-          }
-        }
-      );
+      if (!isTimerViewActive) {
+        setPendingTimer({ id: timer.id, title: timer.title });
+      }
     } catch (error) {
       console.error('Error handling timer completion:', error);
       handleStopTimer(timer.id);
@@ -631,11 +607,33 @@ export const AlarmsScreen: React.FC = () => {
     setIsStopping(true);
     soundManager.stopSound();
     setActiveTimerId(null);
+    setPendingTimer(null);
     
     setTimeout(() => {
       setIsStopping(false);
     }, 600);
   };
+
+  const handleAlarmDialogStop = React.useCallback(async () => {
+    if (!pendingAlarm) return;
+
+    // Always stop locally first so the user gets immediate feedback
+    await handleStopAlarm(pendingAlarm.id);
+    setPendingAlarm(null);
+
+    // Attempt to sync with backend, but don't block UI if it fails
+    try {
+      await dismissAlarm(pendingAlarm.id);
+    } catch (error) {
+      console.log('Dismiss alarm failed:', error);
+    }
+  }, [pendingAlarm, handleStopAlarm, dismissAlarm]);
+
+  const handleTimerDialogStop = React.useCallback(() => {
+    if (!pendingTimer) return;
+    handleStopTimer(pendingTimer.id);
+    setPendingTimer(null);
+  }, [pendingTimer, handleStopTimer]);
 
   // Error handling
   useEffect(() => {
@@ -700,6 +698,7 @@ export const AlarmsScreen: React.FC = () => {
       if (activeTimerId === timer.id) {
         handleStopTimer(timer.id);
       }
+      setPendingTimer(null);
     } catch (error) {
       Alert.alert('Error', 'Failed to stop timer');
     }
@@ -1112,6 +1111,82 @@ export const AlarmsScreen: React.FC = () => {
       )}
 
       <Portal>
+        <Dialog
+          visible={!!pendingAlarm}
+          onDismiss={handleAlarmDialogStop}
+          dismissable={false}
+        >
+          <Dialog.Content>
+            <View style={styles.dialogHeader}>
+              <Avatar.Icon
+                size={48}
+                icon="alarm"
+                color={theme.colors.onPrimary}
+                style={[styles.dialogIcon, { backgroundColor: theme.colors.error }]}
+              />
+              <View style={styles.dialogTextContainer}>
+                <Text variant="titleLarge" style={styles.dialogTitle}>
+                  {t('alarms.alarmRingingTitle') || 'Alarm Ringing'}
+                </Text>
+                <Text variant="bodyMedium" style={styles.dialogSubtitle}>
+                  {pendingAlarm?.title}
+                </Text>
+              </View>
+            </View>
+            <Text variant="bodyMedium" style={styles.dialogBody}>
+              {t('alarms.alarmRingingBody') || 'Tap stop to silence the alarm.'}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button
+              mode="contained"
+              icon="stop-circle"
+              onPress={handleAlarmDialogStop}
+              style={styles.dialogButton}
+            >
+              {t('common.stop') || 'Stop'}
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog
+          visible={!!pendingTimer}
+          onDismiss={handleTimerDialogStop}
+          dismissable={false}
+        >
+          <Dialog.Content>
+            <View style={styles.dialogHeader}>
+              <Avatar.Icon
+                size={48}
+                icon="timer-sand"
+                color={theme.colors.onPrimary}
+                style={[styles.dialogIcon, { backgroundColor: theme.colors.primary }]}
+              />
+              <View style={styles.dialogTextContainer}>
+                <Text variant="titleLarge" style={styles.dialogTitle}>
+                  {t('timers.timerRingingTitle') || 'Timer Finished'}
+                </Text>
+                <Text variant="bodyMedium" style={styles.dialogSubtitle}>
+                  {pendingTimer?.title}
+                </Text>
+              </View>
+            </View>
+            <Text variant="bodyMedium" style={styles.dialogBody}>
+              {t('timers.timerRingingBody') || 'Tap stop to silence the timer.'}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button
+              mode="contained"
+              icon="stop-circle"
+              onPress={handleTimerDialogStop}
+              style={styles.dialogButton}
+            >
+              {t('common.stop') || 'Stop'}
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+
         <Modal
           visible={showTimerModal}
           onDismiss={() => setShowTimerModal(false)}
@@ -1336,6 +1411,31 @@ const createStyles = (theme: any) => StyleSheet.create({
     gap: theme.spacing.sm,
   },
   modalButton: {
+    flex: 1,
+  },
+  dialogHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  dialogIcon: {
+    marginRight: theme.spacing.sm,
+  },
+  dialogTextContainer: {
+    flex: 1,
+  },
+  dialogTitle: {
+    fontWeight: '700',
+    color: theme.colors.onSurface,
+  },
+  dialogSubtitle: {
+    color: theme.colors.onSurfaceVariant,
+  },
+  dialogBody: {
+    marginTop: theme.spacing.xs,
+    color: theme.colors.onSurfaceVariant,
+  },
+  dialogButton: {
     flex: 1,
   },
 });

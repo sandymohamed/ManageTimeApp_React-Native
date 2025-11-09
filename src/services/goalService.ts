@@ -24,7 +24,6 @@ class GoalService {
         params,
       });
 
-      console.log('Get goals response:', response);
       if (!response.success) {
         throw new Error(response.error || 'Failed to get goals');
       }

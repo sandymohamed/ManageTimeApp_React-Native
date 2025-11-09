@@ -40,12 +40,10 @@ class TaskAlarmService {
       };
 
       // Create the alarm
-      const alarm = await alarmService.createAlarm(alarmData);
-      console.log(`Created alarm for task: ${task.title} at ${task.dueTime}`);
+      const alarm = await alarmService.createAlarm(alarmData); 
       
       return alarm.id;
     } catch (error) {
-      console.error('Failed to create alarm for task:', error);
       return null;
     }
   }
@@ -76,11 +74,9 @@ class TaskAlarmService {
       };
 
       await alarmService.updateAlarm(alarmId, updateData);
-      console.log(`Updated alarm for task: ${task.title}`);
       
       return true;
     } catch (error) {
-      console.error('Failed to update alarm for task:', error);
       return false;
     }
   }
@@ -91,10 +87,8 @@ class TaskAlarmService {
   async deleteAlarmForTask(alarmId: string): Promise<boolean> {
     try {
       await alarmService.deleteAlarm(alarmId);
-      console.log(`Deleted alarm for task`);
       return true;
     } catch (error) {
-      console.error('Failed to delete alarm for task:', error);
       return false;
     }
   }

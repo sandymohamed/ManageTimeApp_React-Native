@@ -1,8 +1,8 @@
 import { ApiResponse } from '@/types';
 import { apiClient } from './apiClient';
-import PushNotification from 'react-native-push-notification';
+import PushNotification, { Importance } from 'react-native-push-notification';
 import { Platform } from 'react-native';
-import { Alarm } from '@/types/alarm';
+import { Alarm, Timer } from '@/types/alarm';
 
 export interface InvitationNotification {
   id: string;
@@ -31,10 +31,26 @@ class NotificationService {
     this.initializeChannels();
   }
 
+  private getNotificationBaseId(sourceId: string): number {
+    return (
+      parseInt(sourceId.replace(/\D/g, '').slice(-8) || '0', 10) ||
+      Math.abs(
+        sourceId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+      )
+    );
+  }
+
   private initializeChannels() {
     if (this.initialized || Platform.OS !== 'android') return;
     
     try {
+      try {
+        PushNotification.deleteChannel?.(this.alarmChannelId);
+        PushNotification.deleteChannel?.(this.timerChannelId);
+      } catch (channelError) {
+        console.log('Channel cleanup failed (safe to ignore):', channelError);
+      }
+
       // Create alarm channel for Android with highest priority
       PushNotification.createChannel(
         {
@@ -43,7 +59,7 @@ class NotificationService {
           channelDescription: 'Notifications for alarms - will wake device and play sound',
           playSound: true,
           soundName: 'default',
-          importance: 5, // Urgent - makes sound and appears on screen (highest priority)
+          importance: Importance.HIGH,
           vibrate: true,
           lights: true,
           lightColor: '#FF0000',
@@ -59,7 +75,7 @@ class NotificationService {
           channelDescription: 'Notifications for timers',
           playSound: true,
           soundName: 'default',
-          importance: 5, // Urgent
+          importance: Importance.HIGH,
           vibrate: true,
         },
         (created) => console.log(`Timer channel created: ${created}`)
@@ -174,7 +190,7 @@ class NotificationService {
 
       // Schedule local notification
       // Convert alarm ID to numeric ID for notification (notifications need numeric IDs)
-      const notificationId = parseInt(alarm.id.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(alarm.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+      const notificationId = this.getNotificationBaseId(alarm.id).toString();
       
       // Cancel any existing notification with this ID first
       PushNotification.cancelLocalNotification(notificationId.toString());
@@ -190,6 +206,8 @@ class NotificationService {
         playSound: true,
         vibrate: true,
         vibration: 1000,
+        priority: 'max',
+        importance: 'max',
         channelId: Platform.OS === 'android' ? this.alarmChannelId : undefined,
         data: {
           type: 'alarm',
@@ -248,7 +266,7 @@ class NotificationService {
     try {
       console.log(`Cancelling alarm notification ${alarmId}`);
       // Convert alarm ID to numeric ID for notification
-      const notificationId = parseInt(alarmId.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(alarmId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+      const notificationId = this.getNotificationBaseId(alarmId);
       PushNotification.cancelLocalNotification(notificationId.toString());
     } catch (error) {
       console.error(`Failed to cancel alarm ${alarmId}:`, error);
@@ -265,7 +283,7 @@ class NotificationService {
       console.log(`Scheduling timer ${timerId} for ${triggerTime.toISOString()}`);
 
       // Convert timer ID to numeric ID for notification
-      const notificationId = parseInt(timerId.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(timerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+      const notificationId = this.getNotificationBaseId(timerId).toString();
 
       PushNotification.localNotificationSchedule({
         id: notificationId,
@@ -278,6 +296,8 @@ class NotificationService {
         playSound: true,
         vibrate: true,
         vibration: 1000,
+        priority: 'max',
+        importance: 'max',
         channelId: Platform.OS === 'android' ? this.timerChannelId : undefined,
         data: {
           type: 'timer',
@@ -299,7 +319,7 @@ class NotificationService {
   cancelTimer(timerId: string): void {
     try {
       // Convert timer ID to numeric ID for notification
-      const notificationId = parseInt(timerId.replace(/\D/g, '').slice(-8) || '0', 10) || Math.abs(timerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0));
+      const notificationId = this.getNotificationBaseId(timerId);
       PushNotification.cancelLocalNotification(notificationId.toString());
     } catch (error) {
       console.error(`Failed to cancel timer ${timerId}:`, error);
@@ -344,6 +364,86 @@ class NotificationService {
       console.log(`Recurrence rule: ${alarm.recurrenceRule} - will be handled by daily scheduling`);
       // Note: The actual filtering happens in the alarm checking logic
       // since local notifications can't easily handle complex recurrence
+    }
+  }
+
+  /**
+   * Trigger an immediate alarm notification (foreground support)
+   */
+  triggerImmediateAlarmNotification(alarm: Alarm): void {
+    try {
+      const notificationId = `${this.getNotificationBaseId(alarm.id)}-instant-${Date.now()}`;
+
+      console.log('🔔 Triggering immediate alarm notification:', {
+        notificationId,
+        alarmId: alarm.id,
+        title: alarm.title,
+      });
+
+      PushNotification.localNotification({
+        id: notificationId,
+        title: '⏰ Alarm',
+        message: alarm.title || 'Alarm',
+        playSound: true,
+        soundName: 'default',
+        vibrate: true,
+        vibration: 1000,
+        priority: 'max',
+        importance: 'max',
+        allowWhileIdle: true,
+        ignoreInForeground: false,
+        channelId: Platform.OS === 'android' ? this.alarmChannelId : undefined,
+        data: {
+          type: 'alarm',
+          alarmId: alarm.id,
+        },
+        userInfo: {
+          type: 'alarm',
+          alarmId: alarm.id,
+        },
+      });
+    } catch (error) {
+      console.error(`Failed to trigger immediate alarm notification ${alarm.id}:`, error);
+    }
+  }
+
+  /**
+   * Trigger an immediate timer completion notification (foreground support)
+   */
+  triggerImmediateTimerNotification(timer: Pick<Timer, 'id' | 'title'>): void {
+    try {
+      const notificationId = `${this.getNotificationBaseId(timer.id)}-instant-${Date.now()}`;
+
+      console.log('🔔 Triggering immediate timer notification:', {
+        notificationId,
+        timerId: timer.id,
+        title: timer.title,
+      });
+
+      PushNotification.localNotification({
+        id: notificationId,
+        title: '⏱️ Timer Complete',
+        message: `${timer.title} is complete!`,
+        playSound: true,
+        soundName: 'default',
+        vibrate: true,
+        vibration: 1000,
+        priority: 'max',
+        importance: 'max',
+        allowWhileIdle: true,
+        ignoreInForeground: false,
+        channelId: Platform.OS === 'android' ? this.timerChannelId : undefined,
+        data: {
+          type: 'timer',
+          timerId: timer.id,
+        },
+        userInfo: {
+          type: 'timer',
+          timerId: timer.id,
+        },
+      });
+    } catch (error) {
+      console.error(`Failed to trigger immediate timer notification ${timer.id}:`, error);
     }
   }
 }

@@ -1,9 +1,7 @@
 import { apiClient } from './apiClient';
 import { 
-  ProjectRole, 
   ProjectInvitation, 
   CreateProjectInvitationData, 
-  UpdateProjectInvitationData 
 } from '@/types/project';
 import { ApiResponse } from '@/types';
 import { logger } from '@/utils/logger';
@@ -60,19 +58,13 @@ class ProjectInvitationService {
   // Get all invitations sent by the user
   async getSentInvitations(): Promise<ProjectInvitation[]> {
     try {
-      console.log('🌐 API Call - Getting sent invitations from /invitations/user/sent');
       const response = await apiClient.get<ApiResponse<ProjectInvitation[]>>('/invitations/user/sent');
-      console.log('🌐 API Response - Raw response:', response);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to get sent invitations');
       }
-
-      console.log('🌐 API Response - Data:', response.data);
       return response.data;
     } catch (error) {
-      logger.error('Get sent invitations error:', error);
-      console.error('❌ API Error - getSentInvitations:', error);
       throw error;
     }
   }
@@ -80,19 +72,14 @@ class ProjectInvitationService {
   // Alternative: Get all invitations for user's projects
   async getAllUserProjectInvitations(): Promise<{ received: ProjectInvitation[]; sent: ProjectInvitation[]; total: number }> {
     try {
-      console.log('🌐 API Call - Getting all user project invitations from /invitations/user/all');
       const response = await apiClient.get<ApiResponse<{ received: ProjectInvitation[]; sent: ProjectInvitation[]; total: number }>>('/invitations/user/all');
-      console.log('🌐 API Response - Raw response:', response);
 
       if (!response.success) {
         throw new Error(response.error || 'Failed to get user project invitations');
       }
 
-      console.log('🌐 API Response - Data:', response.data);
       return response.data;
     } catch (error) {
-      logger.error('Get all user project invitations error:', error);
-      console.error('❌ API Error - getAllUserProjectInvitations:', error);
       throw error;
     }
   }
@@ -138,7 +125,6 @@ class ProjectInvitationService {
         throw new Error(response.error || 'Failed to cancel invitation');
       }
     } catch (error) {
-      logger.error('Cancel invitation error:', error);
       throw error;
     }
   }
@@ -154,7 +140,6 @@ class ProjectInvitationService {
 
       return response.data;
     } catch (error) {
-      logger.error('Resend invitation error:', error);
       throw error;
     }
   }

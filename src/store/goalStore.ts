@@ -20,7 +20,7 @@ interface GoalState {
   categoryFilter: string[];
   sortBy: 'createdAt' | 'updatedAt' | 'title' | 'targetDate' | 'progress' | 'priority';
   sortOrder: 'asc' | 'desc';
-  
+
   // Pagination
   currentPage: number;
   totalPages: number;
@@ -101,7 +101,7 @@ export const useGoalStore = create<GoalStore>()(
       categoryFilter: [],
       sortBy: 'createdAt',
       sortOrder: 'desc',
-      
+
       // Pagination
       currentPage: 1,
       totalPages: 0,
@@ -126,11 +126,10 @@ export const useGoalStore = create<GoalStore>()(
             search: get().searchQuery,
             status: get().statusFilter.length > 0 ? get().statusFilter.join(',') : undefined,
           });
-          
-          console.log('Fetch goals response:', response);
+
           const goals = response.data || [];
           const pagination = response.pagination;
-          
+
           set({
             goals: page === 1 ? goals : [...get().goals, ...goals],
             filteredGoals: page === 1 ? goals : [...get().filteredGoals, ...goals],
@@ -336,12 +335,12 @@ export const useGoalStore = create<GoalStore>()(
           const milestone = await goalService.createMilestone(goalId, data);
 
           set((state) => ({
-            goals: state.goals.map(g => 
-              g.id === goalId 
+            goals: state.goals.map(g =>
+              g.id === goalId
                 ? { ...g, milestones: [...g.milestones, milestone] }
                 : g
             ),
-            currentGoal: state.currentGoal?.id === goalId 
+            currentGoal: state.currentGoal?.id === goalId
               ? { ...state.currentGoal, milestones: [...state.currentGoal.milestones, milestone] }
               : state.currentGoal,
           }));
@@ -358,12 +357,12 @@ export const useGoalStore = create<GoalStore>()(
           const milestone = await goalService.updateMilestone(goalId, milestoneId, data);
 
           set((state) => ({
-            goals: state.goals.map(g => 
-              g.id === goalId 
+            goals: state.goals.map(g =>
+              g.id === goalId
                 ? { ...g, milestones: g.milestones.map(m => m.id === milestoneId ? milestone : m) }
                 : g
             ),
-            currentGoal: state.currentGoal?.id === goalId 
+            currentGoal: state.currentGoal?.id === goalId
               ? { ...state.currentGoal, milestones: state.currentGoal.milestones.map(m => m.id === milestoneId ? milestone : m) }
               : state.currentGoal,
           }));
@@ -380,12 +379,12 @@ export const useGoalStore = create<GoalStore>()(
           await goalService.deleteMilestone(goalId, milestoneId);
 
           set((state) => ({
-            goals: state.goals.map(g => 
-              g.id === goalId 
+            goals: state.goals.map(g =>
+              g.id === goalId
                 ? { ...g, milestones: g.milestones.filter(m => m.id !== milestoneId) }
                 : g
             ),
-            currentGoal: state.currentGoal?.id === goalId 
+            currentGoal: state.currentGoal?.id === goalId
               ? { ...state.currentGoal, milestones: state.currentGoal.milestones.filter(m => m.id !== milestoneId) }
               : state.currentGoal,
           }));
@@ -399,16 +398,15 @@ export const useGoalStore = create<GoalStore>()(
 
       completeMilestone: async (goalId: string, milestoneId: string) => {
         try {
-         console.log('Complete milestone:', goalId, milestoneId);
           const milestone = await goalService.completeMilestone(goalId, milestoneId);
 
           set((state) => ({
-            goals: state.goals.map(g => 
-              g.id === goalId 
+            goals: state.goals.map(g =>
+              g.id === goalId
                 ? { ...g, milestones: g.milestones.map(m => m.id === milestoneId ? milestone : m) }
                 : g
             ),
-            currentGoal: state.currentGoal?.id === goalId 
+            currentGoal: state.currentGoal?.id === goalId
               ? { ...state.currentGoal, milestones: state.currentGoal.milestones.map(m => m.id === milestoneId ? milestone : m) }
               : state.currentGoal,
           }));
@@ -618,12 +616,12 @@ export const useGoalStore = create<GoalStore>()(
       generateProgressHistory: (goal: any, timeRange: string) => {
         const now = new Date();
         const milestones = goal.milestones || [];
-        
+
         // Determine the time period and intervals
         let startDate = new Date();
         let intervalDays = 1;
         let labelFormat = 'MMM dd';
-        
+
         switch (timeRange) {
           case 'week':
             startDate.setDate(now.getDate() - 7);
@@ -647,7 +645,7 @@ export const useGoalStore = create<GoalStore>()(
             break;
           default: // 'all'
             if (milestones.length > 0) {
-              const earliestMilestone = milestones.reduce((earliest: any, current: any) => 
+              const earliestMilestone = milestones.reduce((earliest: any, current: any) =>
                 new Date(current.createdAt) < new Date(earliest.createdAt) ? current : earliest
               );
               startDate = new Date(earliestMilestone.createdAt);
@@ -657,35 +655,35 @@ export const useGoalStore = create<GoalStore>()(
             intervalDays = 7;
             labelFormat = 'MMM dd';
         }
-        
+
         // Generate time points
         const timePoints = [];
         const currentDate = new Date(startDate);
-        
+
         while (currentDate <= now) {
           timePoints.push(new Date(currentDate));
           currentDate.setDate(currentDate.getDate() + intervalDays);
         }
-        
+
         // Calculate progress at each time point
         const progressHistory = [];
-        
+
         for (let i = 0; i < timePoints.length; i++) {
           const timePoint = timePoints[i];
           const label = format(timePoint, labelFormat);
-          
+
           // Count milestones created before this time point
-          const totalMilestonesAtTime = milestones.filter((milestone: any) => 
+          const totalMilestonesAtTime = milestones.filter((milestone: any) =>
             new Date(milestone.createdAt) <= timePoint
           ).length;
-          
+
           // Count milestones completed before this time point
-          const completedMilestonesAtTime = milestones.filter((milestone: any) => 
-            milestone.status === MilestoneStatus.DONE && 
-            milestone.completedAt && 
+          const completedMilestonesAtTime = milestones.filter((milestone: any) =>
+            milestone.status === MilestoneStatus.DONE &&
+            milestone.completedAt &&
             new Date(milestone.completedAt) <= timePoint
           ).length;
-          
+
           // Calculate progress percentage
           let progressAtTime = 0;
           if (totalMilestonesAtTime > 0) {
@@ -699,7 +697,7 @@ export const useGoalStore = create<GoalStore>()(
             const daysPassed = Math.ceil((timePoint.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
             progressAtTime = Math.min(Math.round((daysPassed / totalDays) * 100), 100);
           }
-          
+
           // Add some realistic variation to prevent flat lines
           if (progressAtTime > 0 && i > 0) {
             const previousProgress = progressHistory[i - 1]?.progress || 0;
@@ -708,7 +706,7 @@ export const useGoalStore = create<GoalStore>()(
               progressAtTime = previousProgress;
             }
           }
-          
+
           progressHistory.push({
             week: label,
             progress: progressAtTime,
@@ -717,8 +715,6 @@ export const useGoalStore = create<GoalStore>()(
             completedMilestones: completedMilestonesAtTime
           });
         }
-        
-        console.log('Generated progress history:', progressHistory);
         return progressHistory;
       },
 
@@ -750,7 +746,7 @@ export const useGoalStore = create<GoalStore>()(
                 startDate.setFullYear(now.getFullYear() - 1);
                 break;
             }
-            
+
             filteredMilestones = goal.milestones.filter(milestone => {
               const milestoneDate = new Date(milestone.createdAt);
               return milestoneDate >= startDate;
@@ -758,7 +754,7 @@ export const useGoalStore = create<GoalStore>()(
           }
 
           const completedMilestones = filteredMilestones.filter(m => m.status === MilestoneStatus.DONE);
-          const progress = filteredMilestones.length > 0 
+          const progress = filteredMilestones.length > 0
             ? Math.round((completedMilestones.length / filteredMilestones.length) * 100)
             : 0;
 
@@ -766,10 +762,10 @@ export const useGoalStore = create<GoalStore>()(
           const completedWithDates = completedMilestones.filter(m => m.completedAt);
           const averageCompletionTime = completedWithDates.length > 0
             ? completedWithDates.reduce((sum, milestone) => {
-                const created = new Date(milestone.createdAt);
-                const completed = new Date(milestone.completedAt!);
-                return sum + Math.ceil((completed.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
-              }, 0) / completedWithDates.length
+              const created = new Date(milestone.createdAt);
+              const completed = new Date(milestone.completedAt!);
+              return sum + Math.ceil((completed.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+            }, 0) / completedWithDates.length
             : 0;
 
           // Generate progress history based on time range
@@ -787,9 +783,9 @@ export const useGoalStore = create<GoalStore>()(
             estimatedCompletionDate: goal.targetDate,
             insights: [
               progress > 80 ? 'You\'re almost there! Keep up the great work!' :
-              progress > 50 ? 'You\'re making excellent progress towards your goal' :
-              progress > 25 ? 'You\'re off to a good start - keep the momentum going!' :
-              'Every journey begins with a single step - you\'ve got this!',
+                progress > 50 ? 'You\'re making excellent progress towards your goal' :
+                  progress > 25 ? 'You\'re off to a good start - keep the momentum going!' :
+                    'Every journey begins with a single step - you\'ve got this!',
               filteredMilestones.length > 0 && progress < 50 ? 'Consider breaking down larger milestones into smaller tasks' : null,
               completedMilestones.length > 0 ? 'Your consistency is paying off - keep it up!' : null
             ].filter(Boolean)

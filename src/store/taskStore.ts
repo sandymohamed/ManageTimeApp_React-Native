@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { taskService } from '@/services/taskService';
 import { taskAlarmService } from '@/services/taskAlarmService';
-import { Task, CreateTaskData, UpdateTaskData, TaskFilter, TaskStatus, TaskPriority } from '@/types/task';
+import { Task, CreateTaskData, UpdateTaskData, TaskFilter, TaskPriority } from '@/types/task';
 import { logger } from '@/utils/logger';
 
 interface TaskState {
@@ -106,27 +106,27 @@ export const useTaskStore = create<TaskStore>()(
           // Server tasks take precedence, but keep local tasks that don't exist on server yet
           const currentTasks = get().tasks;
           const serverTaskIds = new Set(sortedServerTasks.map(t => t.id));
-          
+
           if (params?.projectId || params?.goalId || params?.assigneeId) {
             // If fetching with a filter, update only tasks that match the filter
             // Keep tasks from other projects/goals/assignees intact
             const filterKey = params.projectId ? 'projectId' : params.goalId ? 'goalId' : 'assigneeId';
             const filterValue = params.projectId || params.goalId || params.assigneeId;
-            
+
             // Remove existing tasks that match the filter (will be replaced by server tasks)
             const tasksFromOtherFilters = currentTasks.filter(task => task[filterKey] !== filterValue);
-            
+
             // Find local tasks that match the filter but aren't on server (newly created)
             const localOnlyTasks = currentTasks.filter(task => {
               return task[filterKey] === filterValue && !serverTaskIds.has(task.id);
             });
-            
+
             // Merge: tasks from other filters + server tasks + local-only tasks matching filter
             const mergedTasks = [...tasksFromOtherFilters, ...sortedServerTasks, ...localOnlyTasks];
-            
+
             // Sort merged tasks by order
             const sortedMergedTasks = mergedTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
-            
+
             set({
               tasks: sortedMergedTasks,
               filteredTasks: sortedMergedTasks,
@@ -137,7 +137,7 @@ export const useTaskStore = create<TaskStore>()(
             const localOnlyTasks = currentTasks.filter(task => !serverTaskIds.has(task.id));
             const mergedTasks = [...sortedServerTasks, ...localOnlyTasks];
             const sortedMergedTasks = mergedTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
-            
+
             set({
               tasks: sortedMergedTasks,
               filteredTasks: sortedMergedTasks,
@@ -375,7 +375,7 @@ export const useTaskStore = create<TaskStore>()(
             order: index
           }));
 
-          set((state) => ({
+          set(() => ({
             tasks: tasksWithOrder,
             filteredTasks: tasksWithOrder, // Update filtered tasks directly to preserve order
           }));

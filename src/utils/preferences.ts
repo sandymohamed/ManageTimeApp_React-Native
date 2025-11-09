@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useTranslation } from 'react-i18next';
 
 // Storage keys
 export const STORAGE_KEYS = {
@@ -12,7 +11,6 @@ export const getSavedLanguage = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(STORAGE_KEYS.SELECTED_LANGUAGE);
   } catch (error) {
-    console.error('Error getting saved language:', error);
     return null;
   }
 };
@@ -22,7 +20,6 @@ export const saveLanguage = async (language: string): Promise<boolean> => {
     await AsyncStorage.setItem(STORAGE_KEYS.SELECTED_LANGUAGE, language);
     return true;
   } catch (error) {
-    console.error('Error saving language:', error);
     return false;
   }
 };
@@ -32,7 +29,6 @@ export const getSavedTheme = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(STORAGE_KEYS.THEME_MODE);
   } catch (error) {
-    console.error('Error getting saved theme:', error);
     return null;
   }
 };
@@ -42,7 +38,6 @@ export const saveTheme = async (theme: string): Promise<boolean> => {
     await AsyncStorage.setItem(STORAGE_KEYS.THEME_MODE, theme);
     return true;
   } catch (error) {
-    console.error('Error saving theme:', error);
     return false;
   }
 };
@@ -56,7 +51,6 @@ export const clearAllPreferences = async (): Promise<boolean> => {
     ]);
     return true;
   } catch (error) {
-    console.error('Error clearing preferences:', error);
     return false;
   }
 };
@@ -74,7 +68,6 @@ export const getAllPreferences = async (): Promise<Record<string, string | null>
       theme: theme[1],
     };
   } catch (error) {
-    console.error('Error getting all preferences:', error);
     return {
       language: null,
       theme: null,

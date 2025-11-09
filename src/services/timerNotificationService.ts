@@ -1,4 +1,4 @@
-import { Platform, Alert, Vibration } from 'react-native';
+import {  Alert, Vibration } from 'react-native';
 import { Timer } from '@/types/alarm';
 
 export interface TimerNotificationOptions {

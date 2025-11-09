@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { Alarm, CreateAlarmData, UpdateAlarmData, Timer, CreateTimerData, UpdateTimerData } from '@/types/alarm';
 import { alarmService } from '@/services/alarmService';
 import { notificationService } from '@/services/notificationService';
-import { timerNotificationService } from '@/services/timerNotificationService';
 
 interface AlarmState {
   // State
@@ -413,9 +412,6 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         activeTimer: updatedTimer,
       }));
 
-      // Show timer start notification
-      timerNotificationService.showTimerStartNotification(updatedTimer);
-
       // Schedule notification for timer completion (for background execution)
       notificationService.scheduleTimer(updatedTimer.id, updatedTimer.title, updatedTimer.remainingTime);
 
@@ -464,9 +460,6 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         timers: state.timers.map((t) => (t.id === id ? updatedTimer : t)),
         activeTimer: state.activeTimer?.id === id ? updatedTimer : state.activeTimer,
       }));
-
-      // Show timer pause notification
-      timerNotificationService.showTimerPauseNotification(updatedTimer);
 
       // Cancel scheduled notification when pausing
       notificationService.cancelTimer(id);
@@ -517,9 +510,6 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         timers: state.timers.map((t) => (t.id === id ? updatedTimer : t)),
         activeTimer: state.activeTimer?.id === id ? null : state.activeTimer,
       }));
-
-      // Show timer stop notification
-      timerNotificationService.showTimerStopNotification(updatedTimer);
 
       // Cancel scheduled notification when stopping
       notificationService.cancelTimer(id);
@@ -673,25 +663,22 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       // Timer completed - show alert and stop timer
       console.log(`Timer "${activeTimer.title}" completed!`);
       
-      // Show timer completion notification
-      timerNotificationService.showTimerCompletionNotification(activeTimer);
-      
       // Stop the timer
       get().stopTimer(activeTimer.id);
-      
-      // Set a flag in the store for UI components to detect completion
-      set({ 
-        error: `Timer "${activeTimer.title}" completed!`,
-        lastSaveTime: Date.now()
-      });
     }
   },
 
   // Local storage methods for offline support
   saveTimersToStorage: () => {
     try {
+      const storage =
+        (typeof global !== 'undefined' && (global as any).localStorage) ||
+        (typeof window !== 'undefined' && (window as any).localStorage);
+      if (!storage) {
+        return;
+      }
       const timers = get().timers;
-      localStorage.setItem('offline_timers', JSON.stringify(timers));
+      storage.setItem('offline_timers', JSON.stringify(timers));
     } catch (error) {
       console.log('Failed to save timers to storage:', error);
     }
@@ -699,7 +686,13 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
 
   loadTimersFromStorage: () => {
     try {
-      const stored = localStorage.getItem('offline_timers');
+      const storage =
+        (typeof global !== 'undefined' && (global as any).localStorage) ||
+        (typeof window !== 'undefined' && (window as any).localStorage);
+      if (!storage) {
+        return [];
+      }
+      const stored = storage.getItem('offline_timers');
       if (stored) {
         const timers = JSON.parse(stored);
         set({ timers });

@@ -1,7 +1,7 @@
 import * as Keychain from 'react-native-keychain';
 
 import { apiClient } from './apiClient';
-import { User, AuthTokens, LoginCredentials, RegisterCredentials, ChangePasswordData } from '@/types/user';
+import { User, LoginCredentials, RegisterCredentials, ChangePasswordData } from '@/types/user';
 import { ApiResponse } from '@/types';
 import { useAuthStore } from '@/store/authStore';
 import { logger } from '@/utils/logger';
@@ -11,99 +11,96 @@ class AuthService {
   // Debug helper - only for development/testing
   // Add this to your AuthService temporarily
   // Add to your AuthService temporarily
-  async debugTokenStorage(): Promise<void> {
-    try {
-      console.log('🔍 Debugging token storage...');
+  // async debugTokenStorage(): Promise<void> {
+  //   try {
 
-      // Check Keychain
-      const credentials = await Keychain.getGenericPassword();
-      console.log('Keychain credentials:', credentials);
+  //     // Check Keychain
+  //     const credentials = await Keychain.getGenericPassword();
 
-      if (credentials) {
-        const tokens = JSON.parse(credentials.password);
-        console.log('Stored tokens:', tokens);
-      } else {
-        console.log('No credentials in Keychain');
-      }
+  //     if (credentials) {
+  //       const tokens = JSON.parse(credentials.password);
+  //     } else {
+  //       console.log('No credentials in Keychain');
+  //     }
 
-      // Check Zustand state
-      const state = useAuthStore.getState();
-      console.log('Zustand state:', {
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-        token: await state.getToken?.(),
-        refreshToken: await state.getRefreshToken?.(),
-      });
+  //     // Check Zustand state
+  //     const state = useAuthStore.getState();
+  //     console.log('Zustand state:', {
+  //       user: state.user,
+  //       isAuthenticated: state.isAuthenticated,
+  //       token: await state.getToken?.(),
+  //       refreshToken: await state.getRefreshToken?.(),
+  //     });
 
-    } catch (error) {
-      console.log('Debug error:', error);
-    }
-  }
+  //   } catch (error) {
+  //     console.log('Debug error:', error);
+  //   }
+  // }
 
   // Debug helper - only for development/testing
-  async testConnection(): Promise<void> {
-    try {
-      console.log("🔍 Testing network connectivity...");
+  // async testConnection(): Promise<void> {
+  //   try {
+  //     console.log("🔍 Testing network connectivity...");
 
-      // Test 1: Basic fetch to health endpoint
-      console.log("🔍 Test 1: Basic fetch to health endpoint...");
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+  //     // Test 1: Basic fetch to health endpoint
+  //     console.log("🔍 Test 1: Basic fetch to health endpoint...");
+  //     try {
+  //       const controller = new AbortController();
+  //       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-        const fetchTest = await fetch('http://192.168.1.13:8081/health', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal,
-        });
+  //       const fetchTest = await fetch('http://192.168.1.13:8081/health', {
+  //         method: 'GET',
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //         },
+  //         signal: controller.signal,
+  //       });
 
-        clearTimeout(timeoutId);
-        console.log("✅ Fetch test result:", fetchTest.status, fetchTest.statusText);
-        const data = await fetchTest.json();
-        console.log("✅ Health check data:", data);
-      } catch (fetchError) {
-        console.log("❌ Fetch test failed:", fetchError);
-      }
+  //       clearTimeout(timeoutId);
+  //       console.log("✅ Fetch test result:", fetchTest.status, fetchTest.statusText);
+  //       const data = await fetchTest.json();
+  //       console.log("✅ Health check data:", data);
+  //     } catch (fetchError) {
+  //       console.log("❌ Fetch test failed:", fetchError);
+  //     }
 
-      // Test 2: Direct axios to health endpoint
-      console.log("🔍 Test 2: Direct axios to health endpoint...");
-      try {
-        const directAxios = await axios.get('http://192.168.1.13:8081/health', {
-          timeout: 10000,
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-        console.log("✅ Direct axios result:", directAxios.status);
-        console.log("✅ Health check data:", directAxios.data);
-      } catch (directError) {
-        console.log("❌ Direct axios failed:", directError);
-      }
+  //     // Test 2: Direct axios to health endpoint
+  //     console.log("🔍 Test 2: Direct axios to health endpoint...");
+  //     try {
+  //       const directAxios = await axios.get('http://192.168.1.13:8081/health', {
+  //         timeout: 10000,
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //         }
+  //       });
+  //       console.log("✅ Direct axios result:", directAxios.status);
+  //       console.log("✅ Health check data:", directAxios.data);
+  //     } catch (directError) {
+  //       console.log("❌ Direct axios failed:", directError);
+  //     }
 
-      // Test 3: Your apiClient
-      console.log("🔍 Test 3: Your apiClient...");
-      try {
-        const apiClientTest = await apiClient.get('/health');
-        console.log("✅ ApiClient test result:", apiClientTest);
-      } catch (apiClientError: any) {
-        console.log("❌ ApiClient test failed:", apiClientError);
-        console.log("🔧 Error details:", {
-          message: apiClientError.message,
-          code: apiClientError.code,
-          config: {
-            baseURL: apiClientError.config?.baseURL,
-            url: apiClientError.config?.url,
-            method: apiClientError.config?.method
-          }
-        });
-      }
+  //     // Test 3: Your apiClient
+  //     console.log("🔍 Test 3: Your apiClient...");
+  //     try {
+  //       const apiClientTest = await apiClient.get('/health');
+  //       console.log("✅ ApiClient test result:", apiClientTest);
+  //     } catch (apiClientError: any) {
+  //       console.log("❌ ApiClient test failed:", apiClientError);
+  //       console.log("🔧 Error details:", {
+  //         message: apiClientError.message,
+  //         code: apiClientError.code,
+  //         config: {
+  //           baseURL: apiClientError.config?.baseURL,
+  //           url: apiClientError.config?.url,
+  //           method: apiClientError.config?.method
+  //         }
+  //       });
+  //     }
 
-    } catch (error) {
-      console.log("💥 Overall test failed:", error);
-    }
-  }
+  //   } catch (error) {
+  //     console.log("💥 Overall test failed:", error);
+  //   }
+  // }
 
 
   async login(credentials: LoginCredentials): Promise<{ user: User; token: string; refreshToken: string }> {

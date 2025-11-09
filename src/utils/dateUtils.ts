@@ -1,4 +1,4 @@
-import {format, parseISO, isValid, addDays, subDays, startOfDay, endOfDay} from 'date-fns';
+import {format, parseISO, isValid, addDays, startOfDay} from 'date-fns';
 
 export const formatDate = (date: string | Date, formatStr: string = 'MMM dd, yyyy'): string => {
   try {
@@ -8,7 +8,6 @@ export const formatDate = (date: string | Date, formatStr: string = 'MMM dd, yyy
     }
     return format(dateObj, formatStr);
   } catch (error) {
-    console.error('Error formatting date:', error);
     return 'Invalid Date';
   }
 };
@@ -21,7 +20,6 @@ export const formatTime = (date: string | Date, formatStr: string = 'HH:mm'): st
     }
     return format(dateObj, formatStr);
   } catch (error) {
-    console.error('Error formatting time:', error);
     return 'Invalid Time';
   }
 };
@@ -34,7 +32,6 @@ export const formatDateTime = (date: string | Date, formatStr: string = 'MMM dd,
     }
     return format(dateObj, formatStr);
   } catch (error) {
-    console.error('Error formatting datetime:', error);
     return 'Invalid Date';
   }
 };
@@ -48,7 +45,6 @@ export const isToday = (date: string | Date): boolean => {
     const today = new Date();
     return startOfDay(dateObj).getTime() === startOfDay(today).getTime();
   } catch (error) {
-    console.error('Error checking if date is today:', error);
     return false;
   }
 };
@@ -62,7 +58,6 @@ export const isTomorrow = (date: string | Date): boolean => {
     const tomorrow = addDays(new Date(), 1);
     return startOfDay(dateObj).getTime() === startOfDay(tomorrow).getTime();
   } catch (error) {
-    console.error('Error checking if date is tomorrow:', error);
     return false;
   }
 };
@@ -75,7 +70,6 @@ export const isOverdue = (date: string | Date): boolean => {
     }
     return dateObj < new Date();
   } catch (error) {
-    console.error('Error checking if date is overdue:', error);
     return false;
   }
 };
@@ -104,7 +98,6 @@ export const getRelativeTime = (date: string | Date): string => {
       return formatDate(dateObj);
     }
   } catch (error) {
-    console.error('Error getting relative time:', error);
     return 'Invalid Date';
   }
 };
@@ -135,7 +128,6 @@ export const getTimeUntil = (date: string | Date): string => {
       return formatDate(dateObj);
     }
   } catch (error) {
-    console.error('Error getting time until:', error);
     return 'Invalid Date';
   }
 };
@@ -158,7 +150,6 @@ export const getDateRange = (startDate: string | Date, endDate: string | Date): 
       return `${format(start, 'MMM dd, yyyy')} - ${endFormatted}`;
     }
   } catch (error) {
-    console.error('Error formatting date range:', error);
     return 'Invalid Date Range';
   }
 };

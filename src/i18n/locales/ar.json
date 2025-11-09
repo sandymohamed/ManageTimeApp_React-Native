@@ -19,6 +19,7 @@
     "refresh": "تحديث",
     "retry": "إعادة المحاولة",
     "close": "إغلاق",
+    "stop": "إيقاف",
     "ok": "موافق",
     "yes": "نعم",
     "no": "لا",
@@ -85,6 +86,7 @@
     "goals": "الأهداف",
     "goalsSubtitle": "تتبع تقدمك",
     "alarms": "التنبيهات",
+    "alarmsSubtitle": "ابق على الموعد",
     "analytics": "التحليلات",
     "profile": "الملف الشخصي",
     "profileSubtitle": "إدارة حسابك",
@@ -546,6 +548,11 @@
     "noAlarmsDescription": "أنشئ تنبيهاً أولاً للبدء",
     "createAlarm": "إنشاء تنبيه",
     "createFirstAlarm": "أنشئ تنبيهاً أولاً للبقاء على الموعد",
+    "createAlarmDesc": "حدد الوقت، واختر تكرار التنبيه، وسنذكّرك في الوقت المناسب.",
+    "today": "اليوم",
+    "selectTime": "اختر الوقت",
+    "tomorrow": "غداً",
+    "futureTimeRequired": "يرجى اختيار وقت في المستقبل.",
     "alarmCreated": "تم إنشاء التنبيه بنجاح",
     "alarmUpdated": "تم تحديث التنبيه بنجاح",
     "alarmDeleted": "تم حذف التنبيه بنجاح",
@@ -559,11 +566,20 @@
     "recurrence": {
       "title": "التكرار",
       "none": "بدون تكرار",
+      "noneDesc": "يعمل مرة واحدة في الوقت المحدد.",
       "daily": "يومي",
+      "dailyDesc": "يتكرر كل يوم في نفس الوقت.",
       "weekdays": "أيام الأسبوع",
       "weekends": "عطلة نهاية الأسبوع",
-      "weekly": "أسبوعي"
+      "weekdays": "أيام الأسبوع",
+      "weekdaysDesc": "كل يوم من الاثنين إلى الجمعة.",
+      "weekends": "عطلة نهاية الأسبوع",
+      "weekendsDesc": "كل يوم سبت وأحد.",
+      "weekly": "أسبوعي",
+      "weeklyDesc": "يتكرر أسبوعياً في اليوم المحدد."
     },
+    "alarmRingingTitle": "جرس التنبيه",
+    "alarmRingingBody": "اضغط إيقاف لإسكات التنبيه.",
     "tones": {
       "default": "افتراضي",
       "gentle": "لطيف",
@@ -610,7 +626,9 @@
     "timerCompletedNoVibration": "تم إكمال الموقت  بنجاح! (بدون تنبيه)",
     "noVibration": "بدون تنبيه",
     "vibrationUnavailable": "التنبيهات غير متاحة على هذا الجهاز",
-    "vibrationUnavailableNote": "ملاحظة: التنبيهات غير متاحة"
+    "vibrationUnavailableNote": "ملاحظة: التنبيهات غير متاحة",
+    "timerRingingTitle": "انتهى الموقت",
+    "timerRingingBody": "اضغط إيقاف لإسكات الموقت."
   },
   "analytics": {
     "title": "التحليلات",

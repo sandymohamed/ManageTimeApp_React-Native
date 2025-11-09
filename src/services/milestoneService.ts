@@ -36,7 +36,6 @@ class MilestoneService {
 
   async createMilestone(projectId: string, data: CreateMilestoneData): Promise<ProjectMilestone> {
     try {
-      console.log('data in createMilestone', data);
       const response = await apiClient.post<ApiResponse<ProjectMilestone>>(`/milestones/project/${projectId}`, data);
 
       if (!response.success) {

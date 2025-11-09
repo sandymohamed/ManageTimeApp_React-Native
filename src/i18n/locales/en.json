@@ -19,6 +19,7 @@
     "refresh": "Refresh",
     "retry": "Retry",
     "close": "Close",
+    "stop": "Stop",
     "ok": "OK",
     "yes": "Yes",
     "no": "No",
@@ -84,6 +85,7 @@
     "goals": "Goals",
     "goalsSubtitle": "Track your progress",
     "alarms": "Alarms",
+    "alarmsSubtitle": "Stay on time",
     "analytics": "Analytics",
     "profile": "Profile",
     "profileSubtitle": "Manage your account",
@@ -126,6 +128,8 @@
     "enterDescription": "Enter task description",
     "selectDate": "Select due date",
     "selectTime": "Select time",
+    "tomorrow": "Tomorrow",
+    "futureTimeRequired": "Please select a time in the future.",
     "hasTime": "Has Time",
     "addTime": "Add Time",
     "todo": "To Do",
@@ -520,6 +524,9 @@
     "noAlarmsDescription": "Create your first alarm to get started",
     "createAlarm": "Create Alarm",
     "createFirstAlarm": "Create your first alarm to stay on schedule",
+    "createAlarmDesc": "Pick a time, choose a recurrence, and we’ll remind you right on schedule.",
+    "today": "Today",
+    "selectTime": "Select time",
     "alarmCreated": "Alarm created successfully",
     "alarmUpdated": "Alarm updated successfully",
     "alarmDeleted": "Alarm deleted successfully",
@@ -533,11 +540,18 @@
     "recurrence": {
       "title": "Recurrence",
       "none": "None",
+      "noneDesc": "Fire once at the selected time.",
       "daily": "Daily",
+      "dailyDesc": "Repeat every day at the same time.",
       "weekdays": "Weekdays",
+      "weekdaysDesc": "Every Monday through Friday.",
       "weekends": "Weekends",
-      "weekly": "Weekly"
+      "weekendsDesc": "Every Saturday and Sunday.",
+      "weekly": "Weekly",
+      "weeklyDesc": "Repeat weekly on the selected day."
     },
+    "alarmRingingTitle": "Alarm Ringing",
+    "alarmRingingBody": "Tap stop to silence the alarm.",
     "tones": {
       "default": "Default",
       "gentle": "Gentle",
@@ -584,7 +598,9 @@
     "timerCompletedNoVibration": "Timer \"{{title}}\" has completed! (Vibration unavailable)",
     "noVibration": "No Vibration",
     "vibrationUnavailable": "Vibration is unavailable on this device",
-    "vibrationUnavailableNote": "Note: Vibration alerts are unavailable"
+    "vibrationUnavailableNote": "Note: Vibration alerts are unavailable",
+    "timerRingingTitle": "Timer Finished",
+    "timerRingingBody": "Tap stop to silence the timer."
   },
   "profile": {
     "title": "Profile",

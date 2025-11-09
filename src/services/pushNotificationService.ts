@@ -297,16 +297,8 @@ class PushNotificationService {
       const alarmId = data.alarmId;
       logger.info('Alarm notification triggered:', alarmId);
       
-      // When alarm notification fires, the notification itself handles the sound/vibration
-      // This will work even if the app is in background or closed
-      console.log('⏰ ALARM FIRED FROM NOTIFICATION:', alarmId);
+  
       
-      // Note: The actual alarm sound/vibration is handled by the local notification
-      // when the app is in background. When the app comes to foreground, AlarmsScreen
-      // will check for alarms that should have fired and handle them.
-      
-      // Cancel the notification after it fires (so it doesn't keep ringing)
-      // The notification should auto-cancel, but we'll ensure it's cancelled
       if (notification.id) {
         PushNotification.cancelLocalNotifications({ id: notification.id.toString() });
       }
@@ -323,8 +315,6 @@ class PushNotificationService {
       const data = notification.data || notification.userInfo || {};
       const timerId = data.timerId;
       logger.info('Timer notification triggered:', timerId);
-      
-      console.log('⏱️ TIMER COMPLETED:', timerId);
       
       // Trigger timer completion - will be handled by AlarmsScreen
     } catch (error) {

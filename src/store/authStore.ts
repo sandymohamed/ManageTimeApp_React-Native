@@ -74,7 +74,6 @@ export const useAuthStore = create<AuthStore>()(
 
       login: async (credentials: LoginCredentials) => {
         try {
-          console.log("**************** login try get", get());
           set({ isLoading: true, error: null });
 
           const response = await authService.login(credentials);
@@ -106,18 +105,12 @@ export const useAuthStore = create<AuthStore>()(
         try {
           set({ isLoading: true, error: null });
           
-          console.log("register try", credentials);
           
           const response = await authService.register(credentials);
-          console.log("register try response", response);
           
           const { user, token, refreshToken } = response;
 
-          console.log("register try user", user);
-          console.log("register try token", token);
-          console.log("register try refreshToken", refreshToken);
-
-          // Store tokens securely in Keychain ONLY
+        // Store tokens securely in Keychain ONLY
           await Keychain.setGenericPassword('auth_tokens', JSON.stringify({
             token,
             refreshToken,
@@ -130,7 +123,6 @@ export const useAuthStore = create<AuthStore>()(
             error: null,
           });
 
-          logger.info('User registered successfully', { userId: user.id });
         } catch (error: any) {
           logger.error('Registration error:', error);
           set({
@@ -158,7 +150,6 @@ export const useAuthStore = create<AuthStore>()(
             error: null,
           });
 
-          logger.info('User logged out successfully');
         } catch (error: any) {
           logger.error('Logout error:', error);
           // Even if logout fails, clear local state
@@ -176,19 +167,13 @@ export const useAuthStore = create<AuthStore>()(
         try {
           const refreshToken = await get().getRefreshToken();
 
-          console.log("refreshAuthToken refreshToken", refreshToken);
 
           if (!refreshToken) {
             throw new Error('No refresh token available');
           }
 
           const response = await authService.refreshToken(refreshToken);
-          console.log("refreshAuthToken response", response);
           const { token, refreshToken: newRefreshToken } = response;
-
-          console.log("refreshAuthToken token", token);
-          console.log("refreshAuthToken newRefreshToken", newRefreshToken);
-
 
           // Update tokens in Keychain
           await Keychain.setGenericPassword('auth_tokens', JSON.stringify({
@@ -225,7 +210,6 @@ export const useAuthStore = create<AuthStore>()(
             timeoutPromise
           ]) as any;
 
-          console.log("initializeAuth user", user);
           set({
             user,
             isAuthenticated: true,

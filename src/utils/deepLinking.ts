@@ -20,13 +20,10 @@ export const navigate = (name: string, params?: any) => {
 export const handleDeepLink = (url: string) => {
   if (!navigationRef) return;
 
-  console.log('Handling deep link:', url);
-
   // Handle invitation links: managetime://invitation/{token}
   const invitationMatch = url.match(/managetime:\/\/invitation\/([a-f0-9]+)/);
   if (invitationMatch) {
     const token = invitationMatch[1];
-    console.log('Navigating to InvitationAccept with token:', token);
     navigationRef.navigate('InvitationAccept', { token });
     return;
   }
@@ -35,13 +32,9 @@ export const handleDeepLink = (url: string) => {
   const webInvitationMatch = url.match(/\/invitation\/([a-f0-9]+)/);
   if (webInvitationMatch) {
     const token = webInvitationMatch[1];
-    console.log('Navigating to InvitationAccept with token (web):', token);
     navigationRef.navigate('InvitationAccept', { token });
     return;
   }
-
-  // Handle other deep links here if needed
-  console.log('Unhandled deep link:', url);
 };
 
 export const initializeDeepLinking = () => {
