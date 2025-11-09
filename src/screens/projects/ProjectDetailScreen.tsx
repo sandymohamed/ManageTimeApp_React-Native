@@ -338,7 +338,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
               style={[styles.statusChip, { backgroundColor: getStatusColor(currentProject.status) + '20' }]}
               textStyle={{ color: getStatusColor(currentProject.status) }}
             >
-              {t(`projects.status.${currentProject.status.toLowerCase()}`)}
+              {t(`projects.status_options.${currentProject.status.toLowerCase()}`)}
             </Chip>
           </View>
 
@@ -438,7 +438,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
                     textStyle={{ color: theme.colors.info }}
                     icon="clock"
                   >
-                    {t('invitations.status.pending')}
+                    {t('invitations.status_options.pending')}
                   </Chip>
                 </View>
               ))}
@@ -671,7 +671,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
                         style={[styles.statusChip, { backgroundColor: getMilestoneStatusColor(milestone.status) + '20' }]}
                         textStyle={{ color: getMilestoneStatusColor(milestone.status) }}
                       >
-                        {t(`milestones.status.${milestone.status.toLowerCase()}`)}
+                        {t(`milestones.status_options.${milestone.status.toLowerCase()}`)}
                       </Chip>
                     </View>
                   </View>

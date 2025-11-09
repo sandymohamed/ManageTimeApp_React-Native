@@ -27,6 +27,7 @@ import {
   ProjectSearchFilters
 } from '@/types/project';
 import { logger } from '@/utils/logger';
+import { useAuthStore } from './authStore';
 
 interface ProjectState {
   projects: Project[];
@@ -153,6 +154,11 @@ export const useProjectStore = create<ProjectStore>()(
       // Data fetching
       fetchProjects: async () => {
         try {
+          if (!useAuthStore.getState().isAuthenticated) {
+            set({ isLoading: false, error: null });
+            return;
+          }
+
           set({ isLoading: true, error: null });
 
           const response = await projectService.getProjects();
@@ -177,6 +183,11 @@ export const useProjectStore = create<ProjectStore>()(
 
       fetchProject: async (id: string) => {
         try {
+          if (!useAuthStore.getState().isAuthenticated) {
+            set({ isLoading: false, error: null });
+            return;
+          }
+
           set({ isLoading: true, error: null });
 
           const project = await projectService.getProject(id);

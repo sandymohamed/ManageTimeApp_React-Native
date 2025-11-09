@@ -158,7 +158,7 @@ export const ProjectsScreen: React.FC<ProjectsScreenProps> = ({ navigation }) =>
               style={[styles.statusChip, { backgroundColor: getStatusColor(project.status) + '20' }]}
               textStyle={{ color: getStatusColor(project.status) }}
             >
-              {t(`projects.status.${project.status.toLowerCase()}`)}
+              {t(`projects.status_options.${project.status.toLowerCase()}`)}
             </Chip>
           </View>
 

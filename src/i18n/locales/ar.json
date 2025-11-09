@@ -73,12 +73,21 @@
   },
   "navigation": {
     "dashboard": "لوحة التحكم",
+    "dashboardSubtitle": "نظرة عامة على يومك",
     "tasks": "المهام",
+    "tasksSubtitle": "تابع مهامك اليومية",
+    "calendar": "التقويم",
+    "calendarSubtitle": "اعرض جدولك الزمني",
     "projects": "المشاريع",
+    "projectsSubtitle": "تعاون وتتبع التقدم",
+    "routines": "الروتين",
+    "routinesSubtitle": "ابنِ عادات يومية",
     "goals": "الأهداف",
+    "goalsSubtitle": "تتبع تقدمك",
     "alarms": "التنبيهات",
     "analytics": "التحليلات",
     "profile": "الملف الشخصي",
+    "profileSubtitle": "إدارة حسابك",
     "myTasks": "مهامي",
     "alarmsReminders": "التنبيهات والتذكيرات"
   },
@@ -127,6 +136,7 @@
       "medium": "متوسط",
       "low": "عادي"
     },
+    "statusLabel": "الحالة",
     "status_options": {
       "todo": "مطلوب",
       "in_progress": "قيد التنفيذ  ",
@@ -154,6 +164,7 @@
     "deleteProject": "حذف المشروع",
     "projectName": "اسم المشروع",
     "projectDescription": "الوصف",
+    "description": "الوصف",
     "startDate": "تاريخ البداية",
     "endDate": "تاريخ النهاية",
     "noProjects": "لا توجد مشاريع",
@@ -181,7 +192,7 @@
     "sortByUpdated": "ترتيب حسب تاريخ التحديث",
     "sortAscending": "تصاعدي",
     "sortDescending": "تنازلي",
-    "status": {
+    "status_options": {
       "planning": "تخطيط",
       "active": "نشط",
       "on_hold": "متوقف",
@@ -268,7 +279,7 @@
     "receivedInvitations": "الدعوات المستلمة",
     "noSentInvitations": "لا توجد دعوات مرسلة",
     "noReceivedInvitations": "لا توجد دعوات مستلمة",
-    "status": {
+    "status_options": {
       "pending": "معلقة",
       "accepted": "مقبولة",
       "declined": "مرفوضة",
@@ -297,9 +308,9 @@
     "createFailed": "فشل في إنشاء المعلم '{{title}}'",
     "updateFailed": "فشل في تحديث المعلم '{{title}}'",
     "deleteFailed": "فشل في حذف المعلم '{{title}}'",
-    "status": {
+    "status_options": {
       "todo": "مطلوب",
-      "inProgress": "قيد التنفيذ",
+      "in_progress": "قيد التنفيذ",
       "done": "مكتمل",
       "cancelled": "ملغي"
     }
@@ -311,9 +322,12 @@
     "noGoalsDescription": "حدد هدفك الأول وابدأ تتبع تقدمك نحو تحقيق أحلامك.",
     "addGoal": "إضافة هدف",
     "createGoal": "إنشاء هدف",
+    "createGoalDescription": "حدد هدفك، واضبط الأولويات، واختر التاريخ المستهدف.",
     "editGoal": "تعديل الهدف",
+    "editGoalDescription": "عدّل تفاصيل الهدف والأولويات وخطة المعالم الخاصة بك.",
     "deleteGoal": "حذف الهدف",
     "goalTitle": "عنوان الهدف",
+    "goalTitlePlaceholder": "أدخل عنوان الهدف",
     "goalDescription": "الوصف",
     "targetDate": "التاريخ المستهدف",
     "progress": "التقدم",
@@ -344,7 +358,8 @@
       "medium": "متوسط",
       "low": "عادي"
     },
-    "status": {
+    "statusLabel": "الحالة",
+    "status_options": {
       "draft": "مسودة",
       "active": "نشط",
       "paused": "متوقف مؤقتاً",
@@ -358,7 +373,9 @@
     "creating": "جاري إنشاء الهدف...",
     "createError": "فشل في إنشاء الهدف",
     "category": "الفئة",
+    "selectCategory": "اختر الفئة",
     "clearDate": "مسح التاريخ",
+    "selectDate": "اختر التاريخ",
     "descriptionPlaceholder": "اوصف هدفك وما تريد تحقيقه...",
     "edit": "تعديل",
     "actions": "الإجراءات",
@@ -434,8 +451,7 @@
     "manageMilestones": "إدارة المعالم",
     "deleteMilestone": "حذف المعلم",
     "deleteMilestoneConfirmation": "هل أنت متأكد من حذف المعلم '{{title}}'؟ لا يمكن التراجع عن هذا الإجراء.",
-    "addFirstMilestone": "إضافة أول معلم",
-    "selectDate": "اختيار التاريخ"
+    "addFirstMilestone": "إضافة أول معلم"
   },
   "dashboard": {
     "progress": "التقدم",
@@ -469,6 +485,7 @@
   },
   "routines": {
     "myRoutines": "روتيني",
+    "loading": "جاري تحميل الروتينات...",
     "addRoutine": "إضافة روتين",
     "editRoutine": "تعديل الروتين",
     "deleteRoutine": "حذف الروتين",

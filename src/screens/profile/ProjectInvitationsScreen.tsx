@@ -497,7 +497,7 @@ const ProjectInvitationsScreen: React.FC = () => {
             textStyle={{ color: getStatusColor(item.status), fontSize: 12 }}
             icon={getStatusIcon(item.status)}
           >
-            {t(`invitations.status.${item.status.toLowerCase()}`)}
+            {t(`invitations.status_options.${item.status.toLowerCase()}`)}
           </Chip>
         </View>
 
