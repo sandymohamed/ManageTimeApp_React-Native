@@ -520,7 +520,7 @@ export const LoginScreen: React.FC = () => {
                     labelStyle={styles.loginButtonLabel}
                     icon="login"
                   >
-                    {isLoading ? '...' : t('auth.signIn')} {isLoading ? '(Loading...)' : '(Ready)'}
+                    {isLoading ? '...' : t('auth.signIn')} {isLoading ? '(Loading...)' : ''}
                   </Button>
 
                   {/* Forgot Password */}

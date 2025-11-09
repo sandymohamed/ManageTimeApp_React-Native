@@ -23,8 +23,8 @@ export interface UnreadCountResponse {
 }
 
 class NotificationService {
-  private alarmChannelId = 'alarm-channel';
-  private timerChannelId = 'timer-channel';
+  private alarmChannelId = 'alarm-channel-v2';
+  private timerChannelId = 'timer-channel-v2';
   private initialized = false;
 
   constructor() {
@@ -248,12 +248,11 @@ class NotificationService {
   scheduleAllAlarms(alarms: Alarm[]): void {
     console.log(`Scheduling ${alarms.length} alarms`);
     
-    // Cancel all existing alarm notifications first
-    PushNotification.cancelAllLocalNotifications();
-    
     // Schedule each enabled alarm
     alarms.forEach(alarm => {
       if (alarm.enabled) {
+        // Cancel existing notification for this alarm before rescheduling
+        this.cancelAlarm(alarm.id);
         this.scheduleAlarm(alarm);
       }
     });

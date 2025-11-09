@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Alarm, CreateAlarmData, UpdateAlarmData, Timer, CreateTimerData, UpdateTimerData } from '@/types/alarm';
 import { alarmService } from '@/services/alarmService';
 import { notificationService } from '@/services/notificationService';
+import { useAuthStore } from '@/store/authStore';
 
 interface AlarmState {
   // State
@@ -190,6 +191,18 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   },
 
   deleteAlarm: async (id) => {
+    const { isAuthenticated } = useAuthStore.getState();
+
+    if (!isAuthenticated) {
+      // Update store locally and ensure the scheduled notification is removed
+      set((state) => ({
+        alarms: state.alarms.filter((a) => a.id !== id),
+        loading: false,
+      }));
+      notificationService.cancelAlarm(id);
+      return;
+    }
+
     try {
       set({ loading: true, error: null });
       await alarmService.deleteAlarm(id);
@@ -245,6 +258,13 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   },
 
   dismissAlarm: async (id) => {
+    const { isAuthenticated } = useAuthStore.getState();
+
+    if (!isAuthenticated) {
+      notificationService.cancelAlarm(id);
+      return;
+    }
+
     try {
       await alarmService.dismissAlarm(id);
     } catch (error) {

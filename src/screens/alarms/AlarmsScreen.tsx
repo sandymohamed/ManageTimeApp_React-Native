@@ -1106,7 +1106,7 @@ export const AlarmsScreen: React.FC = () => {
           icon="plus"
           style={styles.fab}
           onPress={() => activeTab === 'timers' ? setShowTimerModal(true) : navigation.navigate('AlarmCreate')}
-          label={activeTab === 'alarms' ? 'Add Alarm' : 'Add Timer'}
+          // label={activeTab === 'alarms' ? 'Add Alarm' : 'Add Timer'}
         />
       )}
 

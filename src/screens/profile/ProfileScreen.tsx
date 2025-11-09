@@ -218,9 +218,7 @@ export const ProfileScreen: React.FC = () => {
         <Text variant="bodySmall" style={styles.footerText}>
           Manage Time App v1.0.0
         </Text>
-        <Text variant="bodySmall" style={styles.footerText}>
-          Made with ❤️ for productivity
-        </Text>
+        
       </View>
     </ScrollView>
   );

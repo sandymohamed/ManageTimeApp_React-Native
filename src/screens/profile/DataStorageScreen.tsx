@@ -554,7 +554,8 @@ export const DataStorageScreen: React.FC = () => {
               mode="contained"
               onPress={handleExportData}
               loading={exporting}
-              disabled={exporting}
+              // disabled={exporting}
+              disabled={true}
               icon="download"
               style={styles.actionButton}
             >

@@ -1,7 +1,7 @@
 // @ts-ignore - React version compatibility issue
 import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking, Image } from 'react-native';
-import { Text, Card, List, Divider, Button } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Platform, Linking,  } from 'react-native';
+import { Text, Card,  Button } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
@@ -18,17 +18,17 @@ export const AboutScreen: React.FC = () => {
     navigation.goBack();
   };
 
-  const handleOpenWebsite = () => {
-    Linking.openURL('https://your-app-url.com');
-  };
+  // const handleOpenWebsite = () => {
+  //   Linking.openURL('https://your-app-url.com');
+  // };
 
-  const handleOpenGitHub = () => {
-    Linking.openURL('https://github.com/your-repo');
-  };
+  // const handleOpenGitHub = () => {
+  //   Linking.openURL('https://github.com/your-repo');
+  // };
 
-  const handleOpenTwitter = () => {
-    Linking.openURL('https://twitter.com/your-handle');
-  };
+  // const handleOpenTwitter = () => {
+  //   Linking.openURL('https://twitter.com/your-handle');
+  // };
 
   const handleRateApp = () => {
     const url = Platform.OS === 'ios'
@@ -128,7 +128,7 @@ export const AboutScreen: React.FC = () => {
         </Card>
 
         {/* Links */}
-        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+        {/* <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
               {t('about.connect')}
@@ -160,7 +160,7 @@ export const AboutScreen: React.FC = () => {
               onPress={handleOpenTwitter}
             />
           </Card.Content>
-        </Card>
+        </Card> */}
 
         {/* Actions */}
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
@@ -198,9 +198,9 @@ export const AboutScreen: React.FC = () => {
             <Text variant="bodyMedium" style={[styles.creditsText, { color: theme.colors.textSecondary }]}>
               {t('about.developedBy')}
             </Text>
-            <Text variant="bodySmall" style={[styles.creditsText, { color: theme.colors.textSecondary }]}>
+            {/* <Text variant="bodySmall" style={[styles.creditsText, { color: theme.colors.textSecondary }]}>
               {t('about.madeWith')}
-            </Text>
+            </Text> */}
           </Card.Content>
         </Card>
 
