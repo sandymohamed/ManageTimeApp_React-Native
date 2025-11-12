@@ -43,7 +43,8 @@
     "startDateRequired": "Start date is required",
     "endDateRequired": "End date is required",
     "showingAll": "Showing all {{count}} items",
-    "loadingMore": "Loading more..."
+    "loadingMore": "Loading more...",
+    "appName": "Manage Time"
   },
   "auth": {
     "welcomeBack": "Welcome Back",
@@ -669,6 +670,11 @@
     "darkTheme": "Dark Theme",
     "systemTheme": "System Theme",
     "appearance": "Appearance",
+    "themePreview": "Theme Preview",
+    "themePreviewSampleTitle": "Sample Task",
+    "themePreviewSampleDescription": "This is how your tasks will look",
+    "themePreviewHighPriority": "High Priority",
+    "themePreviewInProgress": "In Progress",
     "data": "Data & Sync",
     "pushNotifications": "Push Notifications",
     "enablePushNotifications": "Enable Push Notifications",
@@ -713,7 +719,9 @@
     "privacyPolicy": "Privacy Policy",
     "privacyPolicyDesc": "Read our privacy policy",
     "termsOfService": "Terms of Service",
-    "termsOfServiceDesc": "Read our terms and conditions"
+    "termsOfServiceDesc": "Read our terms and conditions",
+    "appVersion": "App Version",
+    "appVersionValue": "Version {{version}}"
   },
   "errors": {
     "networkError": "Network error. Please check your connection.",
@@ -949,10 +957,12 @@
     "support": "Support Us",
     "rateUs": "Rate Us on App Store",
     "shareApp": "Share App",
+    "shareMessage": "Check out {{appName}} - The best productivity app! {{url}}",
     "credits": "Credits",
     "developedBy": "Developed with passion by the Manage Time team",
     "madeWith": "Made with React Native, TypeScript, and love ❤️",
     "allRightsReserved": "All rights reserved.",
+    "copyright": "© {{year}} {{appName}}",
     "version": "Version"
   },
   "data": {

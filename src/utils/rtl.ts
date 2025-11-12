@@ -1,4 +1,3 @@
-import { I18nManager } from 'react-native';
 
 export const isRTL = (language: string): boolean => {
   return language === 'ar';

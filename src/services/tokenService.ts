@@ -12,7 +12,7 @@ class TokenService {
 
   async storeTokens(tokens: StoredTokens): Promise<boolean> {
     try {
-      const result = await Keychain.setGenericPassword(
+     await Keychain.setGenericPassword(
         this.SERVICE_NAME,
         JSON.stringify(tokens)
       );

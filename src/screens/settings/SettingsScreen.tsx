@@ -13,6 +13,7 @@ export const SettingsScreen: React.FC = () => {
   const paperTheme = useTheme();
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
+  const appVersion = '1.0.0';
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -57,8 +58,8 @@ export const SettingsScreen: React.FC = () => {
             </Text>
 
             <List.Item
-              title="App Version"
-              description="1.0.0"
+              title={t('settings.appVersion')}
+              description={t('settings.appVersionValue', { version: appVersion })}
               left={props => <List.Icon {...props} icon="information" />}
               style={styles.listItem}
             />
@@ -66,8 +67,8 @@ export const SettingsScreen: React.FC = () => {
             <Divider style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
 
             <List.Item
-              title="Terms of Service"
-              description="Read our terms and conditions"
+              title={t('settings.termsOfService')}
+              description={t('settings.termsOfServiceDesc')}
               left={props => <List.Icon {...props} icon="file-document" />}
               right={props => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => console.log('Terms of Service')}
@@ -77,8 +78,8 @@ export const SettingsScreen: React.FC = () => {
             <Divider style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
 
             <List.Item
-              title="Privacy Policy"
-              description="Learn how we protect your data"
+              title={t('settings.privacyPolicy')}
+              description={t('settings.privacyPolicyDesc')}
               left={props => <List.Icon {...props} icon="shield-account" />}
               right={props => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => console.log('Privacy Policy')}
@@ -91,26 +92,26 @@ export const SettingsScreen: React.FC = () => {
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Theme Preview
+              {t('settings.themePreview')}
             </Text>
 
             <View style={[styles.themePreview, { backgroundColor: theme.colors.background }]}>
               <View style={[styles.previewCard, { backgroundColor: theme.colors.surface }]}>
                 <Text variant="titleSmall" style={{ color: theme.colors.text }}>
-                  Sample Task
+                  {t('settings.themePreviewSampleTitle')}
                 </Text>
                 <Text variant="bodySmall" style={{ color: theme.colors.textSecondary }}>
-                  This is how your tasks will look
+                  {t('settings.themePreviewSampleDescription')}
                 </Text>
                 <View style={styles.previewChips}>
                   <View style={[styles.previewChip, { backgroundColor: theme.colors.primary }]}>
                     <Text variant="labelSmall" style={{ color: theme.colors.onPrimary }}>
-                      High Priority
+                      {t('settings.themePreviewHighPriority')}
                     </Text>
                   </View>
                   <View style={[styles.previewChip, { backgroundColor: theme.colors.secondary }]}>
                     <Text variant="labelSmall" style={{ color: theme.colors.onSecondary }}>
-                      In Progress
+                      {t('settings.themePreviewInProgress')}
                     </Text>
                   </View>
                 </View>

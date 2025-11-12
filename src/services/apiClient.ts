@@ -165,7 +165,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { useAuthStore } from '@/store/authStore';
 import { config } from '@/config/env';
-import { logger } from '@/utils/logger';
 
 class ApiClient {
   private client: AxiosInstance;
@@ -205,12 +204,12 @@ class ApiClient {
   private setupInterceptors() {
     // Request interceptor
     this.client.interceptors.request.use(
-      async (config) => {
+      async (conf) => {
         const token = await useAuthStore.getState().getToken();
         if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+          conf.headers.Authorization = `Bearer ${token}`;
         }
-        return config;
+        return conf;
       },
       (error) => {
         console.log('❌ Request interceptor error:', error);
@@ -327,47 +326,47 @@ class ApiClient {
     );
   }
 
-  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.get(url, config);
+  async get<T>(url: string, conf?: AxiosRequestConfig): Promise<T> {
+    const response: AxiosResponse<T> = await this.client.get(url, conf);
     return response.data;
   }
 
-  async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.post(url, data, config);
+  async post<T>(url: string, data?: any, conf?: AxiosRequestConfig): Promise<T> {
+    const response: AxiosResponse<T> = await this.client.post(url, data, conf);
     return response.data;
   }
 
-  async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.put(url, data, config);
+  async put<T>(url: string, data?: any, conf?: AxiosRequestConfig): Promise<T> {
+    const response: AxiosResponse<T> = await this.client.put(url, data, conf);
     return response.data;
   }
 
-  async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.patch(url, data, config);
+  async patch<T>(url: string, data?: any, conf?: AxiosRequestConfig): Promise<T> {
+    const response: AxiosResponse<T> = await this.client.patch(url, data, conf);
     return response.data;
   }
 
-  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.delete(url, config);
+  async delete<T>(url: string, conf?: AxiosRequestConfig): Promise<T> {
+    const response: AxiosResponse<T> = await this.client.delete(url, conf);
     return response.data;
   }
 
   // Upload file
-  async upload<T>(url: string, formData: FormData, config?: AxiosRequestConfig): Promise<T> {
+  async upload<T>(url: string, formData: FormData, conf?: AxiosRequestConfig): Promise<T> {
     const response: AxiosResponse<T> = await this.client.post(url, formData, {
       ...config,
       headers: {
         'Content-Type': 'multipart/form-data',
-        ...config?.headers,
+        ...conf?.headers,
       },
     });
     return response.data;
   }
 
   // Download file
-  async download(url: string, config?: AxiosRequestConfig): Promise<Blob> {
+  async download(url: string, conf?: AxiosRequestConfig): Promise<Blob> {
     const response: AxiosResponse<Blob> = await this.client.get(url, {
-      ...config,
+      ...conf,
       responseType: 'blob',
     });
     return response.data;

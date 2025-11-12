@@ -13,6 +13,8 @@ export const AboutScreen: React.FC = () => {
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
+  const appName = t('common.appName');
+  const currentYear = new Date().getFullYear();
 
   const handleBack = () => {
     navigation.goBack();
@@ -39,7 +41,10 @@ export const AboutScreen: React.FC = () => {
 
   const handleShareApp = () => {
     // Implement share functionality
-    const message = `Check out Manage Time App - The best productivity app! ${Platform.OS === 'ios' ? 'https://apps.apple.com/app/your-app-id' : 'https://play.google.com/store/apps/details?id=your.package.name'}`;
+    const shareUrl = Platform.OS === 'ios'
+      ? 'https://apps.apple.com/app/your-app-id'
+      : 'https://play.google.com/store/apps/details?id=your.package.name';
+    const message = t('about.shareMessage', { appName, url: shareUrl });
     // Share.share({ message });
   };
 
@@ -64,7 +69,7 @@ export const AboutScreen: React.FC = () => {
               <Icon name="clock-check" size={60} color={theme.colors.onPrimary} />
             </View>
             <Text variant="headlineMedium" style={[styles.appName, { color: theme.colors.text }]}>
-              Manage Time
+              {appName}
             </Text>
             <Text variant="bodyLarge" style={[styles.appTagline, { color: theme.colors.textSecondary }]}>
               {t('about.tagline')}
@@ -207,7 +212,7 @@ export const AboutScreen: React.FC = () => {
         {/* Copyright */}
         <View style={styles.footer}>
           <Text variant="bodySmall" style={[styles.copyrightText, { color: theme.colors.textSecondary }]}>
-            © {new Date().getFullYear()} Manage Time App
+            {t('about.copyright', { year: currentYear, appName })}
           </Text>
           <Text variant="bodySmall" style={[styles.copyrightText, { color: theme.colors.textSecondary }]}>
             {t('about.allRightsReserved')}

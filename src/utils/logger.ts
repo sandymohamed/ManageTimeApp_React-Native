@@ -38,9 +38,7 @@ class Logger {
     const logEntry = this.formatMessage(level, message, data);
     
     if (Platform.OS === 'web') {
-      console.log(JSON.stringify(logEntry, null, 2));
     } else {
-      console.log(`[${logEntry.timestamp}] ${logEntry.level}: ${logEntry.message}`);
       if (logEntry.data) {
         console.log('Data:', logEntry.data);
       }

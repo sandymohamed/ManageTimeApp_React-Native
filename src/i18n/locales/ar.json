@@ -44,7 +44,8 @@
     "endDateRequired": "تاريخ النهاية مطلوب",
     "showingAll": "عرض الكل {{count}} عنصر",
     "loadingMore": "جاري تحميل المزيد...",
-    "update": "تحديث"
+    "update": "تحديث",
+    "appName": "إدارة الوقت"
   },
   "auth": {
     "welcomeBack": "مرحباً بعودتك",
@@ -727,6 +728,11 @@
     "darkTheme": "المظهر الداكن",
     "systemTheme": "مظهر النظام",
     "appearance": "المظهر",
+    "themePreview": "معاينة السمة",
+    "themePreviewSampleTitle": "مهمة نموذجية",
+    "themePreviewSampleDescription": "هكذا ستبدو مهامك",
+    "themePreviewHighPriority": "أولوية عالية",
+    "themePreviewInProgress": "قيد التنفيذ",
     "data": "البيانات والمزامنة",
     "pushNotifications": "الإشعارات الفورية",
     "enablePushNotifications": "تفعيل الإشعارات الفورية",
@@ -771,7 +777,9 @@
     "privacyPolicy": "سياسة الخصوصية",
     "privacyPolicyDesc": "قراءة سياسة الخصوصية",
     "termsOfService": "شروط الخدمة",
-    "termsOfServiceDesc": "قراءة الشروط والأحكام"
+    "termsOfServiceDesc": "قراءة الشروط والأحكام",
+    "appVersion": "إصدار التطبيق",
+    "appVersionValue": "الإصدار {{version}}"
   },
   "errors": {
     "networkError": "خطأ في الشبكة. يرجى التحقق من اتصالك.",
@@ -890,11 +898,13 @@
     "support": "ادعمنا",
     "rateUs": "قيمنا على متجر التطبيقات",
     "shareApp": "مشاركة التطبيق",
+    "shareMessage": "جرّب تطبيق {{appName}} - أفضل تطبيق للإنتاجية! {{url}}",
     "credits": "الاعتمادات",
     "developedBy": "تم التطوير بشغف من قبل فريق إدارة الوقت",
     "madeWith": "صُنع بـ React Native و TypeScript والحب ❤️",
     "allRightsReserved": "جميع الحقوق محفوظة.",
-    "version": "الإصدار"
+    "version": "الإصدار",
+    "copyright": "© {{year}} تطبيق {{appName}}"
   },
   "data": {
     "storageUsage": "استخدام التخزين",

@@ -33,7 +33,6 @@ class TimerNotificationService {
 
   // Show timer completion notification
   showTimerCompletionNotification(timer: Timer): void {
-    console.log(`⏰ TIMER COMPLETED: ${timer.title}`);
     
     const notificationOptions: TimerNotificationOptions = {
       title: `⏰ ${timer.title} - Complete!`,
@@ -52,7 +51,6 @@ class TimerNotificationService {
 
   // Show timer pause notification
   showTimerPauseNotification(timer: Timer): void {
-    console.log(`⏸️ TIMER PAUSED: ${timer.title}`);
     
     const notificationOptions: TimerNotificationOptions = {
       title: `⏸️ ${timer.title} - Paused`,
@@ -69,7 +67,6 @@ class TimerNotificationService {
 
   // Show timer start notification
   showTimerStartNotification(timer: Timer): void {
-    console.log(`▶️ TIMER STARTED: ${timer.title}`);
     
     const notificationOptions: TimerNotificationOptions = {
       title: `▶️ ${timer.title} - Started`,
@@ -86,7 +83,6 @@ class TimerNotificationService {
 
   // Show timer stop notification
   showTimerStopNotification(timer: Timer): void {
-    console.log(`⏹️ TIMER STOPPED: ${timer.title}`);
     
     const notificationOptions: TimerNotificationOptions = {
       title: `⏹️ ${timer.title} - Stopped`,
@@ -246,7 +242,6 @@ class TimerNotificationService {
     if (timerId) {
       this.activeTimerNotifications.delete(timerId);
     }
-    console.log('Timer notification dismissed');
   }
 
   // Show timer progress notification (for long timers)

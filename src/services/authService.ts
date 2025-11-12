@@ -1,111 +1,13 @@
-import * as Keychain from 'react-native-keychain';
 
 import { apiClient } from './apiClient';
 import { User, LoginCredentials, RegisterCredentials, ChangePasswordData } from '@/types/user';
 import { ApiResponse } from '@/types';
-import { useAuthStore } from '@/store/authStore';
 import { logger } from '@/utils/logger';
-import axios from 'axios';
 
 class AuthService {
-  // Debug helper - only for development/testing
-  // Add this to your AuthService temporarily
-  // Add to your AuthService temporarily
-  // async debugTokenStorage(): Promise<void> {
-  //   try {
-
-  //     // Check Keychain
-  //     const credentials = await Keychain.getGenericPassword();
-
-  //     if (credentials) {
-  //       const tokens = JSON.parse(credentials.password);
-  //     } else {
-  //       console.log('No credentials in Keychain');
-  //     }
-
-  //     // Check Zustand state
-  //     const state = useAuthStore.getState();
-  //     console.log('Zustand state:', {
-  //       user: state.user,
-  //       isAuthenticated: state.isAuthenticated,
-  //       token: await state.getToken?.(),
-  //       refreshToken: await state.getRefreshToken?.(),
-  //     });
-
-  //   } catch (error) {
-  //     console.log('Debug error:', error);
-  //   }
-  // }
-
-  // Debug helper - only for development/testing
-  // async testConnection(): Promise<void> {
-  //   try {
-  //     console.log("🔍 Testing network connectivity...");
-
-  //     // Test 1: Basic fetch to health endpoint
-  //     console.log("🔍 Test 1: Basic fetch to health endpoint...");
-  //     try {
-  //       const controller = new AbortController();
-  //       const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-  //       const fetchTest = await fetch('http://192.168.1.13:8081/health', {
-  //         method: 'GET',
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //         },
-  //         signal: controller.signal,
-  //       });
-
-  //       clearTimeout(timeoutId);
-  //       console.log("✅ Fetch test result:", fetchTest.status, fetchTest.statusText);
-  //       const data = await fetchTest.json();
-  //       console.log("✅ Health check data:", data);
-  //     } catch (fetchError) {
-  //       console.log("❌ Fetch test failed:", fetchError);
-  //     }
-
-  //     // Test 2: Direct axios to health endpoint
-  //     console.log("🔍 Test 2: Direct axios to health endpoint...");
-  //     try {
-  //       const directAxios = await axios.get('http://192.168.1.13:8081/health', {
-  //         timeout: 10000,
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //         }
-  //       });
-  //       console.log("✅ Direct axios result:", directAxios.status);
-  //       console.log("✅ Health check data:", directAxios.data);
-  //     } catch (directError) {
-  //       console.log("❌ Direct axios failed:", directError);
-  //     }
-
-  //     // Test 3: Your apiClient
-  //     console.log("🔍 Test 3: Your apiClient...");
-  //     try {
-  //       const apiClientTest = await apiClient.get('/health');
-  //       console.log("✅ ApiClient test result:", apiClientTest);
-  //     } catch (apiClientError: any) {
-  //       console.log("❌ ApiClient test failed:", apiClientError);
-  //       console.log("🔧 Error details:", {
-  //         message: apiClientError.message,
-  //         code: apiClientError.code,
-  //         config: {
-  //           baseURL: apiClientError.config?.baseURL,
-  //           url: apiClientError.config?.url,
-  //           method: apiClientError.config?.method
-  //         }
-  //       });
-  //     }
-
-  //   } catch (error) {
-  //     console.log("💥 Overall test failed:", error);
-  //   }
-  // }
-
-
+ 
   async login(credentials: LoginCredentials): Promise<{ user: User; token: string; refreshToken: string }> {
     try {
-      console.log('🔐 AuthService: Starting login...', credentials);
 
       const response = await apiClient.post<ApiResponse<{
         user: User;
@@ -114,8 +16,6 @@ class AuthService {
           refreshToken: string;
         };
       }>>('/auth/login', credentials);
-
-      console.log('🔐 AuthService: Login response received:', response);
 
       if (!response.success) {
         throw new Error(response.error || 'Login failed');
@@ -129,7 +29,6 @@ class AuthService {
         refreshToken: tokens.refreshToken,
       };
     } catch (error) {
-      console.log('❌ AuthService: Login error:', error);
       logger.error('Login error:', error);
       throw error;
     }
@@ -137,7 +36,6 @@ class AuthService {
 
   async register(credentials: RegisterCredentials): Promise<{ user: User; token: string; refreshToken: string }> {
     try {
-      console.log('🔐 AuthService: Starting registration...', credentials);
 
       const response = await apiClient.post<ApiResponse<{
         user: User;
@@ -146,8 +44,6 @@ class AuthService {
           refreshToken: string;
         };
       }>>('/auth/signup', credentials);
-
-      console.log('🔐 AuthService: Registration response received:', response);
 
       if (!response.success) {
         throw new Error(response.error || 'Registration failed');
@@ -161,7 +57,6 @@ class AuthService {
         refreshToken: tokens.refreshToken,
       };
     } catch (error) {
-      console.log('❌ AuthService: Registration error:', error);
       logger.error('Registration error:', error);
       throw error;
     }
@@ -169,14 +64,11 @@ class AuthService {
 
   async refreshToken(refreshToken: string): Promise<{ token: string; refreshToken: string }> {
     try {
-      console.log('🔄 AuthService: Refreshing token...');
 
       const response = await apiClient.post<ApiResponse<{
         accessToken: string;
         refreshToken: string;
       }>>('/auth/refresh', { refreshToken });
-
-      console.log('🔄 AuthService: Refresh response received:', response);
 
       if (!response.success) {
         throw new Error(response.error || 'Token refresh failed');
@@ -189,7 +81,6 @@ class AuthService {
         refreshToken: newRefreshToken,
       };
     } catch (error: any) {
-      console.log('❌ AuthService: Token refresh error:', error);
       logger.error('Token refresh error:', error);
 
       // Provide more specific error messages
@@ -210,7 +101,6 @@ class AuthService {
       // Try to call backend logout endpoint
       try {
         await apiClient.post('/auth/logout');
-        console.log('✅ Backend logout successful');
       } catch (error) {
         // If backend logout fails, just log it and continue
         console.log('⚠️ Backend logout failed, continuing with local logout:', error);

@@ -29,7 +29,7 @@ interface AlarmState {
   toggleAlarm: (id: string) => Promise<void>;
   snoozeAlarm: (id: string, duration?: number) => Promise<void>;
   dismissAlarm: (id: string) => Promise<void>;
-  
+
   createTimer: (data: CreateTimerData) => Promise<Timer>;
   updateTimer: (id: string, data: UpdateTimerData) => Promise<Timer>;
   deleteTimer: (id: string) => Promise<void>;
@@ -39,15 +39,15 @@ interface AlarmState {
   resetTimer: (id: string) => Promise<void>;
   setActiveTimer: (timer: Timer | null) => void;
   updateTimerRemainingTime: (id: string, remainingTime: number) => void;
-  
+
   clearError: () => void;
   setLoading: (loading: boolean) => void;
-  
+
   // Timer countdown methods
   startCountdown: () => void;
   stopCountdown: () => void;
   checkTimerCompletion: () => void;
-  
+
   // Local storage methods for offline support
   saveTimersToStorage: () => void;
   loadTimersFromStorage: () => Timer[];
@@ -79,7 +79,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         pagination: response.pagination,
         loading: false,
       });
-      
+
       // Schedule all enabled alarms
       notificationService.scheduleAllAlarms(response.data);
     } catch (error) {
@@ -93,7 +93,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   fetchTimers: async (page = 1, limit = 20) => {
     try {
       set({ loading: true, error: null });
-      
+
       // Try to fetch from server first
       try {
         const response = await alarmService.getTimers(page, limit);
@@ -103,8 +103,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
           loading: false,
         });
       } catch (serverError) {
-        console.log('Failed to fetch timers from server, using local storage:', serverError);
-        
+
         // Load from local storage or create default timers
         const storedTimers = get().loadTimersFromStorage();
         const localTimers = storedTimers.length > 0 ? storedTimers : [
@@ -121,7 +120,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
             userId: 'local',
           }
         ];
-        
+
         set({
           timers: localTimers,
           pagination: {
@@ -149,12 +148,12 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         alarms: [alarm, ...state.alarms],
         loading: false,
       }));
-      
+
       // Schedule the new alarm if enabled
       if (alarm.enabled) {
         notificationService.scheduleAlarm(alarm);
       }
-      
+
       return alarm;
     } catch (error) {
       set({
@@ -173,13 +172,13 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         alarms: state.alarms.map((a) => (a.id === id ? alarm : a)),
         loading: false,
       }));
-      
+
       // Reschedule the alarm if it was updated
       notificationService.cancelAlarm(id);
       if (alarm.enabled) {
         notificationService.scheduleAlarm(alarm);
       }
-      
+
       return alarm;
     } catch (error) {
       set({
@@ -210,7 +209,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         alarms: state.alarms.filter((a) => a.id !== id),
         loading: false,
       }));
-      
+
       // Cancel the scheduled alarm
       notificationService.cancelAlarm(id);
     } catch (error) {
@@ -234,7 +233,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       set((state) => ({
         alarms: state.alarms.map((a) => (a.id === id ? updatedAlarm : a)),
       }));
-      
+
       // Reschedule or cancel alarm based on new enabled state
       notificationService.cancelAlarm(id);
       if (updatedAlarm.enabled) {
@@ -278,7 +277,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   createTimer: async (data) => {
     try {
       set({ loading: true, error: null });
-      
+
       // Create timer locally first for immediate UI response
       const localTimer: Timer = {
         id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -305,7 +304,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       try {
         const serverTimer = await alarmService.createTimer(data);
         set((state) => ({
-          timers: state.timers.map(t => 
+          timers: state.timers.map(t =>
             t.id === localTimer.id ? { ...serverTimer, remainingTime: localTimer.remainingTime } : t
           ),
         }));
@@ -327,7 +326,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   updateTimer: async (id, data) => {
     try {
       set({ loading: true, error: null });
-      
+
       // Update timer locally first
       const currentTimer = get().timers.find(t => t.id === id);
       if (!currentTimer) {
@@ -375,7 +374,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   deleteTimer: async (id) => {
     try {
       set({ loading: true, error: null });
-      
+
       // Remove timer locally first
       set((state) => ({
         timers: state.timers.filter((t) => t.id !== id),
@@ -413,7 +412,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
 
       // Stop any other running timers
       set((state) => ({
-        timers: state.timers.map((t) => 
+        timers: state.timers.map((t) =>
           t.id !== id && t.isRunning ? { ...t, isRunning: false, isPaused: false } : t
         ),
         activeTimer: null,
@@ -436,7 +435,6 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       notificationService.scheduleTimer(updatedTimer.id, updatedTimer.title, updatedTimer.remainingTime);
 
       // Start countdown
-      console.log('Starting timer:', updatedTimer.title, 'with remaining time:', updatedTimer.remainingTime);
       get().startCountdown();
 
       // Save to local storage
@@ -634,39 +632,32 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   // Timer countdown methods
   startCountdown: () => {
     const { countdownInterval } = get();
-    
+
     // Clear existing interval if any
     if (countdownInterval) {
       clearInterval(countdownInterval);
     }
 
-    console.log('Starting countdown...');
-
     // Start new countdown interval
     const interval = setInterval(() => {
       const { activeTimer } = get();
-      console.log('Countdown tick - activeTimer:', activeTimer?.title, 'isRunning:', activeTimer?.isRunning, 'remainingTime:', activeTimer?.remainingTime);
-      
+
       if (activeTimer && activeTimer.isRunning && activeTimer.remainingTime > 0) {
         // Decrease remaining time by 1 second
         const newRemainingTime = activeTimer.remainingTime - 1;
-        console.log('Updating remaining time from', activeTimer.remainingTime, 'to', newRemainingTime);
         get().updateTimerRemainingTime(activeTimer.id, newRemainingTime);
-        
+
         // Check if timer is completed
         if (newRemainingTime <= 0) {
-          console.log('Timer completed!');
           get().checkTimerCompletion();
         }
       } else if (!activeTimer || !activeTimer.isRunning) {
         // Stop countdown if no active timer or timer is not running
-        console.log('Stopping countdown - no active timer or not running');
         get().stopCountdown();
       }
     }, 1000);
 
     set({ countdownInterval: interval });
-    console.log('Countdown interval set:', interval);
   },
 
   stopCountdown: () => {
@@ -681,8 +672,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
     const { activeTimer } = get();
     if (activeTimer && activeTimer.remainingTime <= 0) {
       // Timer completed - show alert and stop timer
-      console.log(`Timer "${activeTimer.title}" completed!`);
-      
+
       // Stop the timer
       get().stopTimer(activeTimer.id);
     }
@@ -692,8 +682,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   saveTimersToStorage: () => {
     try {
       const storage =
-        (typeof global !== 'undefined' && (global as any).localStorage) ||
-        (typeof window !== 'undefined' && (window as any).localStorage);
+        (typeof global !== 'undefined' && (global as any).localStorage);
+      //  ||(typeof window !== 'undefined' && (window as any).localStorage);
       if (!storage) {
         return;
       }
@@ -707,8 +697,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   loadTimersFromStorage: () => {
     try {
       const storage =
-        (typeof global !== 'undefined' && (global as any).localStorage) ||
-        (typeof window !== 'undefined' && (window as any).localStorage);
+        (typeof global !== 'undefined' && (global as any).localStorage);
+      // || (typeof window !== 'undefined' && (window as any).localStorage);
       if (!storage) {
         return [];
       }

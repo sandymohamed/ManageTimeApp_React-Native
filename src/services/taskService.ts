@@ -1,6 +1,6 @@
 import { apiClient } from './apiClient';
 import { Task, CreateTaskData, UpdateTaskData } from '@/types/task';
-import { ApiResponse, PaginatedResponse } from '@/types';
+import { ApiResponse,  } from '@/types';
 import { logger } from '@/utils/logger';
 
 class TaskService {
