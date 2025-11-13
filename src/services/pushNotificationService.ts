@@ -359,6 +359,9 @@ class PushNotificationService {
             navigate('Goals');
           }
           break;
+        case 'ALARM_TRIGGER':
+          navigate('Alarms');
+          break;
         default:
           // Fallbacks: try project detail if projectId exists, otherwise dashboard
           if (projectId) {

@@ -1,6 +1,10 @@
 import { ApiResponse } from '@/types';
 import { apiClient } from './apiClient';
 import PushNotification, { Importance } from 'react-native-push-notification';
+import type {
+  PushNotificationScheduleObject,
+  PushNotificationObject,
+} from 'react-native-push-notification';
 import { Platform } from 'react-native';
 import { Alarm, Timer } from '@/types/alarm';
 
@@ -22,11 +26,19 @@ export interface UnreadCountResponse {
   count: number;
 }
 
+type ExtendedScheduleNotification = PushNotificationScheduleObject & {
+  data?: Record<string, any>;
+  wakeUp?: boolean;
+};
+
+type ExtendedNotification = PushNotificationObject & {
+  data?: Record<string, any>;
+};
+
 class NotificationService {
   private alarmChannelId = 'alarm-channel-v2';
   private timerChannelId = 'timer-channel-v2';
   private initialized = false;
-
   constructor() {
     this.initializeChannels();
   }
@@ -61,8 +73,6 @@ class NotificationService {
           soundName: 'default',
           importance: Importance.HIGH,
           vibrate: true,
-          lights: true,
-          lightColor: '#FF0000',
         },
         (created) => console.log(`Alarm channel created: ${created}`)
       );
@@ -129,132 +139,20 @@ class NotificationService {
    * Schedule a single alarm notification
    */
   scheduleAlarm(alarm: Alarm): void {
-    if (!alarm.enabled) {
-      console.log(`Alarm ${alarm.id} is disabled, skipping scheduling`);
-      return;
-    }
-
-    try {
-      let alarmTime = new Date(alarm.time);
-      const now = new Date();
-      
-      // For one-time alarms, if the alarm time is tomorrow but the time today hasn't passed yet,
-      // adjust it to today. This fixes cases where alarms were created with the wrong date.
-      const isOneTimeAlarm = !alarm.recurrenceRule || alarm.recurrenceRule === 'none';
-      if (isOneTimeAlarm) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const alarmDate = new Date(alarmTime);
-        alarmDate.setHours(0, 0, 0, 0);
-        
-        // If alarm is scheduled for tomorrow but the time today hasn't passed
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        
-        if (alarmDate.getTime() === tomorrow.getTime()) {
-          const alarmTimeToday = new Date(today);
-          alarmTimeToday.setHours(alarmTime.getHours(), alarmTime.getMinutes(), 0, 0);
-          
-          // Only adjust if the time today hasn't passed
-          if (alarmTimeToday.getTime() > now.getTime()) {
-            console.log(`🔧 Adjusting alarm ${alarm.id} from tomorrow to today`);
-            alarmTime = alarmTimeToday;
-          }
-        }
-      }
-      
-      // Debug logging
-      console.log(`🔍 Alarm scheduling debug for ${alarm.id}:`, {
-        alarmTimeISO: alarm.time,
-        alarmTimeParsed: alarmTime.toISOString(),
-        alarmTimeLocal: alarmTime.toLocaleString(),
-        nowISO: now.toISOString(),
-        nowLocal: now.toLocaleString(),
-        timezone: alarm.timezone,
-        isOneTime: isOneTimeAlarm,
-      });
-      
-      // Don't schedule if alarm time is in the past (more than 1 minute ago)
-      // Allow scheduling if it's within the last minute to catch alarms that just passed
-      const timeDiff = alarmTime.getTime() - now.getTime();
-      if (timeDiff < -60000) {
-        console.log(`⚠️ Alarm ${alarm.id} time is too far in the past (${Math.round(timeDiff / 1000)}s), skipping scheduling`);
-        console.log(`   Alarm time: ${alarmTime.toLocaleString()}, Now: ${now.toLocaleString()}`);
-        return;
-      }
-
-      // Calculate delay in milliseconds
-      const delay = alarmTime.getTime() - now.getTime();
-
-      console.log(`📅 Scheduling alarm ${alarm.id} "${alarm.title}" for ${alarmTime.toISOString()} (in ${Math.round(delay / 1000)}s)`);
-
-      // Schedule local notification
-      // Convert alarm ID to numeric ID for notification (notifications need numeric IDs)
-      const notificationId = this.getNotificationBaseId(alarm.id).toString();
-      
-      // Cancel any existing notification with this ID first
-      PushNotification.cancelLocalNotification(notificationId.toString());
-      
-      PushNotification.localNotificationSchedule({
-        id: notificationId.toString(),
-        title: '⏰ Alarm',
-        message: alarm.title,
-        date: alarmTime,
-        allowWhileIdle: true,
-        ignoreInForeground: false,
-        soundName: 'default', // System default sound
-        playSound: true,
-        vibrate: true,
-        vibration: 1000,
-        priority: 'max',
-        importance: 'max',
-        channelId: Platform.OS === 'android' ? this.alarmChannelId : undefined,
-        data: {
-          type: 'alarm',
-          alarmId: alarm.id,
-        },
-        userInfo: {
-          type: 'alarm',
-          alarmId: alarm.id,
-        },
-        repeatType: this.getRepeatType(alarm.recurrenceRule),
-        actions: ['["Dismiss", "Snooze"]'],
-        // Ensure notification works when app is closed
-        ongoing: false,
-        autoCancel: true,
-        // For Android: ensure it wakes up device and plays sound
-        wakeUp: true,
-        tag: `alarm_${alarm.id}`,
-        // For iOS: ensure sound plays even in silent mode
-        ...(Platform.OS === 'ios' && {
-          category: 'ALARM',
-        }),
-      });
-      
-      console.log(`✅ Alarm ${alarm.id} scheduled successfully with notification ID: ${notificationId}`);
-
-      // Handle recurrence
-      if (alarm.recurrenceRule) {
-        this.handleRecurrence(alarm);
-      }
-    } catch (error) {
-      console.error(`❌ Failed to schedule alarm ${alarm.id}:`, error);
-    }
+    // Backend now manages alarm push notifications. Ensure any legacy local notifications are cleared.
+    this.cancelAlarm(alarm.id);
+    console.log(`⏳ Skipping local scheduling for alarm ${alarm.id}; backend handles push notifications.`);
   }
 
   /**
    * Schedule all alarms
    */
   scheduleAllAlarms(alarms: Alarm[]): void {
-    console.log(`Scheduling ${alarms.length} alarms`);
+    console.log('Skipping local alarm scheduling; backend manages alarm push notifications.');
     
-    // Schedule each enabled alarm
+    // Clear any legacy local notifications for the provided alarms
     alarms.forEach(alarm => {
-      if (alarm.enabled) {
-        // Cancel existing notification for this alarm before rescheduling
         this.cancelAlarm(alarm.id);
-        this.scheduleAlarm(alarm);
-      }
     });
   }
 
@@ -266,10 +164,17 @@ class NotificationService {
       console.log(`Cancelling alarm notification ${alarmId}`);
       // Convert alarm ID to numeric ID for notification
       const notificationId = this.getNotificationBaseId(alarmId);
-      PushNotification.cancelLocalNotification(notificationId.toString());
+      this.cancelAlarmNotifications(notificationId.toString());
     } catch (error) {
       console.error(`Failed to cancel alarm ${alarmId}:`, error);
     }
+  }
+
+  /**
+   * Cancel all notifications (primary + reminders) for an alarm
+   */
+  private cancelAlarmNotifications(baseNotificationId: string): void {
+    PushNotification.cancelLocalNotification(baseNotificationId);
   }
 
   /**
@@ -284,7 +189,7 @@ class NotificationService {
       // Convert timer ID to numeric ID for notification
       const notificationId = this.getNotificationBaseId(timerId).toString();
 
-      PushNotification.localNotificationSchedule({
+      const notificationPayload: ExtendedScheduleNotification = {
         id: notificationId,
         title: '⏱️ Timer Complete',
         message: `${title} is complete!`,
@@ -306,7 +211,9 @@ class NotificationService {
           type: 'timer',
           timerId: timerId,
         },
-      });
+      };
+
+      PushNotification.localNotificationSchedule(notificationPayload);
     } catch (error) {
       console.error(`Failed to schedule timer ${timerId}:`, error);
     }
@@ -328,7 +235,7 @@ class NotificationService {
   /**
    * Get repeat type for notification based on recurrence rule
    */
-  private getRepeatType(recurrenceRule?: string): string | undefined {
+  private getRepeatType(recurrenceRule?: string): 'day' | 'week' | undefined {
     if (!recurrenceRule) return undefined;
     
     // Handle simple recurrence strings from the alarm form
@@ -379,7 +286,7 @@ class NotificationService {
         title: alarm.title,
       });
 
-      PushNotification.localNotification({
+      const notificationPayload: ExtendedNotification = {
         id: notificationId,
         title: '⏰ Alarm',
         message: alarm.title || 'Alarm',
@@ -400,7 +307,9 @@ class NotificationService {
           type: 'alarm',
           alarmId: alarm.id,
         },
-      });
+      };
+
+      PushNotification.localNotification(notificationPayload);
     } catch (error) {
       console.error(`Failed to trigger immediate alarm notification ${alarm.id}:`, error);
     }
@@ -419,7 +328,7 @@ class NotificationService {
         title: timer.title,
       });
 
-      PushNotification.localNotification({
+      const notificationPayload: ExtendedNotification = {
         id: notificationId,
         title: '⏱️ Timer Complete',
         message: `${timer.title} is complete!`,
@@ -440,7 +349,9 @@ class NotificationService {
           type: 'timer',
           timerId: timer.id,
         },
-      });
+      };
+
+      PushNotification.localNotification(notificationPayload);
     } catch (error) {
       console.error(`Failed to trigger immediate timer notification ${timer.id}:`, error);
     }

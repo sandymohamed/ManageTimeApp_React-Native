@@ -42,7 +42,6 @@ class SoundManager {
     }
     
     try {
-      console.log('🔊 Playing alarm sound');
       this.isPlaying = true;
       this.isStopping = false;
       
@@ -53,9 +52,9 @@ class SoundManager {
       this.startVibration();
       
       // Try to play sound
-      if (Platform.OS === 'ios') {
+      if (Platform.OS === 'android') {
         this.sound = new Sound(
-          'default',
+          'alarm.mp3',
           Sound.MAIN_BUNDLE,
           (error) => {
             if (error) {
@@ -221,9 +220,12 @@ export const AlarmsScreen: React.FC = () => {
 
   // Track alarm deletion timeouts
   const alarmDeleteTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  // Track alarms where auto-delete previously failed to avoid repeated requests
+  const autoDeleteFailuresRef = useRef<Set<string>>(new Set());
 
   // Stop alarm - improved to prevent multiple calls
-  const handleStopAlarm = React.useCallback(async (alarmId: string) => {
+  const handleStopAlarm = React.useCallback(async (alarmId: string, options: { skipAutoDelete?: boolean } = {}) => {
+    const { skipAutoDelete = false } = options;
     console.log('🛑 Stopping alarm:', alarmId, 'activeAlarmId:', activeAlarmId, 'isStopping:', isStopping);
     
     // Force stop immediately regardless of state
@@ -249,7 +251,14 @@ export const AlarmsScreen: React.FC = () => {
     
     // Check if alarm is one-time and schedule deletion after 30 seconds
     const alarm = alarms.find(a => a.id === alarmId);
-    if (alarm) {
+    const hasPreviousFailure = autoDeleteFailuresRef.current.has(alarmId);
+    const shouldAttemptAutoDelete = !!alarm && !skipAutoDelete && !hasPreviousFailure;
+
+    if (alarm && skipAutoDelete && hasPreviousFailure) {
+      console.log('Skipping auto-delete because it is explicitly skipped and previously failed:', alarmId);
+    }
+
+    if (shouldAttemptAutoDelete) {
       // Auto-delete one-time alarms after 30 seconds
       const isOneTimeAlarm = !alarm.recurrenceRule || alarm.recurrenceRule === 'none';
       if (isOneTimeAlarm) {
@@ -257,15 +266,19 @@ export const AlarmsScreen: React.FC = () => {
           try {
             await deleteAlarm(alarmId);
             console.log('🗑️ Auto-deleted one-time alarm after 30s:', alarm.title);
-            alarmDeleteTimeoutsRef.current.delete(alarmId);
+            autoDeleteFailuresRef.current.delete(alarmId);
           } catch (error) {
             console.error('Failed to auto-delete alarm:', error);
+            autoDeleteFailuresRef.current.add(alarmId);
+          } finally {
             alarmDeleteTimeoutsRef.current.delete(alarmId);
           }
         }, 30000); // 30 seconds delay
         
         alarmDeleteTimeoutsRef.current.set(alarmId, deleteTimeout);
       }
+    } else if (!shouldAttemptAutoDelete && alarm && !skipAutoDelete) {
+      console.log('Skipping auto-delete because it previously failed:', alarmId);
     }
     
     // Clear stopping flag after sound stops
@@ -376,8 +389,18 @@ export const AlarmsScreen: React.FC = () => {
         
         // Auto-delete passed one-time alarms (after 1 minute past)
         if (alarmTime.getTime() <= now.getTime() - 60000) {
+          if (autoDeleteFailuresRef.current.has(alarm.id)) {
+            console.log('Skipping auto-delete for passed alarm due to previous failure:', alarm.id);
+            return;
+          }
+
           console.log(`🗑️ Auto-deleting passed one-time alarm: ${alarm.id}`);
-          deleteAlarm(alarm.id).catch(err => console.error('Failed to auto-delete alarm:', err));
+          deleteAlarm(alarm.id)
+            .then(() => autoDeleteFailuresRef.current.delete(alarm.id))
+            .catch(err => {
+              autoDeleteFailuresRef.current.add(alarm.id);
+              console.error('Failed to auto-delete alarm:', err);
+            });
           return;
         }
       }
@@ -769,13 +792,19 @@ export const AlarmsScreen: React.FC = () => {
               
               // Stop alarm if it's active
               if (activeAlarmId === alarmId) {
-                await handleStopAlarm(alarmId);
+                await handleStopAlarm(alarmId, { skipAutoDelete: true });
               }
               
               // Delete the alarm
               await deleteAlarm(alarmId);
+              autoDeleteFailuresRef.current.delete(alarmId);
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete alarm');
+              autoDeleteFailuresRef.current.add(alarmId);
+              const message =
+                error instanceof Error && error.message
+                  ? error.message
+                  : 'Failed to delete alarm';
+              Alert.alert('Error', message);
             }
           },
         },

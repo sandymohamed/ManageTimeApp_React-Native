@@ -1,5 +1,11 @@
-import {  Alert, Vibration } from 'react-native';
+import { Alert, AlertButton, Vibration } from 'react-native';
 import { Timer } from '@/types/alarm';
+import { useAlarmStore } from '@/store/alarmStore';
+import { navigate } from '@/utils/deepLinking';
+import Sound from 'react-native-sound';
+
+// Enable playback in background (optional)
+Sound.setCategory('Playback');
 
 export interface TimerNotificationOptions {
   title: string;
@@ -33,7 +39,7 @@ class TimerNotificationService {
 
   // Show timer completion notification
   showTimerCompletionNotification(timer: Timer): void {
-    
+
     const notificationOptions: TimerNotificationOptions = {
       title: `⏰ ${timer.title} - Complete!`,
       body: `Your ${timer.duration}-minute timer has finished!`,
@@ -45,13 +51,13 @@ class TimerNotificationService {
     };
 
     this.showNotification(notificationOptions);
-    this.vibrateDevice();
     this.playTimerSound();
+    this.vibrateDevice();
   }
 
   // Show timer pause notification
   showTimerPauseNotification(timer: Timer): void {
-    
+
     const notificationOptions: TimerNotificationOptions = {
       title: `⏸️ ${timer.title} - Paused`,
       body: `Timer paused at ${this.formatTime(timer.remainingTime)} remaining`,
@@ -67,7 +73,7 @@ class TimerNotificationService {
 
   // Show timer start notification
   showTimerStartNotification(timer: Timer): void {
-    
+
     const notificationOptions: TimerNotificationOptions = {
       title: `▶️ ${timer.title} - Started`,
       body: `Timer started for ${timer.duration} minutes`,
@@ -83,7 +89,7 @@ class TimerNotificationService {
 
   // Show timer stop notification
   showTimerStopNotification(timer: Timer): void {
-    
+
     const notificationOptions: TimerNotificationOptions = {
       title: `⏹️ ${timer.title} - Stopped`,
       body: `Timer stopped and marked as complete`,
@@ -103,7 +109,7 @@ class TimerNotificationService {
       // In a real implementation, this would use a notification library
       // For now, we'll use React Native's Alert as a fallback
       const buttons = this.getNotificationButtons(options.data?.timerId, options.data?.type);
-      
+
       Alert.alert(
         options.title,
         options.body,
@@ -120,7 +126,7 @@ class TimerNotificationService {
   }
 
   // Get appropriate buttons for different notification types
-  private getNotificationButtons(timerId?: string, type?: string) {
+  private getNotificationButtons(timerId?: string, type?: string): AlertButton[] {
     switch (type) {
       case 'timer_completion':
         return [
@@ -175,16 +181,35 @@ class TimerNotificationService {
     }
   }
 
+
+
   // Play timer sound
   private playTimerSound(soundType: string = 'timer_complete'): void {
     try {
       // In a real implementation, this would use a sound library
       console.log(`Playing timer sound: ${soundType}`);
-      
-      // This would typically use react-native-sound or similar
+
+
+      const sound = new Sound(require('./assets/audio/alarm.mp3'), (error) => {
+        if (error) {
+          Alert.alert('Error', 'Failed to load the sound');
+          return;
+        }
+        sound.play((success) => {
+          if (success) {
+            console.log('successfully finished playing');
+          } else {
+            console.log('playback failed due to audio decoding errors');
+          }
+          // Release the sound when finished to free memory
+          sound.release();
+        });
+      });
+
+
       // Sound.setCategory('Playback');
-      // const sound = new Sound(`${soundType}.mp3`, Sound.MAIN_BUNDLE);
-      // sound.play();
+      const sound2 = new Sound(`alarm.mp3`, Sound.MAIN_BUNDLE);
+      sound2.play();
     } catch (error) {
       console.error('Failed to play timer sound:', error);
     }
@@ -195,7 +220,7 @@ class TimerNotificationService {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     if (hours > 0) {
       return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
@@ -205,36 +230,44 @@ class TimerNotificationService {
   // Handle restart timer
   private handleRestartTimer(timerId?: string): void {
     if (!timerId) return;
-    console.log(`Restarting timer: ${timerId}`);
-    
-    // This would typically call the timer store to restart the timer
-    // useTimerStore.getState().restartTimer(timerId);
+    const { resetTimer, startTimer } = useAlarmStore.getState();
+
+    resetTimer(timerId)
+      .then(() => startTimer(timerId))
+      .then(() => this.handleDismissTimer(timerId))
+      .catch((error) => {
+        console.error(`Failed to restart timer ${timerId}:`, error);
+      });
   }
 
   // Handle create new timer
   private handleCreateNewTimer(): void {
-    console.log('Creating new timer');
-    
-    // This would typically navigate to timer creation screen
-    // navigation.navigate('TimerCreate');
+    console.log('Navigating to create new timer');
+    navigate('Alarms', { initialTab: 'timers', showTimerModal: true });
   }
 
   // Handle resume timer
   private handleResumeTimer(timerId?: string): void {
     if (!timerId) return;
-    console.log(`Resuming timer: ${timerId}`);
-    
-    // This would typically call the timer store to resume the timer
-    // useTimerStore.getState().resumeTimer(timerId);
+    const { startTimer } = useAlarmStore.getState();
+
+    startTimer(timerId)
+      .then(() => this.handleDismissTimer(timerId))
+      .catch((error) => {
+        console.error(`Failed to resume timer ${timerId}:`, error);
+      });
   }
 
   // Handle stop timer
   private handleStopTimer(timerId?: string): void {
     if (!timerId) return;
-    console.log(`Stopping timer: ${timerId}`);
-    
-    // This would typically call the timer store to stop the timer
-    // useTimerStore.getState().stopTimer(timerId);
+    const { stopTimer } = useAlarmStore.getState();
+
+    stopTimer(timerId)
+      .then(() => this.handleDismissTimer(timerId))
+      .catch((error) => {
+        console.error(`Failed to stop timer ${timerId}:`, error);
+      });
   }
 
   // Handle dismiss timer notification
@@ -247,7 +280,7 @@ class TimerNotificationService {
   // Show timer progress notification (for long timers)
   showTimerProgressNotification(timer: Timer, progressPercent: number): void {
     if (progressPercent < 0.25 || progressPercent > 0.75) return; // Only show at 25% and 75%
-    
+
     const notificationOptions: TimerNotificationOptions = {
       title: `⏱️ ${timer.title} - Progress`,
       body: `${Math.round(progressPercent * 100)}% complete (${this.formatTime(timer.remainingTime)} remaining)`,

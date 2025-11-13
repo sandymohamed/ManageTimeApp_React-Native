@@ -390,20 +390,20 @@ export const DataStorageScreen: React.FC = () => {
     );
   };
 
-  const handleDeleteAllData = () => {
-    Alert.alert(
-      t('data.deleteAllData'),
-      t('data.deleteAllDataWarning'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.delete'),
-          style: 'destructive',
-          onPress: confirmDeleteAllData,
-        },
-      ]
-    );
-  };
+  // const handleDeleteAllData = () => {
+  //   Alert.alert(
+  //     t('data.deleteAllData'),
+  //     t('data.deleteAllDataWarning'),
+  //     [
+  //       { text: t('common.cancel'), style: 'cancel' },
+  //       {
+  //         text: t('common.delete'),
+  //         style: 'destructive',
+  //         onPress: confirmDeleteAllData,
+  //       },
+  //     ]
+  //   );
+  // };
 
   const confirmDeleteAllData = () => {
     Alert.alert(
@@ -574,7 +574,7 @@ export const DataStorageScreen: React.FC = () => {
         </Card>
 
         {/* Danger Zone */}
-        <Card style={[styles.card, { backgroundColor: theme.colors.errorContainer }]}>
+        {/* <Card style={[styles.card, { backgroundColor: theme.colors.errorContainer }]}>
           <Card.Content>
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.error }]}>
               {t('data.dangerZone')}
@@ -592,7 +592,7 @@ export const DataStorageScreen: React.FC = () => {
               {t('data.deleteAllData')}
             </Button>
           </Card.Content>
-        </Card>
+        </Card> */}
       </ScrollView>
     </View>
   );

@@ -53,6 +53,8 @@ interface AlarmState {
   loadTimersFromStorage: () => Timer[];
 }
 
+const inFlightAlarmDeletes = new Set<string>();
+
 export const useAlarmStore = create<AlarmState>((set, get) => ({
   // Initial state
   alarms: [],
@@ -192,6 +194,11 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   deleteAlarm: async (id) => {
     const { isAuthenticated } = useAuthStore.getState();
 
+    if (inFlightAlarmDeletes.has(id)) {
+      console.log(`Delete already in progress for alarm ${id}, skipping duplicate request.`);
+      return;
+    }
+
     if (!isAuthenticated) {
       // Update store locally and ensure the scheduled notification is removed
       set((state) => ({
@@ -201,6 +208,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       notificationService.cancelAlarm(id);
       return;
     }
+
+    inFlightAlarmDeletes.add(id);
 
     try {
       set({ loading: true, error: null });
@@ -218,6 +227,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         loading: false,
       });
       throw error;
+    } finally {
+      inFlightAlarmDeletes.delete(id);
     }
   },
 
