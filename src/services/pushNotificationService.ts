@@ -70,12 +70,23 @@ class PushNotificationService {
         senderID: '93362201097',
         // Called when a notification is received (foreground)
         onNotification: (notification: Omit<ReceivedNotification, 'userInfo'>) => {
-          logger.info('Notification received:', notification);
+          logger.info('📬 Push notification received:', {
+            title: (notification as any).title,
+            message: (notification as any).message,
+            data: (notification as any).data,
+            userInfo: (notification as any).userInfo,
+            foreground: (notification as any).foreground,
+          });
           
           const payload = (notification as any).data || (notification as any).userInfo || {};
-          const notificationType = payload.type;
+          const notificationType = payload.type || payload.notificationType;
           const isLocalNotification = payload?.__local === 'true';
           const isForeground = (notification as any).foreground === true;
+          
+          // Log notification type for debugging
+          if (notificationType) {
+            logger.info(`📬 Notification type: ${notificationType}`, payload);
+          }
 
           // Show a banner when the app is in the foreground.
           if (Platform.OS === 'android' && isForeground && !isLocalNotification) {
@@ -361,6 +372,16 @@ class PushNotificationService {
           break;
         case 'ALARM_TRIGGER':
           navigate('Alarms');
+          break;
+        case 'ROUTINE_REMINDER':
+          // Extract routineId or taskId from targetId (format: routine_task_${taskId})
+          const routineTaskId = data.targetId;
+          if (routineTaskId && routineTaskId.startsWith('routine_task_')) {
+            const extractedTaskId = routineTaskId.replace('routine_task_', '');
+            logger.info(`📬 Routine reminder for task: ${extractedTaskId}`);
+          }
+          // Route to routines screen
+          navigate('Routines');
           break;
         default:
           // Fallbacks: try project detail if projectId exists, otherwise dashboard

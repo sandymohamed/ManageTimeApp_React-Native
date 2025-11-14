@@ -559,27 +559,78 @@ const RoutinesScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleToggleTask = async (taskId: string, currentStatus: boolean) => {
+  const handleToggleTask = React.useCallback(async (taskId: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    
+    // Optimistically update: find and update the specific task
+    setRoutines(prevRoutines => {
+      // Use a map to create new arrays only for routines/tasks that changed
+      return prevRoutines.map(routine => {
+        const taskIndex = routine.routineTasks.findIndex(task => task.id === taskId);
+        if (taskIndex === -1) {
+          // Task not in this routine, return routine as-is (same reference)
+          return routine;
+        }
+        // Task found, create new routine with updated task
+        const updatedTasks = routine.routineTasks.map((task, idx) => 
+          idx === taskIndex
+            ? { ...task, completed: newStatus, completedAt: newStatus ? new Date().toISOString() : null }
+            : task
+        );
+        return { ...routine, routineTasks: updatedTasks };
+      });
+    });
+
     try {
-      await routineService.toggleTaskCompletion(taskId, !currentStatus);
-      await loadRoutines();
+      // Get the updated task from the API response
+      const updatedTask = await routineService.toggleTaskCompletion(taskId, newStatus);
+      
+      // Update with API response
+      setRoutines(prevRoutines => 
+        prevRoutines.map(routine => {
+          const taskIndex = routine.routineTasks.findIndex(task => task.id === taskId);
+          if (taskIndex === -1) {
+            return routine; // No change needed
+          }
+          // Replace the task with API response
+          const updatedTasks = routine.routineTasks.map((task, idx) => 
+            idx === taskIndex ? updatedTask : task
+          );
+          return { ...routine, routineTasks: updatedTasks };
+        })
+      );
     } catch (error) {
       console.error('Error toggling task:', error);
-      Alert.alert(t('common.error'), t('routines.updateTaskError'));
+      // Revert optimistic update on error
+      setRoutines(prevRoutines => 
+        prevRoutines.map(routine => {
+          const taskIndex = routine.routineTasks.findIndex(task => task.id === taskId);
+          if (taskIndex === -1) {
+            return routine;
+          }
+          const updatedTasks = routine.routineTasks.map((task, idx) => 
+            idx === taskIndex
+              ? { ...task, completed: currentStatus, completedAt: currentStatus ? task.completedAt : null }
+              : task
+          );
+          return { ...routine, routineTasks: updatedTasks };
+        })
+      );
+      showError(t('routines.updateTaskError'));
     }
-  };
+  }, [showError, t]);
 
-  const handleEditRoutine = (routineId: string) => {
+  const handleEditRoutine = React.useCallback((routineId: string) => {
     // @ts-ignore
     navigation.navigate('RoutineEdit', { routineId });
-  };
+  }, [navigation]);
 
-  const handleCreateRoutine = () => {
+  const handleCreateRoutine = React.useCallback(() => {
     // @ts-ignore
     navigation.navigate('RoutineCreate');
-  };
+  }, [navigation]);
 
-  const handleDeleteRoutine = async (routineId: string) => {
+  const handleDeleteRoutine = React.useCallback(async (routineId: string) => {
     Alert.alert(
       t('routines.deleteRoutine'),
       t('routines.deleteRoutineConfirm'),
@@ -601,7 +652,7 @@ const RoutinesScreen: React.FC = () => {
         },
       ]
     );
-  };
+  }, [t, showSuccess, showError]);
 
   const createExampleRoutines = async () => {
     try {
@@ -683,13 +734,14 @@ const RoutinesScreen: React.FC = () => {
     return new Date(date).toLocaleString();
   };
 
-  const renderRoutine = (routine: Routine) => {
+  // Memoized routine card component to prevent unnecessary re-renders
+  const RoutineCard = React.memo(({ routine }: { routine: Routine }) => {
     const completedTasks = routine.routineTasks.filter(t => t.completed).length;
     const totalTasks = routine.routineTasks.length;
     const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
     return (
-      <Card style={styles.routineCard} key={routine.id}>
+      <Card style={styles.routineCard}>
         <Card.Content>
           <View style={styles.routineHeader}>
             <View style={styles.routineTitleContainer}>
@@ -726,7 +778,7 @@ const RoutinesScreen: React.FC = () => {
           </View>
 
           <View style={styles.tasksContainer}>
-            {routine.routineTasks.map((task, index) => (
+            {routine.routineTasks.map((task) => (
               <Card
                 key={task.id}
                 style={[
@@ -796,7 +848,31 @@ const RoutinesScreen: React.FC = () => {
         </Card.Content>
       </Card>
     );
-  };
+  }, (prevProps, nextProps) => {
+    // Custom comparison function for React.memo
+    // Only re-render if routine data actually changed
+    if (prevProps.routine.id !== nextProps.routine.id) return false;
+    if (prevProps.routine.title !== nextProps.routine.title) return false;
+    if (prevProps.routine.enabled !== nextProps.routine.enabled) return false;
+    if (prevProps.routine.nextOccurrenceAt !== nextProps.routine.nextOccurrenceAt) return false;
+    if (prevProps.routine.routineTasks.length !== nextProps.routine.routineTasks.length) return false;
+    
+    // Check if any task changed
+    for (let i = 0; i < prevProps.routine.routineTasks.length; i++) {
+      const prevTask = prevProps.routine.routineTasks[i];
+      const nextTask = nextProps.routine.routineTasks[i];
+      if (
+        prevTask.id !== nextTask.id ||
+        prevTask.completed !== nextTask.completed ||
+        prevTask.completedAt !== nextTask.completedAt ||
+        prevTask.title !== nextTask.title
+      ) {
+        return false;
+      }
+    }
+    
+    return true; // No changes, skip re-render
+  });
 
   if (loading && !refreshing) {
     return (
@@ -844,7 +920,7 @@ const RoutinesScreen: React.FC = () => {
             </View>
           </View>
         ) : (
-          routines.map(routine => renderRoutine(routine))
+          routines.map(routine => <RoutineCard key={routine.id} routine={routine} />)
         )}
       </ScrollView>
 
