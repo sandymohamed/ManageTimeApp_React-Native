@@ -533,6 +533,7 @@ const RoutinesScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [creatingExamples, setCreatingExamples] = useState(false);
+  const loadingRef = React.useRef(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -540,16 +541,118 @@ const RoutinesScreen: React.FC = () => {
     }, [])
   );
 
+  // Helper function to calculate next occurrence time for sorting
+  const calculateNextOccurrenceTime = (routine: Routine): Date => {
+    // If we have nextOccurrenceAt, use it
+    if (routine.nextOccurrenceAt) {
+      return new Date(routine.nextOccurrenceAt);
+    }
+
+    const now = new Date();
+    let next: Date;
+
+    // Calculate based on frequency and schedule
+    switch (routine.frequency) {
+      case 'DAILY': {
+        const timeParts = routine.schedule.time?.split(':') || ['0', '0'];
+        next = new Date(now);
+        next.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+        if (next <= now) {
+          next.setDate(next.getDate() + 1);
+        }
+        break;
+      }
+      case 'WEEKLY': {
+        const timeParts = routine.schedule.time?.split(':') || ['0', '0'];
+        next = new Date(now);
+        const targetDays = routine.schedule.days || [];
+        const currentDay = now.getDay();
+        
+        // Find next day
+        let daysToAdd = 0;
+        for (let i = 1; i <= 7; i++) {
+          const checkDay = (currentDay + i) % 7;
+          if (targetDays.includes(checkDay)) {
+            daysToAdd = i;
+            break;
+          }
+        }
+        
+        next.setDate(next.getDate() + daysToAdd);
+        next.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+        break;
+      }
+      case 'MONTHLY': {
+        const timeParts = routine.schedule.time?.split(':') || ['0', '0'];
+        next = new Date(now);
+        const targetDay = routine.schedule.day || 1;
+        
+        next.setDate(targetDay);
+        next.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+        
+        if (next <= now) {
+          next.setMonth(next.getMonth() + 1);
+        }
+        break;
+      }
+      case 'YEARLY': {
+        const timeParts = routine.schedule.time?.split(':') || ['0', '0'];
+        next = new Date(now);
+        next.setMonth(0, 1); // January 1st
+        next.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+        
+        if (next <= now) {
+          next.setFullYear(next.getFullYear() + 1);
+        }
+        break;
+      }
+      default:
+        // For routines without valid schedule, set far future
+        next = new Date(now);
+        next.setFullYear(next.getFullYear() + 100);
+    }
+
+    return next;
+  };
+
   const loadRoutines = async () => {
+    // Prevent concurrent calls
+    if (loadingRef.current) {
+      return;
+    }
+    
     try {
+      loadingRef.current = true;
       setLoading(true);
       const data = await routineService.getUserRoutines();
-      setRoutines(data);
+      
+      // Deduplicate routines by ID to prevent duplicate keys
+      const uniqueRoutines = Array.from(
+        new Map(data.map(routine => [routine.id, routine])).values()
+      );
+      
+      // Sort routines by urgency (next occurrence time - earliest first)
+      // Also prioritize enabled routines over disabled ones
+      const sortedRoutines = uniqueRoutines.sort((a, b) => {
+        // Disabled routines go to the end
+        if (!a.enabled && b.enabled) return 1;
+        if (a.enabled && !b.enabled) return -1;
+        
+        // Calculate next occurrence times
+        const aNextTime = calculateNextOccurrenceTime(a);
+        const bNextTime = calculateNextOccurrenceTime(b);
+        
+        // Sort by next occurrence time (earliest first)
+        return aNextTime.getTime() - bNextTime.getTime();
+      });
+      
+      setRoutines(sortedRoutines);
     } catch (error) {
       console.error('Error loading routines:', error);
       Alert.alert(t('common.error'), t('routines.loadError'));
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
   };
 
@@ -574,7 +677,7 @@ const RoutinesScreen: React.FC = () => {
         // Task found, create new routine with updated task
         const updatedTasks = routine.routineTasks.map((task, idx) => 
           idx === taskIndex
-            ? { ...task, completed: newStatus, completedAt: newStatus ? new Date().toISOString() : null }
+            ? { ...task, completed: newStatus, completedAt: newStatus ? new Date().toISOString() : undefined }
             : task
         );
         return { ...routine, routineTasks: updatedTasks };
@@ -610,7 +713,7 @@ const RoutinesScreen: React.FC = () => {
           }
           const updatedTasks = routine.routineTasks.map((task, idx) => 
             idx === taskIndex
-              ? { ...task, completed: currentStatus, completedAt: currentStatus ? task.completedAt : null }
+              ? { ...task, completed: currentStatus, completedAt: currentStatus ? task.completedAt : undefined }
               : task
           );
           return { ...routine, routineTasks: updatedTasks };
@@ -920,7 +1023,9 @@ const RoutinesScreen: React.FC = () => {
             </View>
           </View>
         ) : (
-          routines.map(routine => <RoutineCard key={routine.id} routine={routine} />)
+          // Ensure unique keys - deduplicate by ID if somehow duplicates still exist
+          Array.from(new Map(routines.map(routine => [routine.id, routine])).values())
+            .map(routine => <RoutineCard key={routine.id} routine={routine} />)
         )}
       </ScrollView>
 
