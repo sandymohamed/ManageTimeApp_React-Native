@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, RefreshControl, TouchableOpacity, TextInput, FlatList, Animated, ScrollView } from 'react-native';
+import { View, StyleSheet, RefreshControl, TouchableOpacity, TextInput, Animated, ScrollView } from 'react-native';
 import { Text, FAB, IconButton, Chip, Card,  } from 'react-native-paper';
 
 let DraggableFlatList: any = null;
@@ -59,7 +59,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   } = useTaskStore();
 
 
-  const [refreshing, setRefreshing] = useState(false);
+  // const [refreshing, setRefreshing] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
@@ -84,11 +84,11 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   // Handle route parameters for filtering
   useEffect(() => {
     if (route?.params) {
-      const { filter, date } = route.params;
+      const { filter: filterParam, date } = route.params;
       
-      if (filter === 'urgent') {
+      if (filterParam === 'urgent') {
         setFilter({ priority: [TaskPriority.URGENT] });
-      } else if (filter === 'day' && date) {
+      } else if (filterParam === 'day' && date) {
         const filterDate = new Date(date);
         const startOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate());
         const endOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate(), 23, 59, 59);
@@ -107,9 +107,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   }, [route?.params, setFilter, clearFilters]);
 
   const handleRefresh = async () => {
-    setRefreshing(true);
     await refreshTasks();
-    setRefreshing(false);
   };
 
   const handleCreateTask = () => {
@@ -207,7 +205,6 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   const handleDragEnd = async ({ data }: { data: Task[] }) => {
     try {
       if (!data || !Array.isArray(data)) {
-        console.warn('Invalid drag data');
         return;
       }
  

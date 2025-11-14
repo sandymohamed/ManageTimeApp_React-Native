@@ -212,7 +212,6 @@ class ApiClient {
         return conf;
       },
       (error) => {
-        console.log('❌ Request interceptor error:', error);
         return Promise.reject(error);
       }
     );
@@ -223,22 +222,11 @@ class ApiClient {
         return response;
       },
       async (error) => {
-        console.log('❌ Error details:', {
-          message: error.message,
-          code: error.code,
-          response: error.response?.data,
-          config: {
-            baseURL: error.config?.baseURL,
-            url: error.config?.url,
-            method: error.config?.method
-          }
-        });
 
         const originalRequest = error.config;
 
         // Handle network errors
         if (error.code === 'NETWORK_ERROR' || error.message === 'Network Error') {
-          console.log('🌐 Network error detected');
           return Promise.reject(new Error('Network connection failed. Please check your internet connection.'));
         }
 
@@ -275,19 +263,16 @@ class ApiClient {
                 // Process queued requests with new token
                 this.processQueue(null, newToken);
 
-                console.log('✅ Token refreshed successfully, retrying request...');
                 return this.client(originalRequest);
               }
             }
 
             // If we reach here, token refresh failed
-            console.log('❌ No token available after refresh');
             this.processQueue(new Error('Token refresh failed'));
             await useAuthStore.getState().logout();
             return Promise.reject(new Error('Authentication failed'));
 
           } catch (refreshError: any) {
-            console.log('❌ Token refresh failed:', refreshError.message);
 
             // Process queued requests with error
             this.processQueue(refreshError, null);
@@ -298,7 +283,6 @@ class ApiClient {
               errorMessage?.includes('Invalid refresh token') ||
               errorMessage?.includes('refresh token') ||
               refreshError.response?.status === 401) {
-              console.log('🚪 Refresh token invalid, logging out...');
               await useAuthStore.getState().logout();
               return Promise.reject(new Error('Session expired. Please login again.'));
             }
@@ -312,12 +296,10 @@ class ApiClient {
 
         // Handle other errors
         if (error.response?.status === 403) {
-          console.log('🚫 Access forbidden');
           return Promise.reject(new Error('You do not have permission to perform this action.'));
         }
 
         if (error.response?.status >= 500) {
-          console.log('🔧 Server error');
           return Promise.reject(new Error('Server error. Please try again later.'));
         }
 

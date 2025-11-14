@@ -15,16 +15,14 @@ import {
   Divider,
   Avatar,
   Badge,
-  List,
   TextInput,
   Menu
 } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useGoalStore } from '@/store/goalStore';
-import { Goal, GoalStatus, GoalPriority, Milestone, MilestoneStatus } from '@/types';
+import { GoalStatus, GoalPriority, Milestone, MilestoneStatus } from '@/types';
 import { format, isAfter, isBefore, differenceInDays, isToday, isTomorrow } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -39,8 +37,6 @@ interface GoalDetailScreenProps {
 
 export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
-  const { isRTL } = useLanguage();
-  const paperTheme = useTheme();
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
@@ -49,7 +45,6 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
   const {
     currentGoal,
     fetchGoal,
-    updateGoal,
     completeGoal,
     pauseGoal,
     resumeGoal,
@@ -63,7 +58,6 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
   } = useGoalStore();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [showMilestoneModal, setShowMilestoneModal] = useState(false);
   const [showMilestoneCreateModal, setShowMilestoneCreateModal] = useState(false);
   const [showMilestoneEditModal, setShowMilestoneEditModal] = useState(false);
   const [selectedMilestone, setSelectedMilestone] = useState<Milestone | null>(null);

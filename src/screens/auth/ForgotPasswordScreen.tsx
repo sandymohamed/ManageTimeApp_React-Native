@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Text, TextInput, Button, Card } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { theme } from '@/utils/theme';
 import { validateEmail } from '@/utils/validation';
 import { apiClient } from '@/services/apiClient';
@@ -9,8 +10,10 @@ import { ApiResponse } from '@/types';
 
 type Step = 'email' | 'otp' | 'success';
 
+import type { AuthStackParamList } from '@/navigation/AuthNavigator';
+
 export const ForgotPasswordScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<AuthStackParamList, 'ForgotPassword'>>();
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
@@ -81,7 +84,7 @@ export const ForgotPasswordScreen: React.FC = () => {
         setResetToken(response.data.token);
         setStep('success');
         // Navigate to reset password screen
-        navigation.navigate('ResetPassword' as never, { token: response.data.token });
+        navigation.navigate('ResetPassword', { token: response.data.token });
       } else {
         setOtpError(response.error || 'Invalid OTP');
       }
@@ -94,7 +97,7 @@ export const ForgotPasswordScreen: React.FC = () => {
   };
 
   const handleBackToLogin = () => {
-    navigation.navigate('Login' as never);
+    navigation.navigate('Login');
   };
 
   const handleResendOTP = () => {

@@ -30,7 +30,6 @@ export class AlarmService {
       const response = await apiClient.get<{ data: Alarm[]; pagination: any }>(`/alarms?${params.toString()}`);
       return response;
     } catch (error) {
-      console.error('Failed to get alarms:', error);
       throw error;
     }
   }
@@ -40,7 +39,6 @@ export class AlarmService {
       const response = await apiClient.get<{ data: Alarm }>(`/alarms/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to get alarm:', error);
       throw error;
     }
   }
@@ -50,7 +48,6 @@ export class AlarmService {
       const response = await apiClient.post<{ data: Alarm }>('/alarms', data);
       return response.data;
     } catch (error) {
-      console.error('Failed to create alarm:', error);
       throw error;
     }
   }
@@ -60,7 +57,6 @@ export class AlarmService {
       const response = await apiClient.put<{ data: Alarm }>(`/alarms/${id}`, data);
       return response.data;
     } catch (error) {
-      console.error('Failed to update alarm:', error);
       throw error;
     }
   }
@@ -69,7 +65,6 @@ export class AlarmService {
     try {
       await apiClient.delete(`/alarms/${id}`);
     } catch (error) {
-      console.error('Failed to delete alarm:', error);
       throw error;
     }
   }
@@ -78,7 +73,6 @@ export class AlarmService {
     try {
       await apiClient.post(`/alarms/${id}/snooze`, { duration });
     } catch (error) {
-      console.error('Failed to snooze alarm:', error);
       throw error;
     }
   }
@@ -87,7 +81,6 @@ export class AlarmService {
     try {
       await apiClient.post(`/alarms/${id}/dismiss`);
     } catch (error) {
-      console.error('Failed to dismiss alarm:', error);
       throw error;
     }
   }
@@ -103,7 +96,6 @@ export class AlarmService {
       const response = await apiClient.get<{ data: Timer[]; pagination: any }>(`/timers?${params.toString()}`);
       return response;
     } catch (error) {
-      console.error('Failed to get timers:', error);
       throw error;
     }
   }
@@ -113,7 +105,6 @@ export class AlarmService {
       const response = await apiClient.get<{ data: Timer }>(`/timers/${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to get timer:', error);
       throw error;
     }
   }
@@ -123,7 +114,6 @@ export class AlarmService {
       const response = await apiClient.post<{ data: Timer }>('/timers', data);
       return response.data;
     } catch (error) {
-      console.error('Failed to create timer:', error);
       throw error;
     }
   }
@@ -133,7 +123,6 @@ export class AlarmService {
       const response = await apiClient.put<{ data: Timer }>(`/timers/${id}`, data);
       return response.data;
     } catch (error) {
-      console.error('Failed to update timer:', error);
       throw error;
     }
   }
@@ -142,7 +131,6 @@ export class AlarmService {
     try {
       await apiClient.delete(`/timers/${id}`);
     } catch (error) {
-      console.error('Failed to delete timer:', error);
       throw error;
     }
   }
@@ -152,7 +140,6 @@ export class AlarmService {
       const response = await apiClient.post<{ data: Timer }>(`/timers/${id}/start`);
       return response.data;
     } catch (error) {
-      console.error('Failed to start timer:', error);
       throw error;
     }
   }
@@ -162,7 +149,6 @@ export class AlarmService {
       const response = await apiClient.post<{ data: Timer }>(`/timers/${id}/pause`);
       return response.data;
     } catch (error) {
-      console.error('Failed to pause timer:', error);
       throw error;
     }
   }
@@ -172,7 +158,6 @@ export class AlarmService {
       const response = await apiClient.post<{ data: Timer }>(`/timers/${id}/stop`);
       return response.data;
     } catch (error) {
-      console.error('Failed to stop timer:', error);
       throw error;
     }
   }
@@ -182,7 +167,6 @@ export class AlarmService {
       const response = await apiClient.post<{ data: Timer }>(`/timers/${id}/reset`);
       return response.data;
     } catch (error) {
-      console.error('Failed to reset timer:', error);
       throw error;
     }
   }

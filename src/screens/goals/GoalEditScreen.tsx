@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView,  } from 'react-native';
 import {
   Text,
   Card,
@@ -7,7 +7,6 @@ import {
   Button,
   useTheme,
   ActivityIndicator,
-  Chip,
   SegmentedButtons,
   IconButton,
   Portal,
@@ -17,11 +16,10 @@ import {
   TouchableRipple
 } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useGoalStore } from '@/store/goalStore';
-import { Goal, GoalPriority, GoalStatus } from '@/types/goal';
+import {  GoalPriority, GoalStatus } from '@/types/goal';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
 
@@ -36,8 +34,6 @@ interface GoalEditScreenProps {
 
 export const GoalEditScreen: React.FC<GoalEditScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
-  const { isRTL } = useLanguage();
-  const paperTheme = useTheme();
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
@@ -139,8 +135,8 @@ export const GoalEditScreen: React.FC<GoalEditScreenProps> = ({ navigation, rout
     }
   };
 
-  const getPriorityColor = (priority: GoalPriority) => {
-    switch (priority) {
+  const getPriorityColor = (prior: GoalPriority) => {
+    switch (prior) {
       case GoalPriority.URGENT:
         return theme.colors.error || '#F44336';
       case GoalPriority.HIGH:
@@ -154,8 +150,8 @@ export const GoalEditScreen: React.FC<GoalEditScreenProps> = ({ navigation, rout
     }
   };
 
-  const getPriorityIcon = (priority: GoalPriority) => {
-    switch (priority) {
+  const getPriorityIcon = (prior: GoalPriority) => {
+    switch (prior) {
       case GoalPriority.URGENT:
         return 'alert-circle';
       case GoalPriority.HIGH:
@@ -204,11 +200,11 @@ export const GoalEditScreen: React.FC<GoalEditScreenProps> = ({ navigation, rout
   };
 
   const getCategoryIcon = (categoryName: string) => {
-    const category = categories.find(cat => cat.name === categoryName);
-    return category ? category.icon : 'dots-horizontal';
+    const cat = categories.find(cat => cat.name === categoryName);
+    return cat ? cat.icon : 'dots-horizontal';
   };
 
-  const getGoalIcon = (category: string) => {
+  const getGoalIcon = (cat: string) => {
     const icons: { [key: string]: string } = {
       'health': 'heart',
       'fitness': 'run',
@@ -219,7 +215,7 @@ export const GoalEditScreen: React.FC<GoalEditScreenProps> = ({ navigation, rout
       'family': 'home',
       'travel': 'airplane',
     };
-    return icons[category.toLowerCase()] || 'target';
+    return icons[cat.toLowerCase()] || 'target';
   };
 
   const renderHeader = () => (

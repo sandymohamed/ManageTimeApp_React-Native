@@ -4,7 +4,6 @@ import {
   Text,
   Card,
   Button,
-  useTheme,
   ActivityIndicator,
   Chip,
   IconButton,
@@ -14,13 +13,12 @@ import {
   FAB
 } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useGoalStore } from '@/store/goalStore';
 import { Milestone  } from '@/types/goal';
 import {  MilestoneStatus } from '@/types';
-import { format, isAfter, isBefore, differenceInDays } from 'date-fns';
+import { format, isBefore, differenceInDays } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 interface MilestoneManagementScreenProps {
@@ -34,8 +32,6 @@ interface MilestoneManagementScreenProps {
 
 export const MilestoneManagementScreen: React.FC<MilestoneManagementScreenProps> = ({ navigation, route }) => {
   const { t } = useTranslation();
-  const { isRTL } = useLanguage();
-  const paperTheme = useTheme();
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);

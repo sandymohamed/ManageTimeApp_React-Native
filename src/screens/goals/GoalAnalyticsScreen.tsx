@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, Dimensions, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, Dimensions,  } from 'react-native';
 import {
   Text,
   Card,
-  useTheme,
   ActivityIndicator,
   Chip,
-  SegmentedButtons,
   ProgressBar,
   IconButton,
   Avatar,
@@ -15,12 +13,11 @@ import {
   FAB
 } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useGoalStore } from '@/store/goalStore';
-import { format, differenceInDays, isAfter, isBefore, isToday, isTomorrow } from 'date-fns';
-import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
+import { format, differenceInDays,  isBefore, isToday, isTomorrow } from 'date-fns';
+import {  PieChart,  } from 'react-native-chart-kit';
 
 interface GoalAnalyticsScreenProps {
   navigation: any;
@@ -41,7 +38,7 @@ export const GoalAnalyticsScreen: React.FC<GoalAnalyticsScreenProps> = ({ naviga
   const { currentGoal, fetchGoal, getGoalAnalytics, isLoading } = useGoalStore();
 
   const [analytics, setAnalytics] = useState<any>(null);
-  const [timeRange, setTimeRange] = useState('month');
+  const [timeRange, ] = useState('month');
   const [refreshing, setRefreshing] = useState(false);
 
   // const timeRanges = [

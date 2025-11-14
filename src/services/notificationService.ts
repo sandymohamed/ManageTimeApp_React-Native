@@ -54,7 +54,7 @@ class NotificationService {
 
   private initializeChannels() {
     if (this.initialized || Platform.OS !== 'android') return;
-    
+
     try {
       try {
         PushNotification.deleteChannel?.(this.alarmChannelId);
@@ -141,18 +141,16 @@ class NotificationService {
   scheduleAlarm(alarm: Alarm): void {
     // Backend now manages alarm push notifications. Ensure any legacy local notifications are cleared.
     this.cancelAlarm(alarm.id);
-    console.log(`⏳ Skipping local scheduling for alarm ${alarm.id}; backend handles push notifications.`);
   }
 
   /**
    * Schedule all alarms
    */
   scheduleAllAlarms(alarms: Alarm[]): void {
-    console.log('Skipping local alarm scheduling; backend manages alarm push notifications.');
-    
+
     // Clear any legacy local notifications for the provided alarms
     alarms.forEach(alarm => {
-        this.cancelAlarm(alarm.id);
+      this.cancelAlarm(alarm.id);
     });
   }
 
@@ -161,7 +159,6 @@ class NotificationService {
    */
   cancelAlarm(alarmId: string): void {
     try {
-      console.log(`Cancelling alarm notification ${alarmId}`);
       // Convert alarm ID to numeric ID for notification
       const notificationId = this.getNotificationBaseId(alarmId);
       this.cancelAlarmNotifications(notificationId.toString());
@@ -183,8 +180,6 @@ class NotificationService {
   scheduleTimer(timerId: string, title: string, remainingSeconds: number): void {
     try {
       const triggerTime = new Date(Date.now() + remainingSeconds * 1000);
-      
-      console.log(`Scheduling timer ${timerId} for ${triggerTime.toISOString()}`);
 
       // Convert timer ID to numeric ID for notification
       const notificationId = this.getNotificationBaseId(timerId).toString();
@@ -237,7 +232,7 @@ class NotificationService {
    */
   private getRepeatType(recurrenceRule?: string): 'day' | 'week' | undefined {
     if (!recurrenceRule) return undefined;
-    
+
     // Handle simple recurrence strings from the alarm form
     switch (recurrenceRule) {
       case 'daily':
@@ -280,12 +275,6 @@ class NotificationService {
     try {
       const notificationId = `${this.getNotificationBaseId(alarm.id)}-instant-${Date.now()}`;
 
-      console.log('🔔 Triggering immediate alarm notification:', {
-        notificationId,
-        alarmId: alarm.id,
-        title: alarm.title,
-      });
-
       const notificationPayload: ExtendedNotification = {
         id: notificationId,
         title: '⏰ Alarm',
@@ -321,12 +310,6 @@ class NotificationService {
   triggerImmediateTimerNotification(timer: Pick<Timer, 'id' | 'title'>): void {
     try {
       const notificationId = `${this.getNotificationBaseId(timer.id)}-instant-${Date.now()}`;
-
-      console.log('🔔 Triggering immediate timer notification:', {
-        notificationId,
-        timerId: timer.id,
-        title: timer.title,
-      });
 
       const notificationPayload: ExtendedNotification = {
         id: notificationId,

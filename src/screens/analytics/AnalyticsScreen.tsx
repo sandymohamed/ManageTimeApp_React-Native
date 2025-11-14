@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Dimensions, RefreshControl } from 'react-native';
-import { Text, Card, SegmentedButtons, Chip, ProgressBar, ActivityIndicator, useTheme, IconButton } from 'react-native-paper';
-import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
+import { Text, Card, SegmentedButtons, ProgressBar, ActivityIndicator, useTheme, IconButton } from 'react-native-paper';
+import { LineChart,  PieChart } from 'react-native-chart-kit';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTaskStore } from '@/store/taskStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
-import { Project, ProjectStatus } from '@/types/project';
-import { format, subDays, subWeeks, subMonths, subYears, startOfDay, endOfDay, isWithinInterval, differenceInDays, differenceInHours, differenceInMinutes, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
+import { ProjectStatus } from '@/types/project';
+import { format, subDays, subWeeks, subYears, startOfDay, endOfDay, isWithinInterval, differenceInDays, differenceInHours, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -36,8 +36,6 @@ interface AnalyticsData {
 
 export const AnalyticsScreen: React.FC = () => {
   const { t } = useTranslation();
-  const { isRTL } = useLanguage();
-  const paperTheme = useTheme();
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
@@ -523,12 +521,9 @@ export const AnalyticsScreen: React.FC = () => {
     activeProjects,
     completedProjects,
     productivityScore,
-    averageTaskCompletionTime,
     totalTimeTracked,
     tasksByPriority,
-    tasksByStatus,
     dailyProductivity,
-    weeklyTrends,
     categoryBreakdown,
     insights,
   } = analyticsData;
@@ -734,7 +729,7 @@ export const AnalyticsScreen: React.FC = () => {
               {t('analytics.categoryBreakdown')}
             </Text>
             <View style={styles.categoryList}>
-              {categoryBreakdown.slice(0, 5).map((category, index) => (
+              {categoryBreakdown.slice(0, 5).map((category) => (
                 <View key={category.category} style={styles.categoryItem}>
                   <View style={styles.categoryInfo}>
                     <View style={styles.categoryHeader}>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Dimensions } from 'react-native';
-import { Text, Card, ProgressBar, Chip, IconButton, useTheme } from 'react-native-paper';
+import { Text, Card, ProgressBar, Chip , useTheme } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -8,7 +8,7 @@ import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTaskStore } from '@/store/taskStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday, isThisWeek, isThisMonth, addDays, subDays } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, subDays } from 'date-fns';
 import { useDayTranslations } from '@/utils/dateTranslations';
 
 interface DashboardScreenProps {
@@ -18,15 +18,13 @@ interface DashboardScreenProps {
 const screenWidth = Dimensions.get('window').width;
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
-  const { t } = useTranslation();
-  const { isRTL } = useLanguage();
-  const paperTheme = useTheme();
+  const { t } = useTranslation(); 
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
   const { getDayName } = useDayTranslations();
 
-  const { tasks, fetchTasks, isLoading } = useTaskStore();
+  const { tasks, fetchTasks,   } = useTaskStore();
   const { projects, fetchProjects } = useProjectStore();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -143,10 +141,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     });
 
     const priorityDistribution = [
-      { name: 'Urgent', count: tasks.filter(t => t.priority === TaskPriority.URGENT).length, color: '#FF4444', legendFontColor: theme.colors.text, legendFontSize: 12 },
-      { name: 'High', count: tasks.filter(t => t.priority === TaskPriority.HIGH).length, color: '#FF6B6B', legendFontColor: theme.colors.text, legendFontSize: 12 },
-      { name: 'Medium', count: tasks.filter(t => t.priority === TaskPriority.MEDIUM).length, color: '#42A5F5', legendFontColor: theme.colors.text, legendFontSize: 12 },
-      { name: 'Low', count: tasks.filter(t => t.priority === TaskPriority.LOW).length, color: '#66BB6A', legendFontColor: theme.colors.text, legendFontSize: 12 },
+      { name: 'Urgent', count: tasks.filter(tp => tp.priority === TaskPriority.URGENT).length, color: '#FF4444', legendFontColor: theme.colors.text, legendFontSize: 12 },
+      { name: 'High', count: tasks.filter(tp => tp.priority === TaskPriority.HIGH).length, color: '#FF6B6B', legendFontColor: theme.colors.text, legendFontSize: 12 },
+      { name: 'Medium', count: tasks.filter(tp => tp.priority === TaskPriority.MEDIUM).length, color: '#42A5F5', legendFontColor: theme.colors.text, legendFontSize: 12 },
+      { name: 'Low', count: tasks.filter(tp => tp.priority === TaskPriority.LOW).length, color: '#66BB6A', legendFontColor: theme.colors.text, legendFontSize: 12 },
     ];
 
     return { last7Days, priorityDistribution };

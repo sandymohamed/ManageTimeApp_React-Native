@@ -195,12 +195,7 @@ class TimerNotificationService {
           Alert.alert('Error', 'Failed to load the sound');
           return;
         }
-        sound.play((success) => {
-          if (success) {
-            console.log('successfully finished playing');
-          } else {
-            console.log('playback failed due to audio decoding errors');
-          }
+        sound.play(() => {
           // Release the sound when finished to free memory
           sound.release();
         });
@@ -242,7 +237,6 @@ class TimerNotificationService {
 
   // Handle create new timer
   private handleCreateNewTimer(): void {
-    console.log('Navigating to create new timer');
     navigate('Alarms', { initialTab: 'timers', showTimerModal: true });
   }
 

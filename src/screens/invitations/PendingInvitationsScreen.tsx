@@ -6,7 +6,6 @@ import {
   FlatList,
   RefreshControl,
   Alert,
-  TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -14,20 +13,33 @@ import { Card, Title, Paragraph, Button, Chip, FAB } from 'react-native-paper';
 import { theme } from '@/utils/theme';
 import { useTranslation } from 'react-i18next';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { invitationService, ProjectInvitation } from '@/services/invitationService';
 
 type PendingInvitationsScreenNavigationProp = StackNavigationProp<any, 'PendingInvitations'>;
 
-interface PendingInvitation {
+type PendingInvitation = {
   id: string;
   projectId: string;
   projectName: string;
   inviterName: string;
   inviterEmail: string;
-  role: 'member' | 'admin' | 'viewer';
-  status: 'pending' | 'accepted' | 'declined' | 'expired';
-  createdAt: string;
+  role: 'owner' | 'editor' | 'viewer';
+  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
+  invitedAt: string;
   expiresAt: string;
-}
+};
+
+const mapInvitation = (invitation: ProjectInvitation): PendingInvitation => ({
+  id: invitation.id,
+  projectId: invitation.project.id,
+  projectName: invitation.project.name,
+  inviterName: invitation.inviter.name || invitation.inviter.email,
+  inviterEmail: invitation.inviter.email,
+  role: invitation.role.toLowerCase() as PendingInvitation['role'],
+  status: invitation.status.toLowerCase() as PendingInvitation['status'],
+  invitedAt: invitation.invitedAt,
+  expiresAt: invitation.expiresAt,
+});
 
 const PendingInvitationsScreen: React.FC = () => {
   const navigation = useNavigation<PendingInvitationsScreenNavigationProp>();
@@ -46,7 +58,8 @@ const PendingInvitationsScreen: React.FC = () => {
       setLoading(true);
       // Call API to get pending invitations
       const invitationsData = await invitationService.getPendingInvitations();
-      setInvitations(invitationsData);
+      const mappedInvitations = invitationsData.map(mapInvitation);
+      setInvitations(mappedInvitations);
     } catch (error) {
       console.error('Error loading invitations:', error);
       Alert.alert('Error', 'Failed to load pending invitations');
@@ -92,8 +105,8 @@ const PendingInvitationsScreen: React.FC = () => {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'admin': return '#D32F2F';
-      case 'member': return '#1976D2';
+      case 'owner': return '#D32F2F';
+      case 'editor': return '#1976D2';
       case 'viewer': return '#388E3C';
       default: return '#666666';
     }
@@ -105,6 +118,7 @@ const PendingInvitationsScreen: React.FC = () => {
       case 'accepted': return '#4CAF50';
       case 'declined': return '#F44336';
       case 'expired': return '#9E9E9E';
+      case 'cancelled': return '#BDBDBD';
       default: return '#666666';
     }
   };
@@ -116,7 +130,7 @@ const PendingInvitationsScreen: React.FC = () => {
             <View style={styles.projectInfo}>
             <Title style={styles.projectName}>{item.projectName}</Title>
             <Paragraph style={styles.inviterName}>
-              Invited by {item.inviterName}
+        fffffffffffffffffffffffff      Invited by {item.inviterName}
             </Paragraph>
           </View>
           <Chip

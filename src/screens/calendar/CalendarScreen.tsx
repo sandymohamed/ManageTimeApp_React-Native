@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions,  } from 'react-native';
 import { Text, Card, IconButton, Chip, useTheme, FAB, Badge, Portal, Modal } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -8,20 +8,16 @@ import { useNotification } from '@/contexts/NotificationContext';
 import { useTaskStore } from '@/store/taskStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addDays, subDays, isToday, isTomorrow, isYesterday, differenceInDays, differenceInHours, differenceInMinutes } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addDays, subDays, differenceInDays, differenceInHours, differenceInMinutes } from 'date-fns';
 import { useDayTranslations } from '@/utils/dateTranslations';
 
 interface CalendarScreenProps {
   navigation: any;
 }
 
-const screenWidth = Dimensions.get('window').width;
-// const dayWidth = screenWidth / 7;
 
 export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) => {
   const { t } = useTranslation();
-  const { isRTL } = useLanguage();
-  const paperTheme = useTheme();
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
   const styles = createStyles(theme);
