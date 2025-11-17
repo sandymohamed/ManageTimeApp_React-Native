@@ -470,7 +470,12 @@
     "last7Days": "آخر 7 أيام",
     "priorityDistribution": "توزيع الأولوية",
     "chartProgress": "التقدم",
-    "chartPriority": "الأولوية"
+    "chartPriority": "الأولوية",
+    "routineReminders": "تذكيرات الروتين",
+    "noRoutineReminders": "لا توجد تذكيرات روتين قادمة",
+    "reminder": "تذكير",
+    "overdue": "متأخر",
+    "remaining": "متبقي"
   },
   "calendar": {
     "month": "الشهر",
@@ -525,7 +530,13 @@
     "createExamples": "إنشاء روتينات مثال",
     "exampleRoutinesCreated": "تم إنشاء روتينات المثال بنجاح",
     "createError": "فشل في إنشاء الروتين",
-    "updateError": "فشل في تحديث الروتين"
+    "updateError": "فشل في تحديث الروتين",
+    "whenToRemind": "متى تريد التذكير",
+    "hoursBefore": "ساعات قبل",
+    "daysBefore": "أيام قبل",
+    "hours": "ساعات",
+    "reminderHelperDaily": "احصل على تذكير قبل بدء الروتين",
+    "reminderHelperWeekly": "احصل على تذكير قبل حدوث الروتين"
   },
   "alarms": {
     "title": "التنبيهات",

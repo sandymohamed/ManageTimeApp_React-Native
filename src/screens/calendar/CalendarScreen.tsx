@@ -402,7 +402,18 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     const goalMilestones = getGoalMilestonesAsTasks();
     const projectMilestones = getProjectMilestonesAsTasks();
     
-    return [...regularTasks, ...routineTasks, ...goalMilestones, ...projectMilestones];
+    // Combine all tasks and ensure unique IDs (use task.id as the unique identifier)
+    const allTasks = [...regularTasks, ...routineTasks, ...goalMilestones, ...projectMilestones];
+    
+    // Deduplicate by task.id to ensure uniqueness
+    const uniqueTasksMap = new Map<string, Task>();
+    allTasks.forEach(task => {
+      if (task.id) {
+        uniqueTasksMap.set(task.id, task);
+      }
+    });
+    
+    return Array.from(uniqueTasksMap.values());
   };
 
   // Get reminders for a specific date

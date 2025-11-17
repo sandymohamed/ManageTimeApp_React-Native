@@ -378,9 +378,18 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   const getOrganizedTasks = () => {
     const now = new Date();
     
+    // Deduplicate tasks by ID first to ensure uniqueness
+    const uniqueTasksMap = new Map<string, Task>();
+    filteredTasks.forEach(task => {
+      if (task.id) {
+        uniqueTasksMap.set(task.id, task);
+      }
+    });
+    const uniqueTasks = Array.from(uniqueTasksMap.values());
+    
     // Separate incomplete and completed tasks
-    const incompleteTasks = filteredTasks.filter(task => task.status !== TaskStatus.DONE);
-    const completedTasks = filteredTasks.filter(task => task.status === TaskStatus.DONE);
+    const incompleteTasks = uniqueTasks.filter(task => task.status !== TaskStatus.DONE);
+    const completedTasks = uniqueTasks.filter(task => task.status === TaskStatus.DONE);
     
     // Sort incomplete tasks by dueDate/time from current time (earliest first)
     incompleteTasks.sort((a, b) => {
@@ -661,8 +670,8 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
               {/* Incomplete Tasks */}
               {incompleteTasks.length > 0 && (
                 <View>
-                  {incompleteTasks.map((task) => (
-                    <View key={task.id}>
+                  {incompleteTasks.map((task, index) => (
+                    <View key={task.id || `incomplete-task-${index}`}>
                       {useFallback ? renderFallbackTask({ item: task }) : renderTask({ item: task })}
                     </View>
                   ))}
@@ -677,8 +686,8 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
                       {t('tasks.completed')} ({completedTasks.length})
                     </Text>
                   </View>
-                  {displayCompletedTasks.map((task) => (
-                    <View key={task.id}>
+                  {displayCompletedTasks.map((task, index) => (
+                    <View key={task.id || `completed-task-${index}`}>
                       {useFallback ? renderFallbackTask({ item: task }) : renderTask({ item: task })}
                     </View>
                   ))}

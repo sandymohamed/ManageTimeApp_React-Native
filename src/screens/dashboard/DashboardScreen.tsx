@@ -107,11 +107,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
   // Get urgent tasks
   const getUrgentTasks = () => {
-    return tasks.filter(task =>
+    const urgentTasks = tasks.filter(task =>
       task.priority === TaskPriority.URGENT &&
       task.status !== TaskStatus.DONE &&
       (!task.dueDate || new Date(task.dueDate) >= new Date())
-    ).slice(0, 5);
+    );
+    
+    // Deduplicate by task.id to ensure uniqueness
+    const uniqueTasksMap = new Map<string, Task>();
+    urgentTasks.forEach(task => {
+      if (task.id) {
+        uniqueTasksMap.set(task.id, task);
+      }
+    });
+    
+    return Array.from(uniqueTasksMap.values()).slice(0, 5);
   };
 
   // Get this week's tasks
@@ -290,7 +300,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
         ) : (
           urgentTasks.map((task, index) => (
             <TouchableOpacity
-              key={task.id}
+              key={task.id || `urgent-task-${index}`}
               style={[
                 styles.taskItem,
                 index === urgentTasks.length - 1 && styles.lastTaskItem
@@ -858,6 +868,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   taskDueDate: {
     color: theme.colors.text,
     opacity: 0.7,
+  },
+  taskDescription: {
+    fontSize: 12,
+    opacity: 0.8,
+    marginTop: 4,
   },
   statusChip: {
     height: 26,
