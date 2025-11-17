@@ -164,10 +164,13 @@ export const useGoalStore = create<GoalStore>()(
 
           const goal = await goalService.getGoal(id);
 
-          set({
+          // Update the goal in the goals list if it exists there
+          set((state) => ({
             currentGoal: goal,
+            goals: state.goals.map(g => g.id === id ? goal : g),
+            filteredGoals: state.filteredGoals.map(g => g.id === id ? goal : g),
             isLoading: false,
-          });
+          }));
         } catch (error: any) {
           logger.error('Fetch goal error:', error);
           set({

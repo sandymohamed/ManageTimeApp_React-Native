@@ -475,7 +475,8 @@
     "noRoutineReminders": "لا توجد تذكيرات روتين قادمة",
     "reminder": "تذكير",
     "overdue": "متأخر",
-    "remaining": "متبقي"
+    "remaining": "متبقي",
+    "activeGoals": "الأهداف النشطة"
   },
   "calendar": {
     "month": "الشهر",

@@ -807,7 +807,13 @@
     "last7Days": "Last 7 Days",
     "priorityDistribution": "Priority Distribution",
     "chartProgress": "Progress",
-    "chartPriority": "Priority"
+    "chartPriority": "Priority",
+    "routineReminders": "Routine Reminders",
+    "noRoutineReminders": "No upcoming routine reminders",
+    "reminder": "Reminder",
+    "overdue": "Overdue",
+    "remaining": "remaining",
+    "activeGoals": "Active Goals"
   },
   "calendar": {
     "month": "Month",

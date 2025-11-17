@@ -7,7 +7,10 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTaskStore } from '@/store/taskStore';
 import { useProjectStore } from '@/store/projectStore';
+import { useGoalStore } from '@/store/goalStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
+import { Goal, GoalStatus } from '@/types/goal';
+import { MilestoneStatus } from '@/types/project';
 import { reminderService, Reminder } from '@/services/reminderService';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, subDays, differenceInHours, differenceInDays } from 'date-fns';
 import { useDayTranslations } from '@/utils/dateTranslations';
@@ -27,6 +30,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
   const { tasks, fetchTasks,   } = useTaskStore();
   const { projects, fetchProjects } = useProjectStore();
+  const { goals, fetchGoals } = useGoalStore();
 
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
@@ -36,6 +40,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   useEffect(() => {
     fetchTasks();
     fetchProjects();
+    fetchGoals();
     loadRoutineReminders();
   }, []);
 
@@ -62,7 +67,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchTasks(), fetchProjects(), loadRoutineReminders()]);
+    await Promise.all([fetchTasks(), fetchProjects(), fetchGoals(), loadRoutineReminders()]);
     setRefreshing(false);
   };
 
@@ -489,6 +494,125 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     );
   };
 
+  const renderActiveGoals = () => {
+    // Filter active goals
+    const activeGoals = goals.filter(goal => goal.status === GoalStatus.ACTIVE);
+    
+    // Get upcoming milestones (within next 7 days) for active goals
+    const now = new Date();
+    const nextWeek = new Date(now);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    
+    const goalsWithUpcomingMilestones = activeGoals.map(goal => {
+      const upcomingMilestones = goal.milestones?.filter(milestone => {
+        if (!milestone.targetDate || milestone.status === MilestoneStatus.DONE) return false;
+        const milestoneDate = new Date(milestone.targetDate);
+        return milestoneDate >= now && milestoneDate <= nextWeek;
+      }) || [];
+      
+      return {
+        goal,
+        upcomingMilestones: upcomingMilestones.slice(0, 2), // Show max 2 upcoming milestones per goal
+      };
+    }).filter(item => item.upcomingMilestones.length > 0 || item.goal.progress < 100);
+
+    if (goalsWithUpcomingMilestones.length === 0) {
+      return null;
+    }
+
+    return (
+      <Card style={[styles.card, styles.elevatedCard]}>
+        <Card.Content>
+          <View style={styles.cardHeader}>
+            <View style={styles.titleWithIcon}>
+              <View style={[styles.iconContainer, { backgroundColor: `${theme.colors.primary}20` }]}>
+                <Text style={[styles.iconText, { color: theme.colors.primary }]}>🎯</Text>
+              </View>
+              <Text variant="titleMedium" style={styles.cardTitle}>
+                {t('dashboard.activeGoals') || 'Active Goals'}
+              </Text>
+            </View>
+          </View>
+
+          {goalsWithUpcomingMilestones.slice(0, 5).map((item, index) => {
+            const { goal, upcomingMilestones } = item;
+            const completedMilestones = goal.milestones?.filter(m => m.status === MilestoneStatus.DONE).length || 0;
+            const totalMilestones = goal.milestones?.length || 0;
+            
+            return (
+              <TouchableOpacity
+                key={goal.id}
+                style={[
+                  styles.taskItem,
+                  index === goalsWithUpcomingMilestones.length - 1 && styles.lastTaskItem
+                ]}
+                onPress={() => navigation.navigate('GoalDetail', { goalId: goal.id })}
+              >
+                <View style={[styles.priorityIndicator, { backgroundColor: theme.colors.primary }]} />
+                <View style={styles.taskContent}>
+                  <Text variant="bodyMedium" style={styles.taskTitle} numberOfLines={1}>
+                    {goal.title}
+                  </Text>
+                  <View style={styles.goalProgressContainer}>
+                    <ProgressBar
+                      progress={goal.progress / 100}
+                      color={theme.colors.primary}
+                      style={[styles.goalProgressBar, { backgroundColor: theme.colors.surfaceVariant }]}
+                    />
+                    <Text variant="bodySmall" style={[styles.goalProgressText, { color: theme.colors.primary }]}>
+                      {goal.progress}%
+                    </Text>
+                  </View>
+                  {totalMilestones > 0 && (
+                    <Text variant="bodySmall" style={[styles.taskDescription, { color: theme.colors.textSecondary }]}>
+                      {completedMilestones}/{totalMilestones} {t('goals.milestones')}
+                    </Text>
+                  )}
+                  {upcomingMilestones.length > 0 && (
+                    <View style={styles.upcomingMilestones}>
+                      {upcomingMilestones.map((milestone, mIndex) => {
+                        const milestoneDate = new Date(milestone.targetDate!);
+                        const daysUntil = differenceInDays(milestoneDate, now);
+                        const isOverdue = milestoneDate < now;
+                        
+                        return (
+                          <View key={milestone.id} style={styles.milestoneBadge}>
+                            <Text style={[styles.milestoneIcon, { color: isOverdue ? theme.colors.error : theme.colors.warning }]}>
+                              {isOverdue ? '⚠️' : '📅'}
+                            </Text>
+                            <Text variant="bodySmall" style={[styles.milestoneText, { 
+                              color: isOverdue ? theme.colors.error : theme.colors.textSecondary 
+                            }]}>
+                              {milestone.title}
+                              {daysUntil >= 0 && ` (${daysUntil}d)`}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+                <Chip
+                  mode="outlined"
+                  textStyle={styles.statusChip}
+                  style={[
+                    styles.statusChipContainer,
+                    {
+                      borderColor: theme.colors.primary,
+                      backgroundColor: `${theme.colors.primary}10`
+                    }
+                  ]}
+                >
+                  {goal.progress}%
+                </Chip>
+              </TouchableOpacity>
+            );
+          })}
+        </Card.Content>
+      </Card>
+    );
+  };
+
   const renderWeeklyTasks = () => {
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(new Date()), i));
 
@@ -686,6 +810,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
       >
         {renderProgressCard()}
         {renderUrgentTasks()}
+        {renderActiveGoals()}
         {renderRoutineReminders()}
         {renderWeeklyTasks()}
         {renderAnalytics()}
@@ -873,6 +998,44 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 12,
     opacity: 0.8,
     marginTop: 4,
+  },
+  goalProgressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  goalProgressBar: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+  },
+  goalProgressText: {
+    fontSize: 11,
+    fontWeight: '600',
+    minWidth: 35,
+  },
+  upcomingMilestones: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  milestoneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: theme.colors.surfaceVariant,
+    borderRadius: 8,
+  },
+  milestoneIcon: {
+    fontSize: 12,
+  },
+  milestoneText: {
+    fontSize: 10,
   },
   statusChip: {
     height: 26,
