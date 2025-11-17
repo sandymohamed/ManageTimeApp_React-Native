@@ -91,11 +91,17 @@ class PushNotificationService {
           // Show a banner when the app is in the foreground.
           if (Platform.OS === 'android' && isForeground && !isLocalNotification) {
             try {
+              const notificationTitle = (notification as any).title ||
+                payload.title ||
+                'Manage Time';
+              
+              // Ensure app name is included if not already present
+              const finalTitle = notificationTitle.includes('Manage Time')
+                ? notificationTitle
+                : `Manage Time: ${notificationTitle}`;
+
               PushNotification.localNotification({
-                title:
-                  (notification as any).title ||
-                  payload.title ||
-                  'Manage Time',
+                title: finalTitle,
                 message:
                   (notification as any).message ||
                   payload.body ||
@@ -108,6 +114,8 @@ class PushNotificationService {
                 },
                 playSound: true,
                 soundName: 'default',
+                // Add small icon for Android (using default app icon)
+                // imageUrl can be added here if you have a logo URL
               });
             } catch (error) {
               logger.error('Failed to display foreground notification:', error);
@@ -175,8 +183,8 @@ class PushNotificationService {
         PushNotification.createChannel(
           {
             channelId: 'default-channel-id',
-            channelName: 'Default Channel',
-            channelDescription: 'Default notification channel',
+            channelName: 'Manage Time',
+            channelDescription: 'Manage Time app notifications',
             playSound: true,
             soundName: 'default',
             importance: 4,

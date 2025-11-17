@@ -8,7 +8,8 @@ import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useTaskStore } from '@/store/taskStore';
 import { useProjectStore } from '@/store/projectStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, subDays } from 'date-fns';
+import { reminderService, Reminder } from '@/services/reminderService';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, subDays, differenceInHours, differenceInDays } from 'date-fns';
 import { useDayTranslations } from '@/utils/dateTranslations';
 
 interface DashboardScreenProps {
@@ -30,11 +31,28 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
   const [activeChart, setActiveChart] = useState<'progress' | 'priority'>('progress');
+  const [routineReminders, setRoutineReminders] = useState<Reminder[]>([]);
 
   useEffect(() => {
     fetchTasks();
     fetchProjects();
+    loadRoutineReminders();
   }, []);
+
+  const loadRoutineReminders = async () => {
+    try {
+      const reminders = await reminderService.getUpcomingReminders();
+      console.log('All upcoming reminders:', reminders.length, reminders);
+      // Filter for routine reminders only
+      const routineRemindersList = reminders.filter(r => 
+        r.schedule?.routineId && r.title?.includes('Routine Reminder:')
+      );
+      console.log('Routine reminders filtered:', routineRemindersList.length, routineRemindersList);
+      setRoutineReminders(routineRemindersList);
+    } catch (error) {
+      console.error('Error loading routine reminders:', error);
+    }
+  };
 
   // React to changes in tasks and projects
   useEffect(() => {
@@ -44,7 +62,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchTasks(), fetchProjects()]);
+    await Promise.all([fetchTasks(), fetchProjects(), loadRoutineReminders()]);
     setRefreshing(false);
   };
 
@@ -313,6 +331,154 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     </Card>
   );
 
+  const renderRoutineReminders = () => {
+    const getReminderTime = (reminder: Reminder): Date => {
+      const schedule = reminder.schedule;
+      if (!schedule?.time) return new Date();
+      
+      const [routineHours, routineMinutes] = schedule.time.split(':').map(Number);
+      const now = new Date();
+      let routineOccurrence = new Date(now);
+
+      // Calculate routine occurrence
+      if (schedule.frequency === 'DAILY') {
+        routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
+        if (routineOccurrence <= now) {
+          routineOccurrence.setDate(routineOccurrence.getDate() + 1);
+        }
+      } else if (schedule.frequency === 'WEEKLY' && schedule.days && schedule.days.length > 0) {
+        const currentDay = now.getDay();
+        let soonest: Date | null = null;
+        for (const day of schedule.days) {
+          const d = new Date(now);
+          const delta = (day - currentDay + 7) % 7;
+          d.setDate(d.getDate() + delta);
+          d.setHours(routineHours, routineMinutes, 0, 0);
+          if (d <= now) {
+            d.setDate(d.getDate() + 7);
+          }
+          if (!soonest || d < soonest) soonest = d;
+        }
+        routineOccurrence = soonest || routineOccurrence;
+      } else if (schedule.frequency === 'MONTHLY' && schedule.day) {
+        routineOccurrence.setDate(schedule.day);
+        routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
+        if (routineOccurrence <= now) {
+          routineOccurrence.setMonth(routineOccurrence.getMonth() + 1);
+        }
+      }
+
+      // Calculate reminder time (routine time minus reminderBefore)
+      let reminderTime = new Date(routineOccurrence);
+      if (schedule.reminderBefore) {
+        const match = schedule.reminderBefore.match(/^(\d+)([hdw])$/);
+        if (match) {
+          const [, valueStr, unit] = match;
+          const value = parseInt(valueStr, 10);
+          
+          if (unit === 'h') {
+            reminderTime.setHours(reminderTime.getHours() - value);
+          } else if (unit === 'd') {
+            reminderTime.setDate(reminderTime.getDate() - value);
+          } else if (unit === 'w') {
+            reminderTime.setDate(reminderTime.getDate() - (value * 7));
+          }
+        }
+      }
+
+      return reminderTime;
+    };
+
+    const getTimeUntilReminder = (reminder: Reminder): string => {
+      const reminderTime = getReminderTime(reminder);
+      const now = new Date();
+      const diffInHours = differenceInHours(reminderTime, now);
+      const diffInDays = differenceInDays(reminderTime, now);
+
+      if (diffInHours < 0) return t('dashboard.overdue') || 'Overdue';
+      if (diffInHours < 24) return `${diffInHours}h ${t('dashboard.remaining') || 'remaining'}`;
+      if (diffInDays < 7) return `${diffInDays}d ${t('dashboard.remaining') || 'remaining'}`;
+      return format(reminderTime, 'MMM d');
+    };
+
+    const routineTitle = (reminder: Reminder): string => {
+      // Extract routine title from "Routine Reminder: {title}"
+      const match = reminder.title.match(/Routine Reminder: (.+)/);
+      return match ? match[1] : reminder.title;
+    };
+
+    return (
+      <Card style={[styles.card, styles.elevatedCard]}>
+        <Card.Content>
+          <View style={styles.cardHeader}>
+            <View style={styles.titleWithIcon}>
+              <View style={[styles.iconContainer, { backgroundColor: '#FFA72620' }]}>
+                <Text style={[styles.iconText, { color: '#FFA726' }]}>🔔</Text>
+              </View>
+              <Text variant="titleMedium" style={styles.cardTitle}>
+                {t('dashboard.routineReminders') || 'Routine Reminders'}
+              </Text>
+            </View>
+          </View>
+
+          {routineReminders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyIcon, { color: theme.colors.surfaceVariant }]}>🔔</Text>
+              <Text variant="bodyMedium" style={styles.emptyText}>
+                {t('dashboard.noRoutineReminders') || 'No upcoming routine reminders'}
+              </Text>
+            </View>
+          ) : (
+            routineReminders.slice(0, 5).map((reminder, index) => {
+              const reminderTime = getReminderTime(reminder);
+              return (
+                <TouchableOpacity
+                  key={reminder.id}
+                  style={[
+                    styles.taskItem,
+                    index === routineReminders.length - 1 && styles.lastTaskItem
+                  ]}
+                  onPress={() => navigation.navigate('Routines')}
+                >
+                  <View style={[styles.priorityIndicator, { backgroundColor: '#FFA726' }]} />
+                  <View style={styles.taskContent}>
+                    <Text variant="bodyMedium" style={styles.taskTitle} numberOfLines={1}>
+                      {routineTitle(reminder)}
+                    </Text>
+                    <View style={styles.dueDateContainer}>
+                      <Text style={[styles.dueDateIcon, { color: theme.colors.primary }]}>⏰</Text>
+                      <Text variant="bodySmall" style={styles.taskDueDate}>
+                        {format(reminderTime, 'MMM dd, h:mm a')} • {getTimeUntilReminder(reminder)}
+                      </Text>
+                    </View>
+                    {reminder.note && (
+                      <Text variant="bodySmall" style={[styles.taskDescription, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+                        {reminder.note}
+                      </Text>
+                    )}
+                  </View>
+                  <Chip
+                    mode="outlined"
+                    textStyle={styles.statusChip}
+                    style={[
+                      styles.statusChipContainer,
+                      {
+                        borderColor: '#FFA726',
+                        backgroundColor: '#FFA72610'
+                      }
+                    ]}
+                  >
+                    {t('dashboard.reminder') || 'Reminder'}
+                  </Chip>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </Card.Content>
+      </Card>
+    );
+  };
+
   const renderWeeklyTasks = () => {
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(new Date()), i));
 
@@ -510,6 +676,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
       >
         {renderProgressCard()}
         {renderUrgentTasks()}
+        {renderRoutineReminders()}
         {renderWeeklyTasks()}
         {renderAnalytics()}
       </ScrollView>

@@ -684,6 +684,8 @@ const RoutineEditScreen: React.FC = () => {
   const [selectedTime, setSelectedTime] = useState<Date>(new Date());
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [selectedDay, setSelectedDay] = useState<number>(1);
+  const [reminderValue, setReminderValue] = useState<string>('');
+  const [reminderUnit, setReminderUnit] = useState<'hours' | 'days' | 'weeks'>('hours');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -731,6 +733,16 @@ const RoutineEditScreen: React.FC = () => {
         setSelectedDay(data.schedule.day);
       }
 
+      // Parse reminderBefore if it exists
+      if (data.reminderBefore) {
+        const match = data.reminderBefore.match(/^(\d+)([hdw])$/);
+        if (match) {
+          const [, value, unit] = match;
+          setReminderValue(value);
+          setReminderUnit(unit === 'h' ? 'hours' : unit === 'd' ? 'days' : 'weeks');
+        }
+      }
+
       setTasks(
         data.routineTasks.map(task => ({
           id: task.id,
@@ -749,6 +761,10 @@ const RoutineEditScreen: React.FC = () => {
   };
 
   const handleFrequencyChange = (frequency: RoutineFrequency) => {
+    // Reset reminder unit based on frequency
+    const defaultUnit = frequency === 'DAILY' ? 'hours' : 'days';
+    setReminderUnit(defaultUnit);
+    
     setFormData({
       ...formData,
       frequency,
@@ -758,6 +774,23 @@ const RoutineEditScreen: React.FC = () => {
         day: frequency === 'MONTHLY' ? selectedDay : undefined,
       },
     });
+  };
+
+  const updateReminder = (value: string, unit: 'hours' | 'days' | 'weeks') => {
+    setReminderValue(value);
+    setReminderUnit(unit);
+    if (value && parseInt(value, 10) > 0) {
+      const unitChar = unit === 'hours' ? 'h' : unit === 'days' ? 'd' : 'w';
+      setFormData({
+        ...formData,
+        reminderBefore: `${value}${unitChar}`,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        reminderBefore: undefined,
+      });
+    }
   };
 
   const handleTimeChange = (event: any, date?: Date) => {
@@ -1043,6 +1076,75 @@ const RoutineEditScreen: React.FC = () => {
               />
             )}
 
+            <Text variant="titleMedium" style={styles.sectionTitle}>
+              {t('routines.whenToRemind') || 'When to remind you'}
+            </Text>
+            <View style={styles.reminderContainer}>
+              <TextInput
+                label={formData.frequency === 'DAILY' 
+                  ? (t('routines.hoursBefore') || 'Hours before')
+                  : formData.frequency === 'WEEKLY'
+                  ? (t('routines.daysBefore') || 'Days before')
+                  : (t('routines.daysBefore') || 'Days before')}
+                value={reminderValue}
+                onChangeText={(text) => {
+                  const numValue = text.replace(/[^0-9]/g, '');
+                  updateReminder(numValue, reminderUnit);
+                }}
+                keyboardType="numeric"
+                mode="outlined"
+                style={[styles.input, styles.reminderInput]}
+                outlineColor={theme.colors.outline}
+                activeOutlineColor={theme.colors.primary}
+                placeholder={formData.frequency === 'DAILY' ? '2' : '1'}
+              />
+              {formData.frequency === 'DAILY' ? (
+                <Chip
+                  selected={reminderUnit === 'hours'}
+                  onPress={() => updateReminder(reminderValue, 'hours')}
+                  style={[
+                    styles.reminderChip,
+                    reminderUnit === 'hours' && { backgroundColor: theme.colors.primary }
+                  ]}
+                  textStyle={reminderUnit === 'hours' ? { color: theme.colors.onPrimary } : {}}
+                >
+                  {t('routines.hours') || 'Hours'}
+                </Chip>
+              ) : (
+                <View style={styles.reminderUnitContainer}>
+                  <Chip
+                    selected={reminderUnit === 'days'}
+                    onPress={() => updateReminder(reminderValue, 'days')}
+                    style={[
+                      styles.reminderChip,
+                      reminderUnit === 'days' && { backgroundColor: theme.colors.primary }
+                    ]}
+                    textStyle={reminderUnit === 'days' ? { color: theme.colors.onPrimary } : {}}
+                  >
+                    {t('routines.days') || 'Days'}
+                  </Chip>
+                  {formData.frequency === 'WEEKLY' && (
+                    <Chip
+                      selected={reminderUnit === 'weeks'}
+                      onPress={() => updateReminder(reminderValue, 'weeks')}
+                      style={[
+                        styles.reminderChip,
+                        reminderUnit === 'weeks' && { backgroundColor: theme.colors.primary }
+                      ]}
+                      textStyle={reminderUnit === 'weeks' ? { color: theme.colors.onPrimary } : {}}
+                    >
+                      {t('routines.weeks') || 'Weeks'}
+                    </Chip>
+                  )}
+                </View>
+              )}
+            </View>
+            <Text variant="bodySmall" style={[styles.helperText, { color: theme.colors.textSecondary }]}>
+              {formData.frequency === 'DAILY' 
+                ? (t('routines.reminderHelperDaily') || 'Get reminded before the routine starts')
+                : (t('routines.reminderHelperWeekly') || 'Get reminded before the routine occurs')}
+            </Text>
+
             {formData.frequency === 'WEEKLY' && (
               <>
                 <Text variant="titleMedium" style={styles.sectionTitle}>
@@ -1293,6 +1395,28 @@ const createStyles = (theme: any) => StyleSheet.create({
   addTaskButton: {
     marginBottom: 16,
     borderColor: theme.colors.primary,
+  },
+  reminderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  reminderInput: {
+    flex: 1,
+  },
+  reminderUnitContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  reminderChip: {
+    backgroundColor: theme.colors.surfaceVariant,
+  },
+  helperText: {
+    marginTop: -8,
+    marginBottom: 16,
+    marginLeft: 12,
+    fontSize: 12,
   },
   buttonContainer: {
     flexDirection: 'row',

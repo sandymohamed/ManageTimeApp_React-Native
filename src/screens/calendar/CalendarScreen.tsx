@@ -7,7 +7,13 @@ import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useTaskStore } from '@/store/taskStore';
 import { useProjectStore } from '@/store/projectStore';
+import { useGoalStore } from '@/store/goalStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
+import { Milestone as GoalMilestone } from '@/types/goal';
+import { ProjectMilestone } from '@/types/project';
+import { Routine, RoutineFrequency } from '@/types/routine';
+import { routineService } from '@/services/routineService';
+import { reminderService, Reminder } from '@/services/reminderService';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addDays, subDays, differenceInDays, differenceInHours, differenceInMinutes } from 'date-fns';
 import { useDayTranslations } from '@/utils/dateTranslations';
 
@@ -26,6 +32,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
 
   const { tasks, fetchTasks, updateTask } = useTaskStore();
   const { projects, fetchProjects } = useProjectStore();
+  const { goals, fetchGoals } = useGoalStore();
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
@@ -33,36 +40,387 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [routineReminders, setRoutineReminders] = useState<Reminder[]>([]);
 
   useEffect(() => {
     fetchTasks();
     fetchProjects();
+    fetchGoals();
+    loadRoutines();
+    loadRoutineReminders();
   }, []);
 
-  // React to changes in tasks and projects
+  const loadRoutineReminders = async () => {
+    try {
+      const reminders = await reminderService.getUpcomingReminders();
+      // Filter for routine reminders only
+      const routineRemindersList = reminders.filter(r => 
+        r.schedule?.routineId && r.title?.includes('Routine Reminder:')
+      );
+      setRoutineReminders(routineRemindersList);
+    } catch (error) {
+      console.error('Error loading routine reminders:', error);
+    }
+  };
+
+  const loadRoutines = async () => {
+    try {
+      const data = await routineService.getUserRoutines();
+      setRoutines(data);
+    } catch (error) {
+      console.error('Error loading routines:', error);
+    }
+  };
+
+  // React to changes in tasks, projects, goals, routines, and reminders
   useEffect(() => {
-    // This will trigger re-renders when tasks or projects change
+    // This will trigger re-renders when tasks, projects, goals, routines, or reminders change
     // The calendar will automatically update with new task data
-  }, [tasks, projects]);
+  }, [tasks, projects, goals, routines, routineReminders]);
 
   // Get upcoming tasks for reminders
   useEffect(() => {
     const now = new Date();
-    const upcoming = tasks.filter(task => {
-      if (!task.dueDate || task.status === TaskStatus.DONE) return false;
-      const taskDate = new Date(task.dueDate);
-      const diffInHours = differenceInHours(taskDate, now);
+    const allItems = getAllCalendarItems();
+    const upcoming = allItems.filter(item => {
+      if (!item.dueDate || item.status === TaskStatus.DONE) return false;
+      const itemDate = new Date(item.dueDate);
+      const diffInHours = differenceInHours(itemDate, now);
       return diffInHours >= 0 && diffInHours <= 24; // Next 24 hours
     }).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
 
     setUpcomingTasks(upcoming);
-  }, [tasks]);
+  }, [tasks, projects, goals, routines, routineReminders, viewMode, currentDate, selectedDate]);
+
+  // Convert goal milestones to Task-like format for calendar
+  const getGoalMilestonesAsTasks = (): Task[] => {
+    const calendarItems: Task[] = [];
+    
+    goals.forEach(goal => {
+      goal.milestones?.forEach(milestone => {
+        // Use targetDate (goal milestones use targetDate, not dueDate)
+        const milestoneDate = milestone.targetDate;
+        if (milestoneDate && milestone.status !== 'DONE' && milestone.status !== 'CANCELLED') {
+          calendarItems.push({
+            id: `goal_milestone_${milestone.id}`,
+            title: milestone.title,
+            description: milestone.description,
+            status: milestone.status === 'DONE' ? TaskStatus.DONE : 
+                   milestone.status === 'IN_PROGRESS' ? TaskStatus.IN_PROGRESS : TaskStatus.TODO,
+            priority: TaskPriority.MEDIUM,
+            dueDate: milestoneDate,
+            projectId: undefined,
+            goalId: goal.id,
+            assigneeId: undefined,
+            createdBy: goal.userId,
+            tags: ['goal', 'milestone', goal.category.toLowerCase()],
+            order: milestone.order || 0,
+            metadata: {
+              isGoalMilestone: true,
+              goalTitle: goal.title,
+              milestoneId: milestone.id,
+            },
+            createdAt: milestone.createdAt,
+            updatedAt: milestone.updatedAt,
+            isDeleted: false,
+          });
+        }
+      });
+    });
+    
+    return calendarItems;
+  };
+
+  // Convert project milestones to Task-like format for calendar
+  const getProjectMilestonesAsTasks = (): Task[] => {
+    const calendarItems: Task[] = [];
+    
+    projects.forEach(project => {
+      project.milestones?.forEach(milestone => {
+        if (milestone.dueDate && milestone.status !== 'DONE' && milestone.status !== 'CANCELLED') {
+          calendarItems.push({
+            id: `project_milestone_${milestone.id}`,
+            title: milestone.title,
+            description: milestone.description,
+            status: milestone.status === 'DONE' ? TaskStatus.DONE : 
+                   milestone.status === 'IN_PROGRESS' ? TaskStatus.IN_PROGRESS : TaskStatus.TODO,
+            priority: TaskPriority.MEDIUM,
+            dueDate: milestone.dueDate,
+            projectId: project.id,
+            goalId: undefined,
+            assigneeId: undefined,
+            createdBy: project.ownerId,
+            tags: ['project', 'milestone', project.name.toLowerCase()],
+            order: 0,
+            metadata: {
+              isProjectMilestone: true,
+              projectName: project.name,
+              milestoneId: milestone.id,
+            },
+            createdAt: milestone.createdAt,
+            updatedAt: milestone.updatedAt,
+            isDeleted: false,
+          });
+        }
+      });
+      
+      // Also include project tasks that have due dates
+      project.tasks?.forEach(projectTask => {
+        if (projectTask.dueDate && projectTask.status !== 'DONE' && projectTask.status !== 'ARCHIVED') {
+          calendarItems.push({
+            id: `project_task_${projectTask.id}`,
+            title: projectTask.title,
+            description: projectTask.description,
+            status: projectTask.status,
+            priority: projectTask.priority,
+            dueDate: projectTask.dueDate,
+            projectId: project.id,
+            goalId: undefined,
+            assigneeId: projectTask.assigneeId,
+            createdBy: project.ownerId,
+            tags: ['project', 'task', project.name.toLowerCase()],
+            order: 0,
+            metadata: {
+              isProjectTask: true,
+              projectName: project.name,
+              milestoneId: projectTask.milestoneId,
+            },
+            createdAt: projectTask.createdAt,
+            updatedAt: projectTask.updatedAt,
+            isDeleted: false,
+          });
+        }
+      });
+    });
+    
+    return calendarItems;
+  };
+
+  // Generate routine task instances for all days in the calendar view range
+  const getRoutineTasksForCalendarRange = (startDate: Date, endDate: Date): Task[] => {
+    const routineTasks: Task[] = [];
+    const now = new Date();
+    
+    routines.forEach(routine => {
+      if (!routine.enabled) return;
+      
+      const schedule = routine.schedule as any;
+      const timeParts = schedule.time?.split(':') || ['0', '0'];
+      const hour = parseInt(timeParts[0], 10);
+      const minute = parseInt(timeParts[1], 10);
+      
+      routine.routineTasks.forEach(routineTask => {
+        if (routine.frequency === 'DAILY') {
+          // Generate instances for each day in the range
+          const currentDate = new Date(startDate);
+          while (currentDate <= endDate) {
+            const taskDate = new Date(currentDate);
+            taskDate.setHours(hour, minute, 0, 0);
+            
+            // Check if task is completed today
+            const isCompletedToday = routineTask.completed && routineTask.completedAt && 
+              isSameDay(new Date(routineTask.completedAt), currentDate);
+            
+            const isUrgent = !isCompletedToday && taskDate < now;
+            const taskStatus = isCompletedToday ? TaskStatus.DONE : TaskStatus.TODO;
+            
+            routineTasks.push({
+              id: `routine_${routineTask.id}_${format(currentDate, 'yyyy-MM-dd')}`,
+              title: routineTask.title,
+              description: routineTask.description,
+              status: taskStatus,
+              priority: isUrgent ? TaskPriority.URGENT : TaskPriority.MEDIUM,
+              dueDate: taskDate.toISOString(),
+              dueTime: schedule.time,
+              completedAt: isCompletedToday && routineTask.completedAt ? routineTask.completedAt : undefined,
+              projectId: undefined,
+              goalId: undefined,
+              assigneeId: undefined,
+              createdBy: routine.userId,
+              tags: ['routine', routine.title.toLowerCase().replace(/\s+/g, '-')],
+              order: routineTask.order,
+              metadata: {
+                routineId: routine.id,
+                routineTaskId: routineTask.id,
+                routineTitle: routine.title,
+                isRoutineTask: true,
+              },
+              createdAt: routineTask.createdAt,
+              updatedAt: routineTask.updatedAt,
+              isDeleted: false,
+            });
+            
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+        } else if (routine.frequency === 'WEEKLY' && schedule.days && schedule.days.length > 0) {
+          // Generate instances for each scheduled day in the range
+          const currentDate = new Date(startDate);
+          while (currentDate <= endDate) {
+            const dayOfWeek = currentDate.getDay();
+            if (schedule.days.includes(dayOfWeek)) {
+              const taskDate = new Date(currentDate);
+              taskDate.setHours(hour, minute, 0, 0);
+              
+              // Check if task is completed this week
+              const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+              const isCompletedThisWeek = routineTask.completed && routineTask.completedAt && 
+                new Date(routineTask.completedAt) >= weekStart;
+              
+              const isUrgent = !isCompletedThisWeek && taskDate < now;
+              const taskStatus = isCompletedThisWeek ? TaskStatus.DONE : TaskStatus.TODO;
+              
+              routineTasks.push({
+                id: `routine_${routineTask.id}_${format(currentDate, 'yyyy-MM-dd')}`,
+                title: routineTask.title,
+                description: routineTask.description,
+                status: taskStatus,
+                priority: isUrgent ? TaskPriority.URGENT : TaskPriority.MEDIUM,
+                dueDate: taskDate.toISOString(),
+                dueTime: schedule.time,
+                completedAt: isCompletedThisWeek && routineTask.completedAt ? routineTask.completedAt : undefined,
+                projectId: undefined,
+                goalId: undefined,
+                assigneeId: undefined,
+                createdBy: routine.userId,
+                tags: ['routine', routine.title.toLowerCase().replace(/\s+/g, '-')],
+                order: routineTask.order,
+                metadata: {
+                  routineId: routine.id,
+                  routineTaskId: routineTask.id,
+                  routineTitle: routine.title,
+                  isRoutineTask: true,
+                  scheduledDay: dayOfWeek,
+                },
+                createdAt: routineTask.createdAt,
+                updatedAt: routineTask.updatedAt,
+                isDeleted: false,
+              });
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+        }
+        // For monthly and yearly, we can add similar logic if needed
+      });
+    });
+    
+    return routineTasks;
+  };
+
+  // Get routine reminders for a specific date range
+  const getRoutineRemindersForDateRange = (startDate: Date, endDate: Date): Array<{ date: Date; reminder: Reminder }> => {
+    const reminders: Array<{ date: Date; reminder: Reminder }> = [];
+    
+    routineReminders.forEach(reminder => {
+      const schedule = reminder.schedule;
+      if (!schedule?.time || !schedule?.routineId) return;
+      
+      // Calculate routine occurrence time
+      const [routineHours, routineMinutes] = schedule.time.split(':').map(Number);
+      const currentDate = new Date(startDate);
+      
+      while (currentDate <= endDate) {
+        let routineOccurrence: Date | null = null;
+        
+        // Calculate when the routine occurs
+        if (schedule.frequency === 'DAILY') {
+          routineOccurrence = new Date(currentDate);
+          routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
+        } else if (schedule.frequency === 'WEEKLY' && schedule.days && schedule.days.length > 0) {
+          const dayOfWeek = currentDate.getDay();
+          if (schedule.days.includes(dayOfWeek)) {
+            routineOccurrence = new Date(currentDate);
+            routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
+          }
+        } else if (schedule.frequency === 'MONTHLY' && schedule.day) {
+          if (currentDate.getDate() === schedule.day) {
+            routineOccurrence = new Date(currentDate);
+            routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
+          }
+        }
+        
+        if (routineOccurrence) {
+          // Calculate reminder time (routine time minus reminderBefore)
+          let reminderDate = new Date(routineOccurrence);
+          
+          if (schedule.reminderBefore) {
+            const match = schedule.reminderBefore.match(/^(\d+)([hdw])$/);
+            if (match) {
+              const [, valueStr, unit] = match;
+              const value = parseInt(valueStr, 10);
+              
+              if (unit === 'h') {
+                reminderDate.setHours(reminderDate.getHours() - value);
+              } else if (unit === 'd') {
+                reminderDate.setDate(reminderDate.getDate() - value);
+              } else if (unit === 'w') {
+                reminderDate.setDate(reminderDate.getDate() - (value * 7));
+              }
+            }
+          }
+          
+          // Only include if reminder date is in the range
+          if (reminderDate >= startDate && reminderDate <= endDate) {
+            reminders.push({ date: reminderDate, reminder });
+          }
+        }
+        
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    });
+    
+    return reminders;
+  };
+
+  // Get all calendar items (tasks, routine tasks, goal milestones, project milestones)
+  const getAllCalendarItems = (): Task[] => {
+    // Filter out routine tasks from the tasks array (they're already included by backend, but we'll generate our own for calendar)
+    const regularTasks = tasks.filter(task => !task.metadata?.isRoutineTask);
+    
+    // Get the date range for the current view
+    let startDate: Date;
+    let endDate: Date;
+    
+    if (viewMode === 'month') {
+      startDate = startOfMonth(currentDate);
+      endDate = endOfMonth(currentDate);
+      // Extend to include full weeks
+      const calendarStart = startOfWeek(startDate, { weekStartsOn: 0 });
+      const calendarEnd = endOfWeek(endDate, { weekStartsOn: 0 });
+      startDate = calendarStart;
+      endDate = calendarEnd;
+    } else if (viewMode === 'week') {
+      startDate = startOfWeek(selectedDate, { weekStartsOn: 0 });
+      endDate = endOfWeek(selectedDate, { weekStartsOn: 0 });
+    } else {
+      // Day view
+      startDate = selectedDate;
+      endDate = selectedDate;
+    }
+    
+    const routineTasks = getRoutineTasksForCalendarRange(startDate, endDate);
+    const goalMilestones = getGoalMilestonesAsTasks();
+    const projectMilestones = getProjectMilestonesAsTasks();
+    
+    return [...regularTasks, ...routineTasks, ...goalMilestones, ...projectMilestones];
+  };
+
+  // Get reminders for a specific date
+  const getRemindersForDate = (date: Date): Array<{ date: Date; reminder: Reminder }> => {
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(date);
+    endDate.setHours(23, 59, 59, 999);
+    
+    return getRoutineRemindersForDateRange(startDate, endDate);
+  };
 
   const getTasksForDate = (date: Date) => {
-    return tasks.filter(task => {
-      if (!task.dueDate) return false;
-      const taskDate = new Date(task.dueDate);
-      return isSameDay(taskDate, date);
+    const allItems = getAllCalendarItems();
+    return allItems.filter(item => {
+      if (!item.dueDate) return false;
+      const itemDate = new Date(item.dueDate);
+      return isSameDay(itemDate, date);
     });
   };
 
@@ -250,6 +608,28 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                         </TouchableOpacity>
                       )}
                     </View>
+                    
+                    {/* Reminder indicators */}
+                    {(() => {
+                      const dayReminders = getRemindersForDate(day);
+                      if (dayReminders.length > 0) {
+                        return (
+                          <View style={styles.reminderIndicators}>
+                            {dayReminders.map(({ reminder }) => (
+                              <View
+                                key={reminder.id}
+                                style={[styles.reminderIndicator, { backgroundColor: '#FFA726' }]}
+                              >
+                                <Text style={[styles.reminderIndicatorText, { color: 'white' }]}>
+                                  🔔
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        );
+                      }
+                      return null;
+                    })()}
                   </TouchableOpacity>
                 );
               })}
@@ -330,27 +710,32 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const renderDayView = () => {
     const dayTasks = getTasksForDate(selectedDate);
 
-    // Create time slots for the day (6 AM to 11 PM)
+    // Create time slots for the day (full 24 hours: 0-23)
     interface TimeSlot {
       hour: number;
       time: string;
       displayTime: string;
       tasks: Task[];
+      reminders?: Array<{ reminder: Reminder; date: Date }>;
     }
 
     const timeSlots: TimeSlot[] = [];
-    for (let hour = 6; hour <= 23; hour++) {
+    for (let hour = 0; hour <= 23; hour++) {
+      const displayTime = hour === 0 ? '12:00 AM' : 
+                         hour < 12 ? `${hour}:00 AM` : 
+                         hour === 12 ? '12:00 PM' : 
+                         `${hour - 12}:00 PM`;
       timeSlots.push({
         hour,
         time: `${hour.toString().padStart(2, '0')}:00`,
-        displayTime: hour === 0 ? '12:00 AM' : hour < 12 ? `${hour}:00 AM` : hour === 12 ? '12:00 PM' : `${hour - 12}:00 PM`,
+        displayTime,
         tasks: []
       });
     }
 
     // Group tasks by time slots
     dayTasks.forEach(task => {
-      let taskHour = 6; // Default to 6 AM if no time specified
+      let taskHour = 0; // Default to midnight if no time specified
 
       if (task.dueTime) {
         // Parse dueTime (HH:mm format)
@@ -362,9 +747,20 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
         taskHour = taskDate.getHours();
       }
 
-      // Find the appropriate time slot
-      const slotIndex = Math.max(0, Math.min(timeSlots.length - 1, taskHour - 6));
+      // Find the appropriate time slot (0-23)
+      const slotIndex = Math.max(0, Math.min(timeSlots.length - 1, taskHour));
       timeSlots[slotIndex].tasks.push(task);
+    });
+
+    // Group reminders by time slots (reminders are shown as visual indicators, not tasks)
+    dayReminders.forEach(({ reminder, date }) => {
+      const reminderHour = date.getHours();
+      const slotIndex = Math.max(0, Math.min(timeSlots.length - 1, reminderHour));
+      // Store reminders separately - we'll render them differently
+      if (!timeSlots[slotIndex].reminders) {
+        timeSlots[slotIndex].reminders = [];
+      }
+      timeSlots[slotIndex].reminders!.push({ reminder, date });
     });
 
     // Sort tasks within each time slot by priority
@@ -392,6 +788,27 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
               </View>
 
               <View style={styles.timeSlotContent}>
+                {/* Show reminders first (as visual indicators) */}
+                {slot.reminders && slot.reminders.length > 0 && (
+                  <View style={styles.reminderBadgesContainer}>
+                    {slot.reminders.map(({ reminder, date }) => {
+                      const routineTitle = reminder.title.replace('Routine Reminder: ', '');
+                      return (
+                        <TouchableOpacity
+                          key={reminder.id}
+                          style={[styles.reminderBadge, { backgroundColor: '#FFA72620', borderColor: '#FFA726' }]}
+                          onPress={() => navigation.getParent()?.navigate('Routines')}
+                        >
+                          <Text style={[styles.reminderBadgeIcon, { color: '#FFA726' }]}>🔔</Text>
+                          <Text variant="bodySmall" style={[styles.reminderBadgeText, { color: theme.colors.text }]} numberOfLines={1}>
+                            {routineTitle}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+                
                 {slot.tasks.length === 0 ? (
                   <TouchableOpacity
                     style={[styles.emptyTimeSlot, { backgroundColor: theme.colors.surfaceVariant }]}
@@ -495,14 +912,16 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
 
   const renderSelectedDateTasks = () => {
     const selectedTasks = getTasksForDate(selectedDate);
+    const selectedReminders = getRemindersForDate(selectedDate);
 
-    if (selectedTasks.length === 0) return null;
+    if (selectedTasks.length === 0 && selectedReminders.length === 0) return null;
 
     return (
       <Card style={[styles.selectedDateCard, { backgroundColor: theme.colors.surface }]}>
         <Card.Content>
           <Text variant="titleMedium" style={[styles.selectedDateTitle, { color: theme.colors.text }]}>
             {format(selectedDate, 'MMM d')} - {selectedTasks.length} {t('calendar.tasks')}
+            {selectedReminders.length > 0 && `, ${selectedReminders.length} ${t('calendar.reminders') || 'reminders'}`}
           </Text>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.selectedTasksScroll}>
@@ -523,6 +942,24 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                 )}
               </TouchableOpacity>
             ))}
+            {selectedReminders.map(({ reminder, date }) => {
+              const routineTitle = reminder.title.replace('Routine Reminder: ', '');
+              return (
+                <TouchableOpacity
+                  key={reminder.id}
+                  style={[styles.selectedTaskItem, { backgroundColor: '#FFA72620', borderColor: '#FFA726', borderWidth: 1 }]}
+                  onPress={() => navigation.getParent()?.navigate('Routines')}
+                >
+                  <View style={[styles.selectedTaskIndicator, { backgroundColor: '#FFA726' }]} />
+                  <Text variant="bodySmall" style={[styles.selectedTaskTitle, { color: theme.colors.text }]}>
+                    🔔 {routineTitle}
+                  </Text>
+                  <Text variant="bodySmall" style={[styles.selectedTaskTime, { color: theme.colors.textSecondary }]}>
+                    {format(date, 'h:mm a')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </Card.Content>
       </Card>
@@ -1154,6 +1591,45 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: 4,
   },
   timeSlotTaskStatus: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  reminderIndicators: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 2,
+    marginTop: 2,
+  },
+  reminderIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reminderIndicatorText: {
+    fontSize: 6,
+  },
+  reminderBadgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  reminderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  reminderBadgeIcon: {
+    fontSize: 12,
+  },
+  reminderBadgeText: {
     fontSize: 11,
     fontWeight: '500',
   },
