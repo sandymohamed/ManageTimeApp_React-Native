@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions,  } from 'react-native';
 import { Text, Card, IconButton, Chip, useTheme, FAB, Badge, Portal, Modal } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
@@ -58,43 +58,39 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       const routineRemindersList = reminders.filter(r => 
         r.schedule?.routineId && r.title?.includes('Routine Reminder:')
       );
-      setRoutineReminders(routineRemindersList);
+      // Filter out reminders for disabled routines - reload routines if needed
+      const currentRoutines = routines.length > 0 ? routines : await routineService.getUserRoutines();
+      const enabledReminders = routineRemindersList.filter(reminder => {
+        const routineId = reminder.schedule?.routineId;
+        if (!routineId) return false;
+        // Check if routine is enabled
+        const routine = currentRoutines.find(r => r.id === routineId);
+        return routine?.enabled === true;
+      });
+      setRoutineReminders(enabledReminders);
     } catch (error) {
       console.error('Error loading routine reminders:', error);
     }
   };
 
-  const loadRoutines = async () => {
+  const loadRoutines = useCallback(async () => {
     try {
       const data = await routineService.getUserRoutines();
-      setRoutines(data);
+      // Filter out disabled routines
+      const enabled = data.filter(routine => routine.enabled);
+      setRoutines(enabled);
     } catch (error) {
       console.error('Error loading routines:', error);
     }
-  };
+  }, []);
 
-  // React to changes in tasks, projects, goals, routines, and reminders
-  useEffect(() => {
-    // This will trigger re-renders when tasks, projects, goals, routines, or reminders change
-    // The calendar will automatically update with new task data
-  }, [tasks, projects, goals, routines, routineReminders]);
-
-  // Get upcoming tasks for reminders
-  useEffect(() => {
-    const now = new Date();
-    const allItems = getAllCalendarItems();
-    const upcoming = allItems.filter(item => {
-      if (!item.dueDate || item.status === TaskStatus.DONE) return false;
-      const itemDate = new Date(item.dueDate);
-      const diffInHours = differenceInHours(itemDate, now);
-      return diffInHours >= 0 && diffInHours <= 24; // Next 24 hours
-    }).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
-
-    setUpcomingTasks(upcoming);
-  }, [tasks, projects, goals, routines, routineReminders, viewMode, currentDate, selectedDate]);
+  // Memoize enabled routines to avoid recalculation
+  const enabledRoutines = useMemo(() => {
+    return routines.filter(routine => routine.enabled);
+  }, [routines]);
 
   // Convert goal milestones to Task-like format for calendar
-  const getGoalMilestonesAsTasks = (): Task[] => {
+  const getGoalMilestonesAsTasks = useCallback((): Task[] => {
     const calendarItems: Task[] = [];
     
     goals.forEach(goal => {
@@ -130,10 +126,10 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     });
     
     return calendarItems;
-  };
+  }, [goals]);
 
   // Convert project milestones to Task-like format for calendar
-  const getProjectMilestonesAsTasks = (): Task[] => {
+  const getProjectMilestonesAsTasks = useCallback((): Task[] => {
     const calendarItems: Task[] = [];
     
     projects.forEach(project => {
@@ -195,15 +191,15 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     });
     
     return calendarItems;
-  };
+  }, [projects]);
 
   // Generate routine task instances for all days in the calendar view range
-  const getRoutineTasksForCalendarRange = (startDate: Date, endDate: Date): Task[] => {
+  const getRoutineTasksForCalendarRange = useCallback((startDate: Date, endDate: Date): Task[] => {
     const routineTasks: Task[] = [];
     const now = new Date();
     
-    routines.forEach(routine => {
-      if (!routine.enabled) return;
+    // Only process enabled routines
+    enabledRoutines.forEach(routine => {
       
       const schedule = routine.schedule as any;
       const timeParts = schedule.time?.split(':') || ['0', '0'];
@@ -305,13 +301,21 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     });
     
     return routineTasks;
-  };
+  }, [enabledRoutines]);
 
   // Get routine reminders for a specific date range
-  const getRoutineRemindersForDateRange = (startDate: Date, endDate: Date): Array<{ date: Date; reminder: Reminder }> => {
+  const getRoutineRemindersForDateRange = useCallback((startDate: Date, endDate: Date): Array<{ date: Date; reminder: Reminder }> => {
     const reminders: Array<{ date: Date; reminder: Reminder }> = [];
     
-    routineReminders.forEach(reminder => {
+    // Filter reminders for enabled routines only
+    const enabledReminders = routineReminders.filter(reminder => {
+      const routineId = reminder.schedule?.routineId;
+      if (!routineId) return false;
+      const routine = enabledRoutines.find(r => r.id === routineId);
+      return routine?.enabled === true;
+    });
+    
+    enabledReminders.forEach(reminder => {
       const schedule = reminder.schedule;
       if (!schedule?.time || !schedule?.routineId) return;
       
@@ -370,10 +374,11 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     });
     
     return reminders;
-  };
+  }, [routineReminders, enabledRoutines]);
 
   // Get all calendar items (tasks, routine tasks, goal milestones, project milestones)
-  const getAllCalendarItems = (): Task[] => {
+  // Memoize this expensive calculation based on view mode and date range
+  const getAllCalendarItems = useMemo((): Task[] => {
     // Filter out routine tasks from the tasks array (they're already included by backend, but we'll generate our own for calendar)
     const regularTasks = tasks.filter(task => !task.metadata?.isRoutineTask);
     
@@ -414,28 +419,28 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     });
     
     return Array.from(uniqueTasksMap.values());
-  };
+  }, [tasks, enabledRoutines, viewMode, currentDate, selectedDate, getRoutineTasksForCalendarRange, getGoalMilestonesAsTasks, getProjectMilestonesAsTasks]);
 
   // Get reminders for a specific date
-  const getRemindersForDate = (date: Date): Array<{ date: Date; reminder: Reminder }> => {
+  const getRemindersForDate = useCallback((date: Date): Array<{ date: Date; reminder: Reminder }> => {
     const startDate = new Date(date);
     startDate.setHours(0, 0, 0, 0);
     const endDate = new Date(date);
     endDate.setHours(23, 59, 59, 999);
     
     return getRoutineRemindersForDateRange(startDate, endDate);
-  };
+  }, [getRoutineRemindersForDateRange]);
 
-  const getTasksForDate = (date: Date) => {
-    const allItems = getAllCalendarItems();
+  const getTasksForDate = useCallback((date: Date) => {
+    const allItems = getAllCalendarItems;
     return allItems.filter(item => {
       if (!item.dueDate) return false;
       const itemDate = new Date(item.dueDate);
       return isSameDay(itemDate, date);
     });
-  };
+  }, [getAllCalendarItems]);
 
-  const getTasksForWeek = (startDate: Date) => {
+  const getTasksForWeek = useCallback((startDate: Date) => {
     // Ensure we start from the beginning of the week (Sunday)
     const weekStart = startOfWeek(startDate, { weekStartsOn: 0 });
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -447,9 +452,9 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     });
 
     return { weekDays, weekTasks };
-  };
+  }, [getTasksForDate]);
 
-  const getTasksForMonth = (date: Date) => {
+  const getTasksForMonth = useCallback((date: Date) => {
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
     // Ensure week starts on Sunday (0) for consistent 7-day layout
@@ -465,7 +470,20 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     });
 
     return { days, monthTasks };
-  };
+  }, [getTasksForDate]);
+
+  // Get upcoming tasks for reminders - memoized
+  useEffect(() => {
+    const now = new Date();
+    const upcoming = getAllCalendarItems.filter(item => {
+      if (!item.dueDate || item.status === TaskStatus.DONE) return false;
+      const itemDate = new Date(item.dueDate);
+      const diffInHours = differenceInHours(itemDate, now);
+      return diffInHours >= 0 && diffInHours <= 24; // Next 24 hours
+    }).sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime());
+
+    setUpcomingTasks(upcoming);
+  }, [getAllCalendarItems]);
 
   const getPriorityColor = (priority: TaskPriority) => {
     switch (priority) {
@@ -495,11 +513,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     }
   };
 
-  useEffect(() => {
-    console.log('selectedDate', selectedDate);
-  }, [selectedDate])
-
-  const getTimeUntilTask = (dueDate: string) => {
+  const getTimeUntilTask = useCallback((dueDate: string) => {
     const now = new Date();
     const taskDate = new Date(dueDate);
     const diffInMinutes = differenceInMinutes(taskDate, now);
@@ -511,31 +525,60 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     if (diffInHours < 24) return `${diffInHours}h ${t('calendar.remaining')}`;
     if (diffInDays < 7) return `${diffInDays}d ${t('calendar.remaining')}`;
     return format(taskDate, 'MMM d');
-  };
+  }, [t]);
 
-  const handleTaskPress = (task: Task) => {
+  const handleTaskPress = useCallback((task: Task) => {
     setSelectedTask(task);
     setShowTaskModal(true);
-  };
+  }, []);
 
-  const handleTaskComplete = async (task: Task) => {
+  const handleTaskComplete = useCallback(async (task: Task) => {
     try {
-      await updateTask(task.id, {
-        status: task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE
+      const newStatus = task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE;
+      
+      // Update the selected task state immediately (optimistic update)
+      setSelectedTask(prev => {
+        if (!prev || prev.id !== task.id) return prev;
+        return {
+          ...prev,
+          status: newStatus,
+          completedAt: newStatus === TaskStatus.DONE ? new Date().toISOString() : undefined
+        };
       });
+      
+      // Update task in backend
+      await updateTask(task.id, {
+        status: newStatus
+      });
+      
+      // If it's a routine task, reload routines to get updated status
+      if (task.metadata?.isRoutineTask) {
+        await loadRoutines();
+      }
+      
+      // Reload tasks to ensure calendar items are updated
+      await fetchTasks();
+      
       showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
     } catch (error) {
+      // Revert optimistic update on error
+      setSelectedTask(task);
       showError(t('tasks.completeFailed', { title: task.title }));
     }
-  };
+  }, [updateTask, showSuccess, showError, t, fetchTasks, loadRoutines]);
 
-  const getTaskTimeText = (dueDate: string) => {
+  const getTaskTimeText = useCallback((dueDate: string) => {
     const taskDate = new Date(dueDate);
     return format(taskDate, 'h:mm a');
-  };
+  }, []);
+
+  // Memoize month tasks to avoid recalculation
+  const monthTasksData = useMemo(() => {
+    return getTasksForMonth(currentDate);
+  }, [currentDate, getTasksForMonth]);
 
   const renderMonthView = () => {
-    const { days, monthTasks } = getTasksForMonth(currentDate);
+    const { days, monthTasks } = monthTasksData;
     const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     // Group days into weeks (7 days per week)
@@ -653,9 +696,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
 
 
 
-  const renderWeekView = () => {
+  // Memoize week tasks to avoid recalculation
+  const weekTasksData = useMemo(() => {
     const weekStart = startOfWeek(selectedDate, { weekStartsOn: 0 });
-    const { weekDays, weekTasks } = getTasksForWeek(weekStart);
+    return getTasksForWeek(weekStart);
+  }, [selectedDate, getTasksForWeek]);
+
+  const renderWeekView = () => {
+    const { weekDays, weekTasks } = weekTasksData;
 
     return (
       <View style={styles.weekView}>
@@ -718,8 +766,18 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     );
   };
 
+  // Memoize day tasks and reminders
+  const dayTasksData = useMemo(() => {
+    return getTasksForDate(selectedDate);
+  }, [selectedDate, getTasksForDate]);
+
+  const dayRemindersData = useMemo(() => {
+    return getRemindersForDate(selectedDate);
+  }, [selectedDate, getRemindersForDate]);
+
   const renderDayView = () => {
-    const dayTasks = getTasksForDate(selectedDate);
+    const dayTasks = dayTasksData;
+    const dayReminders = dayRemindersData;
 
     // Create time slots for the day (full 24 hours: 0-23)
     interface TimeSlot {
@@ -922,8 +980,8 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   };
 
   const renderSelectedDateTasks = () => {
-    const selectedTasks = getTasksForDate(selectedDate);
-    const selectedReminders = getRemindersForDate(selectedDate);
+    const selectedTasks = dayTasksData;
+    const selectedReminders = dayRemindersData;
 
     if (selectedTasks.length === 0 && selectedReminders.length === 0) return null;
 
@@ -1053,17 +1111,20 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.taskActionButton, { backgroundColor: theme.colors.primary }]}
-                onPress={() => {
-                  setShowTaskModal(false);
-                  navigation.getParent()?.navigate('TaskEdit', { taskId: selectedTask.id });
-                }}
-              >
-                <Text style={[styles.taskActionText, { color: 'white' }]}>
-                  {t('tasks.edit')}
-                </Text>
-              </TouchableOpacity>
+              {/* Only show edit button for non-routine tasks */}
+              {!selectedTask.metadata?.isRoutineTask && (
+                <TouchableOpacity
+                  style={[styles.taskActionButton, { backgroundColor: theme.colors.primary }]}
+                  onPress={() => {
+                    setShowTaskModal(false);
+                    navigation.getParent()?.navigate('TaskEdit', { taskId: selectedTask.id });
+                  }}
+                >
+                  <Text style={[styles.taskActionText, { color: 'white' }]}>
+                    {t('tasks.edit')}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </ScrollView>
         )}
