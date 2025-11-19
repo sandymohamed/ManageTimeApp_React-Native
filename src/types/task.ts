@@ -45,6 +45,20 @@ export interface TaskMetadata {
   subtasks?: string[];
   dependencies?: string[];
   aiGenerated?: boolean;
+  // Calendar-specific metadata
+  isRoutineTask?: boolean;
+  routineId?: string;
+  routineTaskId?: string;
+  routineTitle?: string;
+  scheduledDay?: number;
+  // Goal milestone metadata
+  isGoalMilestone?: boolean;
+  goalTitle?: string;
+  milestoneId?: string;
+  // Project milestone/task metadata
+  isProjectMilestone?: boolean;
+  isProjectTask?: boolean;
+  projectName?: string;
 }
 
 export interface TaskComment {

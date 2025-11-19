@@ -253,10 +253,13 @@ class ApiClient {
             // Use the refresh token method from your auth store
             const refreshResult = await useAuthStore.getState().refreshAuthToken();
 
-            // @ts-ignore
-            if (refreshResult) {
+            // If refresh was successful (returns true)
+            if (refreshResult === true) {
               const newToken = await useAuthStore.getState().getToken();
               if (newToken) {
+                // Reset refreshing flag
+                this.isRefreshing = false;
+                
                 // Update the authorization header
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
 
@@ -264,13 +267,19 @@ class ApiClient {
                 this.processQueue(null, newToken);
 
                 return this.client(originalRequest);
+              } else {
+                // No token available after successful refresh
+                this.isRefreshing = false;
+                this.processQueue(new Error('No token available after refresh'));
+                await useAuthStore.getState().logout();
+                return Promise.reject(new Error('Authentication failed'));
               }
+            } else {
+              // If we reach here, token refresh failed
+              this.processQueue(new Error('Token refresh failed'));
+              await useAuthStore.getState().logout();
+              return Promise.reject(new Error('Authentication failed'));
             }
-
-            // If we reach here, token refresh failed
-            this.processQueue(new Error('Token refresh failed'));
-            await useAuthStore.getState().logout();
-            return Promise.reject(new Error('Authentication failed'));
 
           } catch (refreshError: any) {
 

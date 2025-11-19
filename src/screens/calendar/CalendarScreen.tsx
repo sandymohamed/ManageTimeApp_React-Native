@@ -11,6 +11,7 @@ import { useGoalStore } from '@/store/goalStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
 import { Milestone as GoalMilestone } from '@/types/goal';
 import { ProjectMilestone } from '@/types/project';
+import { MilestoneStatus } from '@/types/project';
 import { Routine, RoutineFrequency } from '@/types/routine';
 import { routineService } from '@/services/routineService';
 import { reminderService, Reminder } from '@/services/reminderService';
@@ -97,13 +98,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       goal.milestones?.forEach(milestone => {
         // Use targetDate (goal milestones use targetDate, not dueDate)
         const milestoneDate = milestone.targetDate;
-        if (milestoneDate && milestone.status !== 'DONE' && milestone.status !== 'CANCELLED') {
+        if (milestoneDate && milestone.status !== MilestoneStatus.DONE && milestone.status !== MilestoneStatus.CANCELLED) {
           calendarItems.push({
             id: `goal_milestone_${milestone.id}`,
             title: milestone.title,
             description: milestone.description,
-            status: milestone.status === 'DONE' ? TaskStatus.DONE : 
-                   milestone.status === 'IN_PROGRESS' ? TaskStatus.IN_PROGRESS : TaskStatus.TODO,
+            status: milestone.status === MilestoneStatus.IN_PROGRESS ? TaskStatus.IN_PROGRESS : TaskStatus.TODO,
             priority: TaskPriority.MEDIUM,
             dueDate: milestoneDate,
             projectId: undefined,
@@ -134,13 +134,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     
     projects.forEach(project => {
       project.milestones?.forEach(milestone => {
-        if (milestone.dueDate && milestone.status !== 'DONE' && milestone.status !== 'CANCELLED') {
+        if (milestone.dueDate && milestone.status !== MilestoneStatus.DONE && milestone.status !== MilestoneStatus.CANCELLED) {
           calendarItems.push({
             id: `project_milestone_${milestone.id}`,
             title: milestone.title,
             description: milestone.description,
-            status: milestone.status === 'DONE' ? TaskStatus.DONE : 
-                   milestone.status === 'IN_PROGRESS' ? TaskStatus.IN_PROGRESS : TaskStatus.TODO,
+            status: milestone.status === MilestoneStatus.IN_PROGRESS ? TaskStatus.IN_PROGRESS : TaskStatus.TODO,
             priority: TaskPriority.MEDIUM,
             dueDate: milestone.dueDate,
             projectId: project.id,

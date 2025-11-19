@@ -18,7 +18,7 @@ interface AuthActions {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => Promise<void>;
-  refreshAuthToken: () => Promise<void>;
+  refreshAuthToken: () => Promise<boolean>;
   initializeAuth: () => Promise<void>;
   clearError: () => void;
   setLoading: (loading: boolean) => void;
@@ -167,7 +167,6 @@ export const useAuthStore = create<AuthStore>()(
         try {
           const refreshToken = await get().getRefreshToken();
 
-
           if (!refreshToken) {
             throw new Error('No refresh token available');
           }
@@ -181,7 +180,16 @@ export const useAuthStore = create<AuthStore>()(
             refreshToken: newRefreshToken,
           }));
 
+          // Ensure user remains authenticated after token refresh
+          set((state) => ({
+            ...state,
+            isAuthenticated: true, // Ensure authenticated state is maintained
+          }));
+
           logger.info('Token refreshed successfully');
+          
+          // Return true to indicate success
+          return true;
         } catch (error: any) {
           logger.error('Token refresh error:', error);
           // If refresh fails, logout user
