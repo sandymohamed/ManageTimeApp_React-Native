@@ -508,7 +508,6 @@ const RoutineCreateScreen: React.FC = () => {
     timezone: 'UTC',
   });
 
-  const [tasks, setTasks] = useState<Array<{ title: string; description?: string; reminderTime?: string }>>([]);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedTime, setSelectedTime] = useState<Date>(new Date());
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
@@ -592,19 +591,6 @@ const RoutineCreateScreen: React.FC = () => {
     });
   };
 
-  const addTask = () => {
-    setTasks([...tasks, { title: '', description: '', reminderTime: formData.schedule.time || '' }]);
-  };
-
-  const updateTask = (index: number, field: string, value: string) => {
-    const newTasks = [...tasks];
-    newTasks[index] = { ...newTasks[index], [field]: value };
-    setTasks(newTasks);
-  };
-
-  const removeTask = (index: number) => {
-    setTasks(tasks.filter((_, i) => i !== index));
-  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -628,18 +614,6 @@ const RoutineCreateScreen: React.FC = () => {
       newErrors.day = t('routines.dayRequired') || 'Please select a valid day of month (1-31)';
     }
 
-    // Validate tasks
-    const validTasks = tasks.filter(t => t.title && t.title.trim());
-    if (validTasks.length === 0) {
-      newErrors.tasks = t('routines.tasksRequired') || 'Please add at least one task';
-    } else {
-      // Check if any task has empty title
-      tasks.forEach((task, index) => {
-        if (task.title && !task.title.trim()) {
-          newErrors[`task_${index}_title`] = t('validation.titleRequired');
-        }
-      });
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -660,18 +634,8 @@ const RoutineCreateScreen: React.FC = () => {
         description: formData.description?.trim() || undefined,
       };
 
+      // Backend automatically creates one task with routine title and description
       const routine = await routineService.createRoutine(routineData);
-
-      const validTasks = tasks.filter(t => t.title && t.title.trim());
-      for (let i = 0; i < validTasks.length; i++) {
-        const task = validTasks[i];
-        await routineService.addTaskToRoutine(routine.id, {
-          title: task.title.trim(),
-          description: task.description?.trim() || undefined,
-          order: i,
-          reminderTime: task.reminderTime?.trim() || undefined,
-        });
-      }
 
       showSuccess(t('routines.routineCreated'));
       navigation.goBack();
@@ -889,67 +853,6 @@ const RoutineCreateScreen: React.FC = () => {
                 {errors.day && <Text style={styles.errorText}>{errors.day}</Text>}
               </>
             )}
-
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Tasks
-            </Text>
-            {tasks.map((task, index) => (
-              <Card key={index} style={styles.taskCard}>
-                <Card.Content>
-                  <View style={styles.taskHeader}>
-                    <Text variant="titleSmall" style={styles.taskNumber}>
-                      Task {index + 1}
-                    </Text>
-                    <Button
-                      mode="text"
-                      onPress={() => removeTask(index)}
-                      textColor={theme.colors.error}
-                    >
-                      Remove
-                    </Button>
-                  </View>
-                  <TextInput
-                    label="Task Title"
-                    value={task.title}
-                    onChangeText={(text) => updateTask(index, 'title', text)}
-                    mode="outlined"
-                    style={styles.input}
-                    outlineColor={theme.colors.outline}
-                    activeOutlineColor={theme.colors.primary}
-                  />
-                  <TextInput
-                    label="Description (optional)"
-                    value={task.description || ''}
-                    onChangeText={(text) => updateTask(index, 'description', text)}
-                    mode="outlined"
-                    multiline
-                    style={styles.input}
-                    outlineColor={theme.colors.outline}
-                    activeOutlineColor={theme.colors.primary}
-                  />
-                  <TextInput
-                    label="Reminder Time (optional, e.g., 10:00)"
-                    value={task.reminderTime || ''}
-                    onChangeText={(text) => updateTask(index, 'reminderTime', text)}
-                    mode="outlined"
-                    style={styles.input}
-                    outlineColor={theme.colors.outline}
-                    activeOutlineColor={theme.colors.primary}
-                  />
-                </Card.Content>
-              </Card>
-            ))}
-            {errors.tasks && <Text style={styles.errorText}>{errors.tasks}</Text>}
-
-            <Button
-              mode="outlined"
-              onPress={addTask}
-              icon="plus"
-              style={styles.addTaskButton}
-              textColor={theme.colors.primary}
-            >
-              Add Task
-            </Button>
 
             <View style={styles.buttonContainer}>
               <Button

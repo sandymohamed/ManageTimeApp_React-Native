@@ -133,14 +133,12 @@ export const useTaskStore = create<TaskStore>()(
               isLoading: false,
             });
           } else {
-            // No filter: merge all tasks, server tasks take precedence
-            const localOnlyTasks = currentTasks.filter(task => !serverTaskIds.has(task.id));
-            const mergedTasks = [...sortedServerTasks, ...localOnlyTasks];
-            const sortedMergedTasks = mergedTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
-
+            // No filter: server tasks are the source of truth for user's tasks
+            // Only keep server tasks (don't merge with local-only tasks when fetching all tasks)
+            // This prevents showing tasks from previous accounts
             set({
-              tasks: sortedMergedTasks,
-              filteredTasks: sortedMergedTasks,
+              tasks: sortedServerTasks,
+              filteredTasks: sortedServerTasks,
               isLoading: false,
             });
           }

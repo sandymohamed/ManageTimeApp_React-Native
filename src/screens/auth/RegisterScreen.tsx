@@ -95,8 +95,8 @@ export const RegisterScreen: React.FC = () => {
       console.log("Registration successful! User should be redirected to main app.");
       console.log("RegisterScreen - isAuthenticated after registration:", isAuthenticated);
       // Registration successful - user will be automatically redirected by auth state change
-    } catch (error) {
-      console.log("Registration failed:", error);
+    } catch (err) {
+      console.log("Registration failed:", err);
       // Error is handled by the store
     }
   };

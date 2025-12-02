@@ -578,8 +578,8 @@ export const AlarmCreateScreen: React.FC = () => {
 
       await createAlarm(alarmData);
       navigation.goBack();
-    } catch (error) {
-      console.error('Failed to create alarm:', error);
+    } catch (err) {
+      console.error('Failed to create alarm:', err);
       Alert.alert('Error', 'Failed to create alarm');
     }
   };

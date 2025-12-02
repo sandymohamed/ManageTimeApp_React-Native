@@ -92,7 +92,7 @@ export const commonRules = {
     minLength: 8 
   },
   phone: { 
-    pattern: /^[\+]?[1-9][\d]{0,15}$/ 
+    pattern: /^[+]?[1-9][\d]{0,15}$/ 
   },
   url: { 
     pattern: /^https?:\/\/.+/ 

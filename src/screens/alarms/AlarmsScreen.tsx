@@ -75,8 +75,8 @@ class SoundManager {
         // Android: vibration is primary, notification handles sound
         console.log('Android: Using vibration');
       }
-    } catch (error) {
-      console.error('Error playing alarm:', error);
+    } catch (err) {
+      console.error('Error playing alarm:', err);
       this.isPlaying = false;
       this.startVibration();
     }
@@ -102,8 +102,8 @@ class SoundManager {
           }
         }, 2000);
       }
-    } catch (error) {
-      console.error('Vibration error:', error);
+    } catch (err) {
+      console.error('Vibration error:', err);
     }
   }
 
@@ -140,8 +140,8 @@ class SoundManager {
       // Reset flags immediately
       this.isPlaying = false;
       this.isStopping = false;
-    } catch (error) {
-      console.error('Error stopping sound:', error);
+    } catch (err) {
+      console.error('Error stopping sound:', err);
       this.isPlaying = false;
       this.isStopping = false;
     }
@@ -267,8 +267,8 @@ export const AlarmsScreen: React.FC = () => {
             await deleteAlarm(alarmId);
             console.log('🗑️ Auto-deleted one-time alarm after 30s:', alarm.title);
             autoDeleteFailuresRef.current.delete(alarmId);
-          } catch (error) {
-            console.error('Failed to auto-delete alarm:', error);
+          } catch (err) {
+            console.error('Failed to auto-delete alarm:', err);
             autoDeleteFailuresRef.current.add(alarmId);
           } finally {
             alarmDeleteTimeoutsRef.current.delete(alarmId);
@@ -617,8 +617,8 @@ export const AlarmsScreen: React.FC = () => {
       if (!isTimerViewActive) {
         setPendingTimer({ id: timer.id, title: timer.title });
       }
-    } catch (error) {
-      console.error('Error handling timer completion:', error);
+    } catch (err) {
+      console.error('Error handling timer completion:', err);
       handleStopTimer(timer.id);
     }
   };
@@ -647,8 +647,8 @@ export const AlarmsScreen: React.FC = () => {
     // Attempt to sync with backend, but don't block UI if it fails
     try {
       await dismissAlarm(pendingAlarm.id);
-    } catch (error) {
-      console.log('Dismiss alarm failed:', error);
+    } catch (err) {
+      console.log('Dismiss alarm failed:', err);
     }
   }, [pendingAlarm, handleStopAlarm, dismissAlarm]);
 
@@ -681,7 +681,7 @@ export const AlarmsScreen: React.FC = () => {
       setShowTimerModal(false);
       setTimerTitle('New Timer');
       setTimerDuration(25);
-    } catch (error) {
+    } catch (err) {
       Alert.alert('Error', 'Failed to create timer');
     }
   };
@@ -692,7 +692,7 @@ export const AlarmsScreen: React.FC = () => {
       setActiveTimer(timer);
       timerStartTimeRef.current = Date.now();
       timerPausedTimeRef.current = 0;
-    } catch (error) {
+    } catch (err) {
       Alert.alert('Error', 'Failed to start timer');
     }
   };
@@ -704,7 +704,7 @@ export const AlarmsScreen: React.FC = () => {
         timerPausedTimeRef.current += elapsed;
       }
       await pauseTimer(timer.id);
-    } catch (error) {
+    } catch (err) {
       Alert.alert('Error', 'Failed to pause timer');
     }
   };
@@ -722,7 +722,7 @@ export const AlarmsScreen: React.FC = () => {
         handleStopTimer(timer.id);
       }
       setPendingTimer(null);
-    } catch (error) {
+    } catch (err) {
       Alert.alert('Error', 'Failed to stop timer');
     }
   };
@@ -732,7 +732,7 @@ export const AlarmsScreen: React.FC = () => {
       await resetTimer(timer.id);
       timerStartTimeRef.current = null;
       timerPausedTimeRef.current = 0;
-    } catch (error) {
+    } catch (err) {
       Alert.alert('Error', 'Failed to reset timer');
     }
   };
@@ -755,7 +755,7 @@ export const AlarmsScreen: React.FC = () => {
               if (activeTimerId === timer.id) {
                 handleStopTimer(timer.id);
               }
-            } catch (error) {
+            } catch (err) {
               Alert.alert('Error', 'Failed to delete timer');
             }
           },
@@ -767,7 +767,7 @@ export const AlarmsScreen: React.FC = () => {
   const handleToggleAlarm = async (alarmId: string) => {
     try {
       await toggleAlarm(alarmId);
-    } catch (error) {
+    } catch (err) {
       Alert.alert('Error', 'Failed to toggle alarm');
     }
   };
@@ -798,11 +798,11 @@ export const AlarmsScreen: React.FC = () => {
               // Delete the alarm
               await deleteAlarm(alarmId);
               autoDeleteFailuresRef.current.delete(alarmId);
-            } catch (error) {
+            } catch (err) {
               autoDeleteFailuresRef.current.add(alarmId);
               const message =
-                error instanceof Error && error.message
-                  ? error.message
+                err instanceof Error && err.message
+                  ? err.message
                   : 'Failed to delete alarm';
               Alert.alert('Error', message);
             }
@@ -836,7 +836,7 @@ export const AlarmsScreen: React.FC = () => {
               await Promise.all(deletePromises);
               
               console.log('🗑️ Deleted all alarms');
-            } catch (error) {
+            } catch (err) {
               Alert.alert('Error', 'Failed to delete some alarms');
             }
           },

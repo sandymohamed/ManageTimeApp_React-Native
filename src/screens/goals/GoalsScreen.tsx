@@ -114,8 +114,8 @@ export const GoalsScreen: React.FC<GoalsScreenProps> = ({ navigation }) => {
             try {
               await generateAIPlan(goal.id);
               showSuccess(t('goals.aiPlanGenerated'));
-            } catch (error: any) {
-              showError(error.message || t('goals.aiPlanError'));
+            } catch (err: any) {
+              showError(err.message || t('goals.aiPlanError'));
             }
           }
         }
@@ -153,8 +153,8 @@ export const GoalsScreen: React.FC<GoalsScreenProps> = ({ navigation }) => {
           showSuccess(t('goals.deletedSuccessfully', { title: goal.title }));
           break;
       }
-    } catch (error: any) {
-      showError(error.message || t('goals.actionFailed'));
+    } catch (err: any) {
+      showError(err.message || t('goals.actionFailed'));
     }
   };
 

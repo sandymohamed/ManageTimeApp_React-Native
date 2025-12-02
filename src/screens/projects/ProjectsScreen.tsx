@@ -80,8 +80,8 @@ export const ProjectsScreen: React.FC<ProjectsScreenProps> = ({ navigation }) =>
         try {
           await deleteProject(project.id);
           showSuccess(t('projects.deletedSuccessfully', { name: project.name }));
-        } catch (error) {
-          console.error('Failed to delete project:', error);
+        } catch (err) {
+          console.error('Failed to delete project:', err);
           showError(t('projects.deleteFailed', { name: project.name }));
         }
       }

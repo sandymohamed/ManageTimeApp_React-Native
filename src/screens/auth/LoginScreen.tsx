@@ -269,8 +269,8 @@ export const LoginScreen: React.FC = () => {
 
   // const [email, setEmail] = useState('test@example.com');
   // const [password, setPassword] = useState('password123');
-  const [email, setEmail] = useState('sandysawy@gmail.com');
-  const [password, setPassword] = useState('Ss@12345');
+  const [email, setEmail] = useState('test@gmail.com');
+  const [password, setPassword] = useState('test@123');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -332,8 +332,8 @@ export const LoginScreen: React.FC = () => {
 
     try {
       await login({ email: email.trim(), password });
-    } catch (error) {
-      console.log("handleLogin catch", error);
+    } catch (err) {
+      console.log("handleLogin catch", err);
     }
   };
 

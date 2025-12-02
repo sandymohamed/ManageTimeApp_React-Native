@@ -88,8 +88,8 @@ export const AlarmEditScreen: React.FC = () => {
 
       await updateAlarm(alarm.id, alarmData);
       navigation.goBack();
-    } catch (error) {
-      console.error('Failed to update alarm:', error);
+    } catch (err) {
+      console.error('Failed to update alarm:', err);
     }
   };
 

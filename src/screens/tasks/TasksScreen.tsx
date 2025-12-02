@@ -131,7 +131,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
         try {
           await deleteTask(task.id);
           showSuccess(t('tasks.deletedSuccessfully', { title: task.title }));
-        } catch (error) {
+        } catch (err) {
           showError(t('tasks.deleteFailed', { title: task.title }));
         }
       }
@@ -148,7 +148,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
         await completeTask(task.id);
         showSuccess(t('tasks.completedSuccessfully', { title: task.title }));
       }
-    } catch (error) {
+    } catch (err) {
       showError(t('tasks.completeFailed', { title: task.title }));
     }
   };
@@ -212,7 +212,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
       // Then update the store
       await updateTaskOrder(data);
       showSuccess(t('tasks.reorderedSuccessfully'));
-    } catch (error) {
+    } catch (err) {
       showError(t('tasks.reorderFailed'));
       // Revert to original order
       // setLocalTasks(filteredTasks);

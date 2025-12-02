@@ -75,9 +75,60 @@ export const useAuthStore = create<AuthStore>()(
       login: async (credentials: LoginCredentials) => {
         try {
           set({ isLoading: true, error: null });
+          
+          // Get current user ID if logged in
+          const currentUser = get().user;
+          const newUserResponse = await authService.login(credentials);
+          
+          // If switching users, clear cached data
+          if (currentUser && currentUser.id !== newUserResponse.user.id) {
+            await get().clearAllPersistedData();
+            
+            // Reset all store states when switching accounts
+            const { useTaskStore } = await import('./taskStore');
+            const { useGoalStore } = await import('./goalStore');
+            const { useProjectStore } = await import('./projectStore');
+            
+            useTaskStore.setState({
+              tasks: [],
+              filteredTasks: [],
+              currentTask: null,
+              isLoading: false,
+              error: null,
+              filter: {},
+              searchQuery: '',
+              sortBy: 'order',
+              sortOrder: 'asc',
+            });
+            
+            useGoalStore.setState({
+              goals: [],
+              filteredGoals: [],
+              currentGoal: null,
+              isLoading: false,
+              error: null,
+              searchQuery: '',
+              statusFilter: undefined,
+              priorityFilter: undefined,
+              categoryFilter: undefined,
+              sortBy: 'updatedAt',
+              sortOrder: 'desc',
+            });
+            
+            useProjectStore.setState({
+              projects: [],
+              filteredProjects: [],
+              currentProject: null,
+              isLoading: false,
+              error: null,
+              searchQuery: '',
+              sortBy: 'updatedAt',
+              sortOrder: 'desc',
+              searchFilters: {},
+            });
+          }
 
-          const response = await authService.login(credentials);
-          const { user, token, refreshToken } = response;
+          const { user, token, refreshToken } = newUserResponse;
 
           // Store tokens securely in Keychain ONLY
           await Keychain.setGenericPassword('auth_tokens', JSON.stringify({
@@ -105,6 +156,54 @@ export const useAuthStore = create<AuthStore>()(
         try {
           set({ isLoading: true, error: null });
           
+          // Clear all persisted data from previous user before registering new account
+          await get().clearAllPersistedData();
+          
+          // Reset all store states to clear any cached data in memory
+          const { useTaskStore } = await import('./taskStore');
+          const { useGoalStore } = await import('./goalStore');
+          const { useProjectStore } = await import('./projectStore');
+          
+          // Reset task store state
+          useTaskStore.setState({
+            tasks: [],
+            filteredTasks: [],
+            currentTask: null,
+            isLoading: false,
+            error: null,
+            filter: {},
+            searchQuery: '',
+            sortBy: 'order',
+            sortOrder: 'asc',
+          });
+          
+          // Reset goal store state
+          useGoalStore.setState({
+            goals: [],
+            filteredGoals: [],
+            currentGoal: null,
+            isLoading: false,
+            error: null,
+            searchQuery: '',
+            statusFilter: undefined,
+            priorityFilter: undefined,
+            categoryFilter: undefined,
+            sortBy: 'updatedAt',
+            sortOrder: 'desc',
+          });
+          
+          // Reset project store state
+          useProjectStore.setState({
+            projects: [],
+            filteredProjects: [],
+            currentProject: null,
+            isLoading: false,
+            error: null,
+            searchQuery: '',
+            sortBy: 'updatedAt',
+            sortOrder: 'desc',
+            searchFilters: {},
+          });
           
           const response = await authService.register(credentials);
           
@@ -140,6 +239,49 @@ export const useAuthStore = create<AuthStore>()(
 
           // Clear all persisted data from all stores
           await get().clearAllPersistedData();
+          
+          // Reset all store states to clear cached data in memory
+          const { useTaskStore } = await import('./taskStore');
+          const { useGoalStore } = await import('./goalStore');
+          const { useProjectStore } = await import('./projectStore');
+          
+          useTaskStore.setState({
+            tasks: [],
+            filteredTasks: [],
+            currentTask: null,
+            isLoading: false,
+            error: null,
+            filter: {},
+            searchQuery: '',
+            sortBy: 'order',
+            sortOrder: 'asc',
+          });
+          
+          useGoalStore.setState({
+            goals: [],
+            filteredGoals: [],
+            currentGoal: null,
+            isLoading: false,
+            error: null,
+            searchQuery: '',
+            statusFilter: undefined,
+            priorityFilter: undefined,
+            categoryFilter: undefined,
+            sortBy: 'updatedAt',
+            sortOrder: 'desc',
+          });
+          
+          useProjectStore.setState({
+            projects: [],
+            filteredProjects: [],
+            currentProject: null,
+            isLoading: false,
+            error: null,
+            searchQuery: '',
+            sortBy: 'updatedAt',
+            sortOrder: 'desc',
+            searchFilters: {},
+          });
 
           // Set state to completed logout (isInitialized stays true to avoid re-initialization)
           set({

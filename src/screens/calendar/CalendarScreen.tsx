@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions,  } from 'react-native';
-import { Text, Card, IconButton, Chip, useTheme, FAB, Badge, Portal, Modal } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Text, Card, IconButton, Chip, FAB, Badge, Portal, Modal } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
-import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { useTaskStore } from '@/store/taskStore';
 import { useProjectStore } from '@/store/projectStore';
 import { useGoalStore } from '@/store/goalStore';
 import { Task, TaskStatus, TaskPriority } from '@/types/task';
-import { Milestone as GoalMilestone } from '@/types/goal';
-import { ProjectMilestone } from '@/types/project';
 import { MilestoneStatus } from '@/types/project';
-import { Routine, RoutineFrequency } from '@/types/routine';
+import { Routine } from '@/types/routine';
 import { routineService } from '@/services/routineService';
 import { reminderService, Reminder } from '@/services/reminderService';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addDays, subDays, differenceInDays, differenceInHours, differenceInMinutes } from 'date-fns';
@@ -49,30 +46,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     fetchProjects();
     fetchGoals();
     loadRoutines();
-    loadRoutineReminders();
   }, []);
-
-  const loadRoutineReminders = async () => {
-    try {
-      const reminders = await reminderService.getUpcomingReminders();
-      // Filter for routine reminders only
-      const routineRemindersList = reminders.filter(r => 
-        r.schedule?.routineId && r.title?.includes('Routine Reminder:')
-      );
-      // Filter out reminders for disabled routines - reload routines if needed
-      const currentRoutines = routines.length > 0 ? routines : await routineService.getUserRoutines();
-      const enabledReminders = routineRemindersList.filter(reminder => {
-        const routineId = reminder.schedule?.routineId;
-        if (!routineId) return false;
-        // Check if routine is enabled
-        const routine = currentRoutines.find(r => r.id === routineId);
-        return routine?.enabled === true;
-      });
-      setRoutineReminders(enabledReminders);
-    } catch (error) {
-      console.error('Error loading routine reminders:', error);
-    }
-  };
 
   const loadRoutines = useCallback(async () => {
     try {
@@ -82,12 +56,53 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       setRoutines(enabled);
     } catch (error) {
       console.error('Error loading routines:', error);
+      // Set empty array on error to prevent app crash
+      setRoutines([]);
     }
   }, []);
 
+  const loadRoutineReminders = useCallback(async () => {
+    try {
+      // Only load reminders if routines are loaded
+      if (routines.length === 0) {
+        return;
+      }
+      
+      const reminders = await reminderService.getUpcomingReminders();
+      // Filter for routine reminders only
+      const routineRemindersList = reminders.filter(r => 
+        r.schedule?.routineId && r.title?.includes('Routine Reminder:')
+      );
+      // Filter out reminders for disabled routines
+      const enabledReminders = routineRemindersList.filter(reminder => {
+        const routineId = reminder.schedule?.routineId;
+        if (!routineId) return false;
+        // Check if routine is enabled
+        const routine = routines.find(r => r.id === routineId);
+        return routine?.enabled === true;
+      });
+      setRoutineReminders(enabledReminders);
+    } catch (error) {
+      console.error('Error loading routine reminders:', error);
+      // Set empty array on error to prevent app crash
+      setRoutineReminders([]);
+    }
+  }, [routines]);
+
+  // Load reminders after routines are loaded
+  useEffect(() => {
+    if (routines.length > 0) {
+      loadRoutineReminders();
+    }
+  }, [routines, loadRoutineReminders]);
+
   // Memoize enabled routines to avoid recalculation
   const enabledRoutines = useMemo(() => {
-    return routines.filter(routine => routine.enabled);
+    // Return empty array if routines haven't loaded yet to prevent errors
+    if (!routines || routines.length === 0) {
+      return [];
+    }
+    return routines.filter(routine => routine && routine.enabled);
   }, [routines]);
 
   // Convert goal milestones to Task-like format for calendar
@@ -208,27 +223,27 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       routine.routineTasks.forEach(routineTask => {
         if (routine.frequency === 'DAILY') {
           // Generate instances for each day in the range
-          const currentDate = new Date(startDate);
-          while (currentDate <= endDate) {
-            const taskDate = new Date(currentDate);
+          const loopDate = new Date(startDate);
+          while (loopDate <= endDate) {
+            const taskDate = new Date(loopDate);
             taskDate.setHours(hour, minute, 0, 0);
             
-            // Check if task is completed today
-            const isCompletedToday = routineTask.completed && routineTask.completedAt && 
-              isSameDay(new Date(routineTask.completedAt), currentDate);
+            // Check if task is completed on this specific date
+            const isCompletedOnDate = routineTask.completed && routineTask.completedAt && 
+              isSameDay(new Date(routineTask.completedAt), loopDate);
             
-            const isUrgent = !isCompletedToday && taskDate < now;
-            const taskStatus = isCompletedToday ? TaskStatus.DONE : TaskStatus.TODO;
+            const isUrgent = !isCompletedOnDate && taskDate < now;
+            const taskStatus = isCompletedOnDate ? TaskStatus.DONE : TaskStatus.TODO;
             
             routineTasks.push({
-              id: `routine_${routineTask.id}_${format(currentDate, 'yyyy-MM-dd')}`,
+              id: `routine_${routineTask.id}_${format(loopDate, 'yyyy-MM-dd')}`,
               title: routineTask.title,
               description: routineTask.description,
               status: taskStatus,
               priority: isUrgent ? TaskPriority.URGENT : TaskPriority.MEDIUM,
               dueDate: taskDate.toISOString(),
               dueTime: schedule.time,
-              completedAt: isCompletedToday && routineTask.completedAt ? routineTask.completedAt : undefined,
+              completedAt: isCompletedOnDate && routineTask.completedAt ? routineTask.completedAt : undefined,
               projectId: undefined,
               goalId: undefined,
               assigneeId: undefined,
@@ -246,19 +261,20 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
               isDeleted: false,
             });
             
-            currentDate.setDate(currentDate.getDate() + 1);
+            // Move to next day without mutating state
+            loopDate.setDate(loopDate.getDate() + 1);
           }
         } else if (routine.frequency === 'WEEKLY' && schedule.days && schedule.days.length > 0) {
           // Generate instances for each scheduled day in the range
-          const currentDate = new Date(startDate);
-          while (currentDate <= endDate) {
-            const dayOfWeek = currentDate.getDay();
+          const loopDate = new Date(startDate);
+          while (loopDate <= endDate) {
+            const dayOfWeek = loopDate.getDay();
             if (schedule.days.includes(dayOfWeek)) {
-              const taskDate = new Date(currentDate);
+              const taskDate = new Date(loopDate);
               taskDate.setHours(hour, minute, 0, 0);
               
               // Check if task is completed this week
-              const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+              const weekStart = startOfWeek(loopDate, { weekStartsOn: 0 });
               const isCompletedThisWeek = routineTask.completed && routineTask.completedAt && 
                 new Date(routineTask.completedAt) >= weekStart;
               
@@ -266,7 +282,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
               const taskStatus = isCompletedThisWeek ? TaskStatus.DONE : TaskStatus.TODO;
               
               routineTasks.push({
-                id: `routine_${routineTask.id}_${format(currentDate, 'yyyy-MM-dd')}`,
+                id: `routine_${routineTask.id}_${format(loopDate, 'yyyy-MM-dd')}`,
                 title: routineTask.title,
                 description: routineTask.description,
                 status: taskStatus,
@@ -292,7 +308,8 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                 isDeleted: false,
               });
             }
-            currentDate.setDate(currentDate.getDate() + 1);
+            // Move to next day without mutating state
+            loopDate.setDate(loopDate.getDate() + 1);
           }
         }
         // For monthly and yearly, we can add similar logic if needed
@@ -320,24 +337,24 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       
       // Calculate routine occurrence time
       const [routineHours, routineMinutes] = schedule.time.split(':').map(Number);
-      const currentDate = new Date(startDate);
+      const loopDate = new Date(startDate);
       
-      while (currentDate <= endDate) {
+      while (loopDate <= endDate) {
         let routineOccurrence: Date | null = null;
         
         // Calculate when the routine occurs
         if (schedule.frequency === 'DAILY') {
-          routineOccurrence = new Date(currentDate);
+          routineOccurrence = new Date(loopDate);
           routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
         } else if (schedule.frequency === 'WEEKLY' && schedule.days && schedule.days.length > 0) {
-          const dayOfWeek = currentDate.getDay();
+          const dayOfWeek = loopDate.getDay();
           if (schedule.days.includes(dayOfWeek)) {
-            routineOccurrence = new Date(currentDate);
+            routineOccurrence = new Date(loopDate);
             routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
           }
         } else if (schedule.frequency === 'MONTHLY' && schedule.day) {
-          if (currentDate.getDate() === schedule.day) {
-            routineOccurrence = new Date(currentDate);
+          if (loopDate.getDate() === schedule.day) {
+            routineOccurrence = new Date(loopDate);
             routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
           }
         }
@@ -368,7 +385,8 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
           }
         }
         
-        currentDate.setDate(currentDate.getDate() + 1);
+        // Move to next day - use loopDate, NOT currentDate (which is component state!)
+        loopDate.setDate(loopDate.getDate() + 1);
       }
     });
     
@@ -590,7 +608,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       <View style={styles.monthView}>
         {/* Week day headers */}
         <View style={styles.weekHeader}>
-          {weekDays.map((day, index) => (
+          {weekDays.map((day) => (
             <View key={day} style={styles.weekDayHeader}>
               <Text variant="bodySmall" style={[styles.weekDayText, { color: theme.colors.text }]}>
                 {day}
@@ -603,7 +621,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
         <View style={styles.calendarGrid}>
           {weeks.map((week, weekIndex) => (
             <View key={`week-${weekIndex}`} style={styles.weekRow}>
-              {week.map((day, dayIndex) => {
+              {week.map((day) => {
                 const dayKey = format(day, 'yyyy-MM-dd');
                 const dayTasks = monthTasks[dayKey] || [];
                 const isCurrentMonth = isSameMonth(day, currentDate);
@@ -636,7 +654,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
 
                     {/* Task indicators */}
                     <View style={styles.taskIndicators}>
-                      {dayTasks.slice(0, 3).map((task, taskIndex) => (
+                      {dayTasks.slice(0, 3).map((task) => (
                         <TouchableOpacity
                           key={task.id}
                           onPress={() => handleTaskPress(task)}

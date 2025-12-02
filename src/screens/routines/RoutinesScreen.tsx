@@ -556,7 +556,7 @@ const RoutinesScreen: React.FC = () => {
       case 'DAILY': {
         const timeParts = routine.schedule.time?.split(':') || ['0', '0'];
         next = new Date(now);
-        next.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+        next.setHours(parseInt(timeParts[0], 10), parseInt(timeParts[1], 10), 0, 0);
         if (next <= now) {
           next.setDate(next.getDate() + 1);
         }
@@ -579,7 +579,7 @@ const RoutinesScreen: React.FC = () => {
         }
         
         next.setDate(next.getDate() + daysToAdd);
-        next.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+        next.setHours(parseInt(timeParts[0], 10), parseInt(timeParts[1], 10), 0, 0);
         break;
       }
       case 'MONTHLY': {
@@ -588,7 +588,7 @@ const RoutinesScreen: React.FC = () => {
         const targetDay = routine.schedule.day || 1;
         
         next.setDate(targetDay);
-        next.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+        next.setHours(parseInt(timeParts[0], 10), parseInt(timeParts[1], 10), 0, 0);
         
         if (next <= now) {
           next.setMonth(next.getMonth() + 1);
@@ -599,7 +599,7 @@ const RoutinesScreen: React.FC = () => {
         const timeParts = routine.schedule.time?.split(':') || ['0', '0'];
         next = new Date(now);
         next.setMonth(0, 1); // January 1st
-        next.setHours(parseInt(timeParts[0]), parseInt(timeParts[1]), 0, 0);
+        next.setHours(parseInt(timeParts[0], 10), parseInt(timeParts[1], 10), 0, 0);
         
         if (next <= now) {
           next.setFullYear(next.getFullYear() + 1);
