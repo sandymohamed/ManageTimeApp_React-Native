@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Alarm, CreateAlarmData, UpdateAlarmData, Timer, CreateTimerData, UpdateTimerData } from '@/types/alarm';
-import { alarmService } from '@/services/alarmService';
+import { alarmService } from '@/services/alarmApiService';
 import { notificationService } from '@/services/notificationService';
 import { useAuthStore } from '@/store/authStore';
 
@@ -49,8 +49,8 @@ interface AlarmState {
   checkTimerCompletion: () => void;
 
   // Local storage methods for offline support
-  saveTimersToStorage: () => void;
-  loadTimersFromStorage: () => Timer[];
+  saveTimersToStorage: () => Promise<void>;
+  loadTimersFromStorage: () => Promise<Timer[]>;
 }
 
 const inFlightAlarmDeletes = new Set<string>();
@@ -107,7 +107,7 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       } catch (serverError) {
 
         // Load from local storage or create default timers
-        const storedTimers = get().loadTimersFromStorage();
+        const storedTimers = await get().loadTimersFromStorage();
         const localTimers = storedTimers.length > 0 ? storedTimers : [
           {
             id: 'default_pomodoro',
@@ -308,8 +308,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         loading: false,
       }));
 
-      // Save to local storage
-      get().saveTimersToStorage();
+      // Save to local storage (async)
+      get().saveTimersToStorage().catch(err => console.log('Failed to save timers:', err));
 
       // Try to sync with backend in background (don't wait for it)
       try {
@@ -356,8 +356,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         loading: false,
       }));
 
-      // Save to local storage
-      get().saveTimersToStorage();
+      // Save to local storage (async)
+      get().saveTimersToStorage().catch(err => console.log('Failed to save timers:', err));
 
       // Try to sync with backend in background
       if (!id.startsWith('local_')) {
@@ -393,8 +393,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         loading: false,
       }));
 
-      // Save to local storage
-      get().saveTimersToStorage();
+      // Save to local storage (async)
+      get().saveTimersToStorage().catch(err => console.log('Failed to save timers:', err));
 
       // Try to sync with backend in background
       if (!id.startsWith('local_')) {
@@ -448,8 +448,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       // Start countdown
       get().startCountdown();
 
-      // Save to local storage
-      get().saveTimersToStorage();
+      // Save to local storage (async)
+      get().saveTimersToStorage().catch(err => console.log('Failed to save timers:', err));
 
       // Try to sync with backend in background
       if (!id.startsWith('local_')) {
@@ -496,8 +496,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       // Stop countdown when pausing
       get().stopCountdown();
 
-      // Save to local storage
-      get().saveTimersToStorage();
+      // Save to local storage (async)
+      get().saveTimersToStorage().catch(err => console.log('Failed to save timers:', err));
 
       // Try to sync with backend in background
       if (!id.startsWith('local_')) {
@@ -546,8 +546,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       // Stop countdown when stopping
       get().stopCountdown();
 
-      // Save to local storage
-      get().saveTimersToStorage();
+      // Save to local storage (async)
+      get().saveTimersToStorage().catch(err => console.log('Failed to save timers:', err));
 
       // Try to sync with backend in background
       if (!id.startsWith('local_')) {
@@ -592,8 +592,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       // Stop countdown when resetting
       get().stopCountdown();
 
-      // Save to local storage
-      get().saveTimersToStorage();
+      // Save to local storage (async)
+      get().saveTimersToStorage().catch(err => console.log('Failed to save timers:', err));
 
       // Try to sync with backend in background
       if (!id.startsWith('local_')) {
@@ -682,42 +682,63 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   checkTimerCompletion: () => {
     const { activeTimer } = get();
     if (activeTimer && activeTimer.remainingTime <= 0) {
-      // Timer completed - show alert and stop timer
+      // Timer completed - trigger completion notification
+      console.log('⏱️ Timer completed in store:', activeTimer.id);
+      
+      // Trigger immediate notification with sound/vibration
+      const { notificationService } = require('@/services/notificationService');
+      notificationService.triggerImmediateTimerNotification({
+        id: activeTimer.id,
+        title: activeTimer.title,
+      });
 
       // Stop the timer
       get().stopTimer(activeTimer.id);
     }
   },
 
-  // Local storage methods for offline support
-  saveTimersToStorage: () => {
+  // Local storage methods for offline support - using AsyncStorage for React Native
+  saveTimersToStorage: async () => {
     try {
-      const storage =
-        (typeof global !== 'undefined' && (global as any).localStorage);
-      //  ||(typeof window !== 'undefined' && (window as any).localStorage);
-      if (!storage) {
-        return;
-      }
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
       const timers = get().timers;
-      storage.setItem('offline_timers', JSON.stringify(timers));
+      const timersWithStartTime = timers.map(t => ({
+        ...t,
+        // Save start time if timer is running
+        _startTime: t.isRunning && !t.isPaused ? Date.now() : null,
+        _pausedTime: t.isPaused ? Date.now() : null,
+      }));
+      await AsyncStorage.setItem('offline_timers', JSON.stringify(timersWithStartTime));
     } catch (error) {
       console.log('Failed to save timers to storage:', error);
     }
   },
 
-  loadTimersFromStorage: () => {
+  loadTimersFromStorage: async () => {
     try {
-      const storage =
-        (typeof global !== 'undefined' && (global as any).localStorage);
-      // || (typeof window !== 'undefined' && (window as any).localStorage);
-      if (!storage) {
-        return [];
-      }
-      const stored = storage.getItem('offline_timers');
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const stored = await AsyncStorage.getItem('offline_timers');
       if (stored) {
         const timers = JSON.parse(stored);
-        set({ timers });
-        return timers;
+        
+        // Recalculate remaining time for running timers based on start time
+        const now = Date.now();
+        const recalculatedTimers = timers.map((t: any) => {
+          if (t.isRunning && !t.isPaused && t._startTime) {
+            const elapsed = Math.floor((now - t._startTime) / 1000);
+            const newRemaining = Math.max(0, (t.remainingTime || t.duration * 60) - elapsed);
+            return {
+              ...t,
+              remainingTime: newRemaining,
+              isRunning: newRemaining > 0, // Stop if completed
+              isCompleted: newRemaining <= 0,
+            };
+          }
+          return t;
+        });
+        
+        set({ timers: recalculatedTimers });
+        return recalculatedTimers;
       }
     } catch (error) {
       console.log('Failed to load timers from storage:', error);

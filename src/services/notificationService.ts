@@ -63,37 +63,136 @@ class NotificationService {
         console.log('Channel cleanup failed (safe to ignore):', channelError);
       }
 
-      // Create alarm channel for Android with highest priority
+      // Create alarm channel for Android with MAX priority
+      // Note: soundName is not set in channel creation - sounds are set per notification
       PushNotification.createChannel(
         {
           channelId: this.alarmChannelId,
           channelName: 'Alarms',
           channelDescription: 'Notifications for alarms - will wake device and play sound',
           playSound: true,
-          soundName: 'default',
-          importance: Importance.HIGH,
+          // soundName removed - set per notification instead to avoid parsing errors
+          importance: 5 as any, // MAX importance (5) for alarms - ensures sound and vibration
           vibrate: true,
-        },
+          sound: 'alarm', // Set default sound for channel (references alarm.mp3)
+        } as any, // TypeScript types may not include 'sound' property
         (created) => console.log(`Alarm channel created: ${created}`)
       );
 
-      // Create timer channel for Android
+      // Create timer channel for Android with HIGH priority
+      // Note: soundName is not set in channel creation - sounds are set per notification
       PushNotification.createChannel(
         {
           channelId: this.timerChannelId,
           channelName: 'Timers',
-          channelDescription: 'Notifications for timers',
+          channelDescription: 'Timer countdown and completion notifications',
           playSound: true,
-          soundName: 'default',
+          // soundName removed - set per notification instead to avoid parsing errors
           importance: Importance.HIGH,
           vibrate: true,
-        },
+          sound: 'alarm', // Set default sound for channel (references alarm.mp3)
+        } as any, // TypeScript types may not include 'sound' property
         (created) => console.log(`Timer channel created: ${created}`)
       );
 
       this.initialized = true;
+      
+      // Setup notification actions
+      this.setupNotificationActions();
     } catch (error) {
       console.error('Failed to initialize notification channels:', error);
+    }
+  }
+
+
+  /**
+   * Setup notification actions (Snooze/Dismiss)
+   * Note: onAction may not exist in all versions of react-native-push-notification
+   */
+  private setupNotificationActions(): void {
+    if (Platform.OS !== 'android') return;
+
+    try {
+      // Check if onAction method exists
+      const pushNotification = PushNotification as any;
+      if (typeof pushNotification.onAction === 'function') {
+        // Handle notification actions
+        pushNotification.onAction((notification: any) => {
+          const { action, userInfo } = notification;
+          
+          console.log('Notification action pressed:', { action, userInfo });
+
+          if (action === 'Snooze') {
+            // Handle snooze logic
+            const alarmId = userInfo?.alarmId;
+            if (alarmId) {
+              console.log('Snooze pressed for alarm:', alarmId);
+              this.scheduleSnooze(alarmId, userInfo?.title || 'Alarm');
+            }
+          } else if (action === 'Dismiss') {
+            // Handle dismiss logic
+            const alarmId = userInfo?.alarmId;
+            const timerId = userInfo?.timerId;
+            
+            if (alarmId) {
+              console.log('Dismiss pressed for alarm:', alarmId);
+              this.cancelAlarm(alarmId);
+              // Cancel any ongoing notification
+              PushNotification.cancelLocalNotification(this.getNotificationBaseId(alarmId).toString());
+            } else if (timerId) {
+              console.log('Dismiss pressed for timer:', timerId);
+              this.cancelTimer(timerId);
+              this.cancelTimerNotification(timerId);
+            }
+          }
+        });
+
+        console.log('Notification actions setup complete');
+      } else {
+        console.log('⚠️ onAction not available in react-native-push-notification, notification actions disabled');
+      }
+    } catch (error) {
+      console.error('Failed to setup notification actions:', error);
+    }
+  }
+
+  /**
+   * Schedule snooze for alarm
+   */
+  private scheduleSnooze(alarmId: string, title: string): void {
+    try {
+      const snoozeTime = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      const snoozeNotificationId = this.getNotificationBaseId(`${alarmId}_snooze`);
+
+      const snoozePayload: ExtendedScheduleNotification = {
+        id: snoozeNotificationId.toString(),
+        title: `⏰ ${title} (Snooze)`,
+        message: 'Snooze alarm',
+        date: snoozeTime,
+        channelId: this.alarmChannelId,
+        priority: 'max',
+        importance: 'max',
+        allowWhileIdle: true,
+        playSound: true,
+        soundName: 'alarm_sound',
+        vibrate: true,
+        vibration: [0, 1000, 500, 1000, 500, 1000] as any, // Pattern vibration (works at runtime)
+        userInfo: {
+          alarmId: `${alarmId}_snooze`,
+          type: 'ALARM_SNOOZE',
+          title: title,
+        },
+        data: {
+          type: 'ALARM_SNOOZE',
+          alarmId: `${alarmId}_snooze`,
+          title: title,
+        },
+      };
+
+      PushNotification.localNotificationSchedule(snoozePayload);
+      console.log(`Snooze scheduled for alarm ${alarmId} at ${snoozeTime.toISOString()}`);
+    } catch (error) {
+      console.error(`Failed to schedule snooze for alarm ${alarmId}:`, error);
     }
   }
 
@@ -175,7 +274,8 @@ class NotificationService {
   }
 
   /**
-   * Schedule a timer notification
+   * Schedule a timer notification for completion
+   * Enhanced with better sound and vibration
    */
   scheduleTimer(timerId: string, title: string, remainingSeconds: number): void {
     try {
@@ -186,31 +286,127 @@ class NotificationService {
 
       const notificationPayload: ExtendedScheduleNotification = {
         id: notificationId,
-        title: '⏱️ Timer Complete',
-        message: `${title} is complete!`,
+        title: `⏱️ ${title}`,
+        message: 'Timer finished!',
         date: triggerTime,
-        allowWhileIdle: true,
+        allowWhileIdle: true, // Works even in doze mode
         ignoreInForeground: false,
-        soundName: 'default',
+        soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
         playSound: true,
         vibrate: true,
-        vibration: 1000,
-        priority: 'max',
-        importance: 'max',
+        vibration: [0, 1000, 500, 1000, 500, 1000] as any, // Pattern vibration (works at runtime)
+        priority: 'max', // MAX priority for timer completion
+        importance: 'max' as any, // MAX importance to ensure it rings
         channelId: Platform.OS === 'android' ? this.timerChannelId : undefined,
+        invokeApp: false, // Don't open app automatically
         data: {
-          type: 'timer',
+          type: 'TIMER_COMPLETION',
           timerId: timerId,
+          title: title,
         },
         userInfo: {
-          type: 'timer',
+          type: 'TIMER_COMPLETION',
           timerId: timerId,
+          title: title,
         },
       };
 
       PushNotification.localNotificationSchedule(notificationPayload);
+      console.log(`Timer completion scheduled: ${timerId} at ${triggerTime.toISOString()}`);
     } catch (error) {
       console.error(`Failed to schedule timer ${timerId}:`, error);
+    }
+  }
+
+  /**
+   * Update timer notification with remaining time (for foreground service)
+   * This creates an ongoing notification that shows the countdown
+   */
+  updateTimerNotification(timerId: string, title: string, remainingSeconds: number): void {
+    try {
+      // Use a consistent notification ID so it can be updated
+      // This creates a persistent notification that shows countdown in system notification bar
+      const notificationId = this.getNotificationBaseId(timerId) + 10000; // Use base ID + offset for ongoing notification
+      
+      const minutes = Math.floor(remainingSeconds / 60);
+      const seconds = remainingSeconds % 60;
+      const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+      // Create ongoing notification that acts as foreground service
+      // This keeps the notification visible in the system notification bar with live countdown
+      const notificationPayload: ExtendedNotification = {
+        id: notificationId.toString(),
+        title: `⏱️ ${title}`,
+        message: `Time remaining: ${timeString}`, // This updates every second, visible in notification bar
+        ongoing: true, // Android: makes it non-dismissible (acts as foreground service)
+        autoCancel: false,
+        playSound: false, // Don't play sound on updates (only on completion)
+        vibrate: false,
+        priority: 'high',
+        importance: 'high' as any,
+        allowWhileIdle: true, // Critical: allows updates even when device is idle
+        channelId: Platform.OS === 'android' ? this.timerChannelId : undefined,
+        visibility: 'public',
+        // Foreground service properties for Android
+        ...(Platform.OS === 'android' && {
+          ongoing: true,
+          autoCancel: false,
+          // This makes it show in system notification bar like Android's built-in timer
+          showWhen: true,
+          when: Date.now(),
+        }),
+        data: {
+          type: 'TIMER_FOREGROUND_SERVICE',
+          timerId: timerId,
+          remainingSeconds: remainingSeconds.toString(),
+          title: title,
+          startTime: Date.now().toString(),
+        },
+        userInfo: {
+          type: 'TIMER_FOREGROUND_SERVICE',
+          timerId: timerId,
+          remainingSeconds: remainingSeconds.toString(),
+          title: title,
+          startTime: Date.now().toString(),
+        },
+      };
+
+      // Update the notification - this will show the countdown in the notification bar
+      PushNotification.localNotification(notificationPayload);
+      
+      // Try to use foreground service API if available (keeps app process alive)
+      if (Platform.OS === 'android') {
+        try {
+          const pushNotification = PushNotification as any;
+          if (typeof pushNotification.startForegroundService === 'function') {
+            pushNotification.startForegroundService({
+              id: notificationId.toString(),
+              title: `⏱️ ${title}`,
+              message: `Time remaining: ${timeString}`,
+              channelId: this.timerChannelId,
+              ongoing: true,
+              autoCancel: false,
+            });
+          }
+        } catch (fgError) {
+          // Foreground service might not be available, continue with regular notification
+          // The ongoing notification will still work
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to update timer notification ${timerId}:`, error);
+    }
+  }
+
+  /**
+   * Cancel ongoing timer notification
+   */
+  cancelTimerNotification(timerId: string): void {
+    try {
+      const notificationId = `${this.getNotificationBaseId(timerId)}-ongoing`;
+      PushNotification.cancelLocalNotification(notificationId);
+    } catch (error) {
+      console.error(`Failed to cancel timer notification ${timerId}:`, error);
     }
   }
 
@@ -270,35 +466,47 @@ class NotificationService {
 
   /**
    * Trigger an immediate alarm notification (foreground support)
+   * Enhanced with better sound, vibration, and ongoing support
    */
   triggerImmediateAlarmNotification(alarm: Alarm): void {
     try {
       const notificationId = `${this.getNotificationBaseId(alarm.id)}-instant-${Date.now()}`;
+      const alarmTitle = alarm.title || 'Alarm';
+      const alarmTime = new Date(alarm.time).toLocaleTimeString();
 
       const notificationPayload: ExtendedNotification = {
         id: notificationId,
-        title: '⏰ Alarm',
-        message: alarm.title || 'Alarm',
+        title: `⏰ ${alarmTitle}`,
+        message: `Alarm! ${alarmTime}`,
         playSound: true,
-        soundName: 'default',
+        soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
         vibrate: true,
-        vibration: 1000,
+        vibration: [0, 1000, 500, 1000, 500, 1000] as any, // Pattern vibration
         priority: 'max',
-        importance: 'max',
-        allowWhileIdle: true,
+        importance: 'max' as any,
+        allowWhileIdle: true, // Wake device even in doze mode
         ignoreInForeground: false,
+        ongoing: true, // Keep ringing until dismissed
+        autoCancel: false,
+        invokeApp: true, // Open app when clicked
         channelId: Platform.OS === 'android' ? this.alarmChannelId : undefined,
+        visibility: 'public',
         data: {
-          type: 'alarm',
+          type: 'ALARM_IMMEDIATE',
           alarmId: alarm.id,
+          title: alarmTitle,
+          time: alarm.time,
         },
         userInfo: {
-          type: 'alarm',
+          type: 'ALARM_IMMEDIATE',
           alarmId: alarm.id,
+          title: alarmTitle,
+          time: alarm.time,
         },
       };
 
       PushNotification.localNotification(notificationPayload);
+      console.log(`Immediate alarm notification triggered: ${alarm.id}`);
     } catch (error) {
       console.error(`Failed to trigger immediate alarm notification ${alarm.id}:`, error);
     }
@@ -306,35 +514,44 @@ class NotificationService {
 
   /**
    * Trigger an immediate timer completion notification (foreground support)
+   * Enhanced with better sound, vibration, and ongoing support
    */
   triggerImmediateTimerNotification(timer: Pick<Timer, 'id' | 'title'>): void {
     try {
       const notificationId = `${this.getNotificationBaseId(timer.id)}-instant-${Date.now()}`;
+      const timerTitle = timer.title || 'Timer';
 
       const notificationPayload: ExtendedNotification = {
         id: notificationId,
-        title: '⏱️ Timer Complete',
-        message: `${timer.title} is complete!`,
+        title: `⏱️ ${timerTitle}`,
+        message: 'Timer finished!',
         playSound: true,
-        soundName: 'default',
+        soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
         vibrate: true,
-        vibration: 1000,
-        priority: 'max',
-        importance: 'max',
-        allowWhileIdle: true,
+        vibration: [0, 1000, 500, 1000, 500, 1000] as any, // Pattern vibration
+        priority: 'max', // MAX priority for timer completion
+        importance: 'max' as any, // MAX importance to ensure it rings
+        allowWhileIdle: true, // Wake device even in doze mode
         ignoreInForeground: false,
+        ongoing: true, // Keep ringing until dismissed
+        autoCancel: false,
+        invokeApp: true, // Open app when clicked
         channelId: Platform.OS === 'android' ? this.timerChannelId : undefined,
+        visibility: 'public',
         data: {
-          type: 'timer',
+          type: 'TIMER_IMMEDIATE',
           timerId: timer.id,
+          title: timerTitle,
         },
         userInfo: {
-          type: 'timer',
+          type: 'TIMER_IMMEDIATE',
           timerId: timer.id,
+          title: timerTitle,
         },
       };
 
       PushNotification.localNotification(notificationPayload);
+      console.log(`Immediate timer notification triggered: ${timer.id}`);
     } catch (error) {
       console.error(`Failed to trigger immediate timer notification ${timer.id}:`, error);
     }

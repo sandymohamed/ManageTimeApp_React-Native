@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
 
      <application
@@ -20,26 +23,49 @@
       android:supportsRtl="true">
 
     
+      <!-- Notification action handler -->
       <receiver
-      android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationActions"
-      android:exported="false" />
-  <receiver
-      android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationBootEventReceiver"
-      android:exported="false">
-      <intent-filter>
-          <action android:name="android.intent.action.BOOT_COMPLETED" />
-          <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-          <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
-      </intent-filter>
-  </receiver>
+          android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationActions"
+          android:exported="false" />
+      
+      <!-- Alarm receiver for boot completed -->
+      <receiver
+          android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationBootEventReceiver"
+          android:exported="false">
+          <intent-filter>
+              <action android:name="android.intent.action.BOOT_COMPLETED" />
+              <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+              <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+          </intent-filter>
+      </receiver>
+      
+      <!-- Alarm receiver for scheduled notifications -->
+      <receiver
+          android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationPublisher"
+          android:exported="false" />
 
-  <service
-      android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationListenerService"
-      android:exported="false">
-      <intent-filter>
-          <action android:name="com.google.firebase.MESSAGING_EVENT" />
-      </intent-filter>
-  </service>
+      <!-- Firebase messaging service -->
+      <service
+          android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationListenerService"
+          android:exported="false">
+          <intent-filter>
+              <action android:name="com.google.firebase.MESSAGING_EVENT" />
+          </intent-filter>
+      </service>
+      
+      <!-- Service for headless tasks (background notifications) -->
+      <service
+          android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationTaskService"
+          android:exported="false"
+          android:permission="android.permission.BIND_JOB_SERVICE"
+          android:stopWithTask="false" />
+      
+      <!-- Foreground service for timers -->
+      <service
+          android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationForegroundService"
+          android:enabled="true"
+          android:exported="false" />
+      
     
       <activity
         android:name=".MainActivity"

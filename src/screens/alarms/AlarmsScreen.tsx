@@ -10,6 +10,7 @@ import {
   AppStateStatus,
   Vibration
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Sound from 'react-native-sound';
 import { Text, FAB, Card, Button, Chip, SegmentedButtons, Portal, Modal, TextInput, IconButton, Dialog, Avatar } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +19,8 @@ import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useAlarmStore } from '@/store/alarmStore';
 import { Alarm, Timer } from '@/types/alarm';
 import { notificationService } from '@/services/notificationService';
+import { headlessTaskHandler } from '@/services/headlessTaskHandler';
+import { reliableAlarmService } from '@/services/ReliableAlarmService';
 
 // Navigation types
 type RootStackParamList = {
@@ -223,7 +226,7 @@ export const AlarmsScreen: React.FC = () => {
   // Track alarms where auto-delete previously failed to avoid repeated requests
   const autoDeleteFailuresRef = useRef<Set<string>>(new Set());
 
-  // Stop alarm - improved to prevent multiple calls
+  // Stop alarm - using AlarmFixService
   const handleStopAlarm = React.useCallback(async (alarmId: string, options: { skipAutoDelete?: boolean } = {}) => {
     const { skipAutoDelete = false } = options;
     console.log('🛑 Stopping alarm:', alarmId, 'activeAlarmId:', activeAlarmId, 'isStopping:', isStopping);
@@ -233,13 +236,19 @@ export const AlarmsScreen: React.FC = () => {
     setActiveAlarmId(null);
     setPendingAlarm(null);
     
-    // Cancel the scheduled notification first
+    // Use ReliableAlarmService to stop alarm (handles sound, vibration, notifications)
+    await reliableAlarmService.stopAlarm();
+    
+    // Cancel the scheduled notification
     notificationService.cancelAlarm(alarmId);
     
-    // Force stop the sound immediately
+    // Also cancel via ReliableAlarmService
+    await reliableAlarmService.cancelAlarm(alarmId);
+    
+    // Force stop the sound immediately (backup)
     soundManager.stopSound();
     
-    // Also try to stop any ongoing vibration
+    // Also try to stop any ongoing vibration (backup)
     Vibration.cancel();
     
     // Clear any existing delete timeout for this alarm
@@ -287,7 +296,7 @@ export const AlarmsScreen: React.FC = () => {
     }, 600);
   }, [alarms, deleteAlarm, notificationService, soundManager, activeAlarmId, isStopping]);
 
-  // Handle alarm fired - simplified
+  // Handle alarm fired - using AlarmFixService
   const handleAlarmFired = React.useCallback((alarm: Alarm) => {
     // Prevent multiple triggers
     if (activeAlarmId === alarm.id || isStopping) {
@@ -310,12 +319,17 @@ export const AlarmsScreen: React.FC = () => {
     // Mark as fired FIRST to prevent re-triggering
     firedAlarmsRef.current.add(minuteKey);
     setActiveAlarmId(alarm.id);
-    
-    // Play sound immediately
-    soundManager.playAlarmSound();
-    notificationService.triggerImmediateAlarmNotification(alarm);
     setPendingAlarm(alarm);
-  }, [activeAlarmId, isStopping, dismissAlarm, handleStopAlarm, soundManager]);
+    
+    // Use ReliableAlarmService to ring alarm (handles sound, vibration, notifications)
+    reliableAlarmService.ringAlarm(alarm.id, alarm.title);
+    
+    // Also play sound locally (backup)
+    soundManager.playAlarmSound();
+    
+    // Trigger immediate notification (backup)
+    notificationService.triggerImmediateAlarmNotification(alarm);
+  }, [activeAlarmId, isStopping, soundManager]);
 
   // Check if alarm should fire today
   const shouldAlarmFireToday = (alarm: Alarm, now: Date): boolean => {
@@ -479,6 +493,9 @@ export const AlarmsScreen: React.FC = () => {
     timerStartTimeRef.current = now;
     timerPausedTimeRef.current = 0;
 
+    // Initial notification update
+    notificationService.updateTimerNotification(timer.id, timer.title, timer.remainingTime);
+
     // Start countdown
     timerIntervalRef.current = setInterval(() => {
       const currentTimer = timers.find(t => t.id === timer.id);
@@ -498,6 +515,10 @@ export const AlarmsScreen: React.FC = () => {
         handleTimerCompletion(currentTimer);
       } else {
         updateTimerRemainingTime(currentTimer.id, newRemaining);
+        
+        // Always update notification - foreground service will keep it updated even when app is closed
+        // Update every second to keep notification bar countdown accurate
+        notificationService.updateTimerNotification(currentTimer.id, currentTimer.title, newRemaining);
       }
     }, 1000);
   };
@@ -545,8 +566,64 @@ export const AlarmsScreen: React.FC = () => {
     return () => subscription.remove();
   }, [timers, fetchTimers, fetchAlarms, updateTimerRemainingTime]);
 
+  // Check for pending alarms/timers from push notifications when app opens
+  useEffect(() => {
+    const checkPendingNotifications = async () => {
+      try {
+        // Check for pending alarm from push notification
+        const pendingAlarmId = await AsyncStorage.getItem('pending_alarm_id');
+        if (pendingAlarmId) {
+          await AsyncStorage.removeItem('pending_alarm_id');
+          const alarm = alarms.find(a => a.id === pendingAlarmId);
+          if (alarm && alarm.enabled) {
+            console.log('🎯 Triggering alarm from push notification:', alarm.title);
+            handleAlarmFired(alarm);
+          }
+        }
+        
+        // Check for pending timer from push notification
+        const pendingTimerId = await AsyncStorage.getItem('pending_timer_id');
+        if (pendingTimerId) {
+          await AsyncStorage.removeItem('pending_timer_id');
+          const timer = timers.find(t => t.id === pendingTimerId);
+          if (timer) {
+            console.log('🎯 Triggering timer completion from push notification:', timer.title);
+            handleTimerCompletion(timer);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking pending notifications:', error);
+      }
+    };
+    
+    // Check when alarms/timers are loaded
+    if (alarms.length > 0 || timers.length > 0) {
+      checkPendingNotifications();
+    }
+  }, [alarms, timers, handleAlarmFired]);
+
   // Initialize
   useEffect(() => {
+    // Initialize headless task handler for background notifications
+    // Initialize alarm system with ReliableAlarmService
+    const initializeAlarms = async () => {
+      console.log('🚀 Initializing alarm system...');
+
+      try {
+        // 1. Initialize ReliableAlarmService (creates channels, checks pending alarms)
+        await reliableAlarmService.initialize();
+        console.log('✅ ReliableAlarmService initialized');
+
+        // 2. Initialize headless task handler (backup)
+        headlessTaskHandler.initialize();
+        console.log('✅ Headless task handler initialized');
+      } catch (error) {
+        console.error('❌ Failed to initialize alarm system:', error);
+      }
+    };
+
+    initializeAlarms();
+
     fetchAlarms();
     fetchTimers();
 
@@ -587,6 +664,52 @@ export const AlarmsScreen: React.FC = () => {
       timerIntervalRef.current = null;
     }
   }, [timers]);
+
+  // Schedule alarms when alarms are loaded or enabled - using ReliableAlarmService
+  useEffect(() => {
+    if (alarms.length > 0) {
+      alarms.forEach(alarm => {
+        if (alarm.enabled) {
+          try {
+            // Schedule alarm with ReliableAlarmService
+            reliableAlarmService.scheduleAlarm(alarm);
+            console.log(`✅ Alarm scheduled via ReliableAlarmService: ${alarm.title}`);
+          } catch (error) {
+            console.error(`❌ Failed to schedule alarm ${alarm.id}:`, error);
+          }
+        } else {
+          // Cancel alarm if disabled
+          try {
+            reliableAlarmService.cancelAlarm(alarm.id);
+            notificationService.cancelAlarm(alarm.id);
+          } catch (error) {
+            console.error(`Failed to cancel alarm ${alarm.id}:`, error);
+          }
+        }
+      });
+    }
+  }, [alarms]);
+
+  // Check for active alarm on app open
+  useEffect(() => {
+    const checkActiveAlarm = async () => {
+      try {
+        const activeAlarmId = await AsyncStorage.getItem('active_alarm_id');
+        if (activeAlarmId) {
+          console.log('🔔 Found active alarm on app open:', activeAlarmId);
+          const alarm = alarms.find(a => a.id === activeAlarmId);
+          if (alarm) {
+            console.log('🔔 Continuing active alarm:', alarm.title);
+            handleAlarmFired(alarm);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking active alarm:', error);
+      }
+    };
+
+    checkActiveAlarm();
+  }, [alarms, handleAlarmFired]);
 
   // Handle timer completion
   const handleTimerCompletion = async (timer: Timer) => {
@@ -692,6 +815,13 @@ export const AlarmsScreen: React.FC = () => {
       setActiveTimer(timer);
       timerStartTimeRef.current = Date.now();
       timerPausedTimeRef.current = 0;
+      
+      // Schedule completion notification and start ongoing notification
+      notificationService.scheduleTimer(timer.id, timer.title, timer.remainingTime);
+      notificationService.updateTimerNotification(timer.id, timer.title, timer.remainingTime);
+      
+      // Timer completion is handled by notificationService.scheduleTimer
+      // ReliableAlarmService is primarily for alarms
     } catch (err) {
       Alert.alert('Error', 'Failed to start timer');
     }
@@ -704,6 +834,9 @@ export const AlarmsScreen: React.FC = () => {
         timerPausedTimeRef.current += elapsed;
       }
       await pauseTimer(timer.id);
+      
+      // Cancel ongoing notification when paused
+      notificationService.cancelTimerNotification(timer.id);
     } catch (err) {
       Alert.alert('Error', 'Failed to pause timer');
     }
@@ -717,6 +850,13 @@ export const AlarmsScreen: React.FC = () => {
       }
       timerStartTimeRef.current = null;
       timerPausedTimeRef.current = 0;
+      
+      // Cancel all timer notifications
+      notificationService.cancelTimer(timer.id);
+      notificationService.cancelTimerNotification(timer.id);
+      
+      // Cancel native timer
+      // Timer cancellation handled by notificationService
       
       if (activeTimerId === timer.id) {
         handleStopTimer(timer.id);

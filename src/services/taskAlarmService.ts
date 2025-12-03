@@ -1,6 +1,6 @@
 import { Task, TaskPriority } from '@/types/task';
 import { CreateAlarmData } from '@/types/alarm';
-import { alarmService } from './alarmService';
+import { alarmService } from './alarmApiService';
 
 class TaskAlarmService {
   /**

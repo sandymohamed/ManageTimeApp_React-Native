@@ -68,28 +68,43 @@ class PushNotificationService {
     try {
       const configureOptions: any = {
         senderID: '93362201097',
-        // Called when a notification is received (foreground)
+        // Called when a notification is received (foreground AND background)
         onNotification: (notification: Omit<ReceivedNotification, 'userInfo'>) => {
-          logger.info('📬 Push notification received:', {
-            title: (notification as any).title,
-            message: (notification as any).message,
-            data: (notification as any).data,
-            userInfo: (notification as any).userInfo,
-            foreground: (notification as any).foreground,
-          });
-          
+          const isForeground = (notification as any).foreground === true;
           const payload = (notification as any).data || (notification as any).userInfo || {};
           const notificationType = payload.type || payload.notificationType;
           const isLocalNotification = payload?.__local === 'true';
-          const isForeground = (notification as any).foreground === true;
+          
+          logger.info('📬 Push notification received:', {
+            title: (notification as any).title,
+            message: (notification as any).message,
+            data: payload,
+            notificationType,
+            foreground: isForeground,
+            appState: isForeground ? 'foreground' : 'background',
+          });
           
           // Log notification type for debugging
           if (notificationType) {
             logger.info(`📬 Notification type: ${notificationType}`, payload);
           }
 
-          // Show a banner when the app is in the foreground.
-          if (Platform.OS === 'android' && isForeground && !isLocalNotification) {
+          // Handle alarm notifications FIRST (before showing banner) - works in both foreground and background
+          if (notificationType === 'ALARM_TRIGGER' || notificationType === 'alarm') {
+            this.handleAlarmNotification(notification as any);
+            // Don't show banner for alarms - they handle their own notification
+            return;
+          }
+          
+          // Handle timer notifications
+          if (notificationType === 'timer') {
+            this.handleTimerNotification(notification as any);
+            // Don't show banner for timers - they handle their own notification
+            return;
+          }
+
+          // Show a banner when the app is in the foreground for other notifications
+          if (Platform.OS === 'android' && isForeground && !isLocalNotification && notificationType !== 'ALARM_TRIGGER' && notificationType !== 'alarm' && notificationType !== 'timer') {
             try {
               const notificationTitle = (notification as any).title ||
                 payload.title ||
@@ -120,16 +135,6 @@ class PushNotificationService {
             } catch (error) {
               logger.error('Failed to display foreground notification:', error);
             }
-          }
-          
-          // Handle alarm notifications
-          if (notificationType === 'alarm') {
-            this.handleAlarmNotification(notification as any);
-          }
-          
-          // Handle timer notifications
-          if (notificationType === 'timer') {
-            this.handleTimerNotification(notification as any);
           }
           
           // Handle notification tap
@@ -314,10 +319,62 @@ class PushNotificationService {
     try {
       const data = notification.data || notification.userInfo || {};
       const alarmId = data.alarmId;
-      logger.info('Alarm notification triggered:', alarmId);
+      const notificationType = data.notificationType || data.type;
+      const isForeground = (notification as any).foreground === true;
       
-  
+      logger.info('Alarm notification received from backend:', { 
+        alarmId, 
+        notificationType,
+        isForeground,
+        appState: (notification as any).foreground ? 'foreground' : 'background'
+      });
       
+      // For ALARM_TRIGGER notifications from backend, trigger immediate local notification
+      // This ensures the alarm rings even when app is closed
+      if (notificationType === 'ALARM_TRIGGER' && alarmId) {
+        // Store alarm ID in AsyncStorage so AlarmsScreen can handle it when app opens
+        AsyncStorage.setItem('pending_alarm_id', alarmId).catch(err => {
+          logger.error('Failed to store pending alarm ID:', err);
+        });
+        
+        // Trigger immediate notification with sound and vibration
+        // This will wake the device and play sound even when app is closed
+        const alarmTitle = data.title || notification.title || 'Alarm';
+        const alarmMessage = data.body || notification.message || data.message || 'It\'s time!';
+        
+        PushNotification.localNotification({
+          id: `alarm-${alarmId}-${Date.now()}`,
+          title: `⏰ ${alarmTitle}`,
+          message: alarmMessage,
+          playSound: true,
+          soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
+          vibrate: true,
+          vibration: [0, 1000, 500, 1000, 500, 1000] as any, // Pattern vibration
+          priority: 'max',
+          importance: 5 as any, // MAX importance (5) for alarms - ensures sound and vibration
+          allowWhileIdle: true, // Critical: allows notification even in doze mode
+          channelId: Platform.OS === 'android' ? 'alarm-channel-v2' : undefined,
+          ongoing: true, // Keep ringing until dismissed
+          autoCancel: false,
+          visibility: 'public',
+          data: {
+            type: 'alarm',
+            alarmId: alarmId,
+            fromPush: true,
+            notificationType: 'ALARM_TRIGGER',
+          },
+          userInfo: {
+            type: 'alarm',
+            alarmId: alarmId,
+            fromPush: true,
+            notificationType: 'ALARM_TRIGGER',
+          },
+        });
+        
+        logger.info('Alarm local notification triggered:', { alarmId, title: alarmTitle });
+      }
+      
+      // Cancel the original notification if it has an ID
       if (notification.id) {
         PushNotification.cancelLocalNotifications({ id: notification.id.toString() });
       }
@@ -335,7 +392,37 @@ class PushNotificationService {
       const timerId = data.timerId;
       logger.info('Timer notification triggered:', timerId);
       
-      // Trigger timer completion - will be handled by AlarmsScreen
+      // Store timer ID so AlarmsScreen can handle completion when app opens
+      if (timerId) {
+        AsyncStorage.setItem('pending_timer_id', timerId);
+      }
+      
+      // Trigger immediate notification for timer completion
+      PushNotification.localNotification({
+        id: `timer-${timerId}-${Date.now()}`,
+        title: '⏱️ Timer Complete',
+        message: data.title ? `${data.title} is complete!` : 'Timer is complete!',
+        playSound: true,
+        soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
+        vibrate: true,
+        vibration: [0, 1000, 500, 1000, 500, 1000] as any, // Pattern vibration
+        priority: 'max',
+        importance: 5 as any, // MAX importance (5) - ensures sound and vibration
+        allowWhileIdle: true,
+        channelId: Platform.OS === 'android' ? 'timer-channel-v2' : undefined,
+        ongoing: true, // Keep ringing until dismissed
+        autoCancel: false,
+        data: {
+          type: 'timer',
+          timerId: timerId,
+          fromPush: true,
+        },
+        userInfo: {
+          type: 'timer',
+          timerId: timerId,
+          fromPush: true,
+        },
+      });
     } catch (error) {
       logger.error('Failed to handle timer notification:', error);
     }
