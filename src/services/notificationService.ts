@@ -522,16 +522,19 @@ class NotificationService {
   /**
    * Trigger an immediate timer completion notification (foreground support)
    * Enhanced with better sound, vibration, and ongoing support
+   * This notification stays visible and allows opening app to stop
    */
   triggerImmediateTimerNotification(timer: Pick<Timer, 'id' | 'title'>): void {
     try {
-      const notificationId = `${this.getNotificationBaseId(timer.id)}-instant-${Date.now()}`;
+      // Use the SAME notification ID as the countdown notification so it REPLACES it
+      // This ensures smooth transition from countdown to ringing
+      const notificationId = (this.getNotificationBaseId(timer.id) + 10000).toString();
       const timerTitle = timer.title || 'Timer';
 
       const notificationPayload: ExtendedNotification = {
-        id: notificationId,
+        id: notificationId, // SAME ID as countdown notification - replaces it
         title: `⏱️ ${timerTitle}`,
-        message: 'Timer finished!',
+        message: 'Timer is ringing! Tap to open app and stop.',
         playSound: true,
         soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
         vibrate: true,
@@ -540,25 +543,36 @@ class NotificationService {
         importance: 'max' as any, // MAX importance to ensure it rings
         allowWhileIdle: true, // Wake device even in doze mode
         ignoreInForeground: false,
-        ongoing: true, // Keep ringing until dismissed
-        autoCancel: false,
-        invokeApp: true, // Open app when clicked
+        ongoing: true, // Keep visible until dismissed (persistent notification)
+        autoCancel: false, // Don't auto-dismiss
+        invokeApp: true, // Open app when clicked/tapped
         channelId: Platform.OS === 'android' ? this.timerChannelId : undefined,
         visibility: 'public',
+        ...(Platform.OS === 'android' && {
+          // Android-specific: Make it non-dismissible and always visible
+          ongoing: true,
+          autoCancel: false,
+          showWhen: true,
+          when: Date.now(),
+        }),
         data: {
-          type: 'TIMER_IMMEDIATE',
+          type: 'TIMER_RINGING',
           timerId: timer.id,
           title: timerTitle,
+          action: 'open_app',
         },
         userInfo: {
-          type: 'TIMER_IMMEDIATE',
+          type: 'TIMER_RINGING',
           timerId: timer.id,
           title: timerTitle,
+          action: 'open_app',
         },
       };
 
+      // Update the existing countdown notification to show ringing notification
+      // Using the same ID replaces the countdown notification smoothly
       PushNotification.localNotification(notificationPayload);
-      console.log(`Immediate timer notification triggered: ${timer.id}`);
+      console.log(`✅ Timer ringing notification triggered: ${timer.id} - Replaces countdown notification and stays visible`);
     } catch (error) {
       console.error(`Failed to trigger immediate timer notification ${timer.id}:`, error);
     }
