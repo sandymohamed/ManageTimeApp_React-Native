@@ -47,12 +47,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   const loadRoutineReminders = async () => {
     try {
       const reminders = await reminderService.getUpcomingReminders();
-      console.log('All upcoming reminders:', reminders.length, reminders);
       // Filter for routine reminders only
       const routineRemindersList = reminders.filter(r => 
         r.schedule?.routineId && r.title?.includes('Routine Reminder:')
       );
-      console.log('Routine reminders filtered:', routineRemindersList.length, routineRemindersList);
       setRoutineReminders(routineRemindersList);
     } catch (error) {
       console.error('Error loading routine reminders:', error);

@@ -244,6 +244,8 @@
   "invitations": {
     "title": "الدعوات",
     "projectInvitation": "دعوة مشروع",
+    "projectInvitations": "دعوات المشاريع",
+    "projectInvitationsDescription": "إدارة دعوات المشاريع الخاصة بك",
     "invitationDetails": "تفاصيل الدعوة",
     "invitedBy": "دعاه",
     "status": "الحالة",
@@ -536,6 +538,8 @@
     "hoursBefore": "ساعات قبل",
     "daysBefore": "أيام قبل",
     "hours": "ساعات",
+    "days": "أيام",
+    "weeks": "أسابيع",
     "reminderHelperDaily": "احصل على تذكير قبل بدء الروتين",
     "reminderHelperWeekly": "احصل على تذكير قبل حدوث الروتين"
   },
@@ -707,6 +711,10 @@
     "notificationSettings": "إعدادات الإشعارات",
     "privacy": "الخصوصية",
     "helpSupport": "المساعدة والدعم",
+    "helpSupportDescription": "احصل على المساعدة واتصل بالدعم",
+    "settingsDescription": "إدارة تفضيلات حسابك",
+    "changePasswordDescription": "تحديث كلمة المرور",
+    "aboutDescription": "إصدار التطبيق والمعلومات",
     "dataStorage": "التخزين والبيانات",
     "emailCannotBeChanged": "لا يمكن تغيير البريد الإلكتروني",
     "timezoneHelper": "المنطقة الزمنية الخاصة بك لجدولة التذكيرات",

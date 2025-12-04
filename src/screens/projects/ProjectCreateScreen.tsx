@@ -39,7 +39,7 @@ export const ProjectCreateScreen: React.FC<ProjectCreateScreenProps> = ({ naviga
   const styles = createStyles(theme);
 
   // Check if we're in edit mode
-  const projectId = 'projectId' in route.params ? route.params.projectId : undefined;
+  const projectId = route.params && 'projectId' in route.params ? route.params.projectId : undefined;
   const isEditMode = !!projectId;
 
   const { createProject, updateProject, fetchProject, currentProject } = useProjectStore();

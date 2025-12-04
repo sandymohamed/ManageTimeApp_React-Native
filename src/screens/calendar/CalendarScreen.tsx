@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Text, Card, IconButton, Chip, FAB, Badge, Portal, Modal } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
@@ -40,12 +40,26 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routineReminders, setRoutineReminders] = useState<Reminder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchTasks();
-    fetchProjects();
-    fetchGoals();
-    loadRoutines();
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        // Load data in parallel for better performance
+        await Promise.all([
+          fetchTasks(),
+          fetchProjects(),
+          fetchGoals(),
+          loadRoutines(),
+        ]);
+      } catch (error) {
+        console.error('Error loading calendar data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, []);
 
   const loadRoutines = useCallback(async () => {
@@ -319,9 +333,18 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     return routineTasks;
   }, [enabledRoutines]);
 
-  // Get routine reminders for a specific date range
-  const getRoutineRemindersForDateRange = useCallback((startDate: Date, endDate: Date): Array<{ date: Date; reminder: Reminder }> => {
-    const reminders: Array<{ date: Date; reminder: Reminder }> = [];
+  // Memoize all reminders for the current month to avoid recalculating for each day
+  const allMonthReminders = useMemo(() => {
+    if (viewMode !== 'month' || routineReminders.length === 0) {
+      return new Map<string, Array<{ date: Date; reminder: Reminder }>>();
+    }
+
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+    
+    const remindersMap = new Map<string, Array<{ date: Date; reminder: Reminder }>>();
     
     // Filter reminders for enabled routines only
     const enabledReminders = routineReminders.filter(reminder => {
@@ -331,18 +354,17 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
       return routine?.enabled === true;
     });
     
+    // Pre-calculate all reminders for the entire month at once
     enabledReminders.forEach(reminder => {
       const schedule = reminder.schedule;
       if (!schedule?.time || !schedule?.routineId) return;
       
-      // Calculate routine occurrence time
       const [routineHours, routineMinutes] = schedule.time.split(':').map(Number);
-      const loopDate = new Date(startDate);
+      const loopDate = new Date(calendarStart);
       
-      while (loopDate <= endDate) {
+      while (loopDate <= calendarEnd) {
         let routineOccurrence: Date | null = null;
         
-        // Calculate when the routine occurs
         if (schedule.frequency === 'DAILY') {
           routineOccurrence = new Date(loopDate);
           routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
@@ -360,7 +382,6 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
         }
         
         if (routineOccurrence) {
-          // Calculate reminder time (routine time minus reminderBefore)
           let reminderDate = new Date(routineOccurrence);
           
           if (schedule.reminderBefore) {
@@ -379,19 +400,106 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
             }
           }
           
-          // Only include if reminder date is in the range
+          if (reminderDate >= calendarStart && reminderDate <= calendarEnd) {
+            const dayKey = format(reminderDate, 'yyyy-MM-dd');
+            if (!remindersMap.has(dayKey)) {
+              remindersMap.set(dayKey, []);
+            }
+            remindersMap.get(dayKey)!.push({ date: reminderDate, reminder });
+          }
+        }
+        
+        loopDate.setDate(loopDate.getDate() + 1);
+      }
+    });
+    
+    return remindersMap;
+  }, [currentDate, viewMode, routineReminders, enabledRoutines]);
+
+  // Get routine reminders for a specific date range (optimized to use pre-calculated map)
+  const getRoutineRemindersForDateRange = useCallback((startDate: Date, endDate: Date): Array<{ date: Date; reminder: Reminder }> => {
+    if (viewMode === 'month' && allMonthReminders.size > 0) {
+      // Use pre-calculated reminders for month view
+      const result: Array<{ date: Date; reminder: Reminder }> = [];
+      const loopDate = new Date(startDate);
+      
+      while (loopDate <= endDate) {
+        const dayKey = format(loopDate, 'yyyy-MM-dd');
+        const dayReminders = allMonthReminders.get(dayKey);
+        if (dayReminders) {
+          result.push(...dayReminders);
+        }
+        loopDate.setDate(loopDate.getDate() + 1);
+      }
+      
+      return result;
+    }
+    
+    // Fallback for week/day views - calculate on demand
+    const reminders: Array<{ date: Date; reminder: Reminder }> = [];
+    const enabledReminders = routineReminders.filter(reminder => {
+      const routineId = reminder.schedule?.routineId;
+      if (!routineId) return false;
+      const routine = enabledRoutines.find(r => r.id === routineId);
+      return routine?.enabled === true;
+    });
+    
+    enabledReminders.forEach(reminder => {
+      const schedule = reminder.schedule;
+      if (!schedule?.time || !schedule?.routineId) return;
+      
+      const [routineHours, routineMinutes] = schedule.time.split(':').map(Number);
+      const loopDate = new Date(startDate);
+      
+      while (loopDate <= endDate) {
+        let routineOccurrence: Date | null = null;
+        
+        if (schedule.frequency === 'DAILY') {
+          routineOccurrence = new Date(loopDate);
+          routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
+        } else if (schedule.frequency === 'WEEKLY' && schedule.days && schedule.days.length > 0) {
+          const dayOfWeek = loopDate.getDay();
+          if (schedule.days.includes(dayOfWeek)) {
+            routineOccurrence = new Date(loopDate);
+            routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
+          }
+        } else if (schedule.frequency === 'MONTHLY' && schedule.day) {
+          if (loopDate.getDate() === schedule.day) {
+            routineOccurrence = new Date(loopDate);
+            routineOccurrence.setHours(routineHours, routineMinutes, 0, 0);
+          }
+        }
+        
+        if (routineOccurrence) {
+          let reminderDate = new Date(routineOccurrence);
+          
+          if (schedule.reminderBefore) {
+            const match = schedule.reminderBefore.match(/^(\d+)([hdw])$/);
+            if (match) {
+              const [, valueStr, unit] = match;
+              const value = parseInt(valueStr, 10);
+              
+              if (unit === 'h') {
+                reminderDate.setHours(reminderDate.getHours() - value);
+              } else if (unit === 'd') {
+                reminderDate.setDate(reminderDate.getDate() - value);
+              } else if (unit === 'w') {
+                reminderDate.setDate(reminderDate.getDate() - (value * 7));
+              }
+            }
+          }
+          
           if (reminderDate >= startDate && reminderDate <= endDate) {
             reminders.push({ date: reminderDate, reminder });
           }
         }
         
-        // Move to next day - use loopDate, NOT currentDate (which is component state!)
         loopDate.setDate(loopDate.getDate() + 1);
       }
     });
     
     return reminders;
-  }, [routineReminders, enabledRoutines]);
+  }, [viewMode, allMonthReminders, routineReminders, enabledRoutines]);
 
   // Get all calendar items (tasks, routine tasks, goal milestones, project milestones)
   // Memoize this expensive calculation based on view mode and date range
@@ -438,15 +546,22 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
     return Array.from(uniqueTasksMap.values());
   }, [tasks, enabledRoutines, viewMode, currentDate, selectedDate, getRoutineTasksForCalendarRange, getGoalMilestonesAsTasks, getProjectMilestonesAsTasks]);
 
-  // Get reminders for a specific date
+  // Get reminders for a specific date (optimized for month view)
   const getRemindersForDate = useCallback((date: Date): Array<{ date: Date; reminder: Reminder }> => {
+    if (viewMode === 'month' && allMonthReminders.size > 0) {
+      // Use pre-calculated map for fast lookup
+      const dayKey = format(date, 'yyyy-MM-dd');
+      return allMonthReminders.get(dayKey) || [];
+    }
+    
+    // Fallback for week/day views
     const startDate = new Date(date);
     startDate.setHours(0, 0, 0, 0);
     const endDate = new Date(date);
     endDate.setHours(23, 59, 59, 999);
     
     return getRoutineRemindersForDateRange(startDate, endDate);
-  }, [getRoutineRemindersForDateRange]);
+  }, [viewMode, allMonthReminders, getRoutineRemindersForDateRange]);
 
   const getTasksForDate = useCallback((date: Date) => {
     const allItems = getAllCalendarItems;
@@ -883,7 +998,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                         <TouchableOpacity
                           key={reminder.id}
                           style={[styles.reminderBadge, { backgroundColor: '#FFA72620', borderColor: '#FFA726' }]}
-                          onPress={() => navigation.getParent()?.navigate('Routines')}
+                          onPress={() => {
+                            const parent = navigation.getParent();
+                            if (parent) {
+                              parent.navigate('MainTabs', { screen: 'Routines' });
+                            } else {
+                              navigation.navigate('Routines');
+                            }
+                          }}
                         >
                           <Text style={[styles.reminderBadgeIcon, { color: '#FFA726' }]}>🔔</Text>
                           <Text variant="bodySmall" style={[styles.reminderBadgeText, { color: theme.colors.text }]} numberOfLines={1}>
@@ -1034,7 +1156,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                 <TouchableOpacity
                   key={reminder.id}
                   style={[styles.selectedTaskItem, { backgroundColor: '#FFA72620', borderColor: '#FFA726', borderWidth: 1 }]}
-                  onPress={() => navigation.getParent()?.navigate('Routines')}
+                  onPress={() => {
+                    const parent = navigation.getParent();
+                    if (parent) {
+                      parent.navigate('MainTabs', { screen: 'Routines' });
+                    } else {
+                      navigation.navigate('Routines');
+                    }
+                  }}
                 >
                   <View style={[styles.selectedTaskIndicator, { backgroundColor: '#FFA726' }]} />
                   <Text variant="bodySmall" style={[styles.selectedTaskTitle, { color: theme.colors.text }]}>
@@ -1214,15 +1343,24 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
         ))}
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {renderUpcomingTasks()}
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text variant="bodyMedium" style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+            {t('common.loading')}
+          </Text>
+        </View>
+      ) : (
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {renderUpcomingTasks()}
 
-        {viewMode === 'month' && renderMonthView()}
-        {viewMode === 'week' && renderWeekView()}
-        {viewMode === 'day' && renderDayView()}
+          {viewMode === 'month' && renderMonthView()}
+          {viewMode === 'week' && renderWeekView()}
+          {viewMode === 'day' && renderDayView()}
 
-        {viewMode !== 'day' && renderSelectedDateTasks()}
-      </ScrollView>
+          {viewMode !== 'day' && renderSelectedDateTasks()}
+        </ScrollView>
+      )}
 
       {/* Floating Action Button */}
       <FAB
@@ -1594,6 +1732,16 @@ const createStyles = (theme: any) => StyleSheet.create({
     margin: 16,
     right: 0,
     bottom: 0,
+  },
+  // Loading
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  loadingText: {
+    marginTop: 16,
   },
 
   // Time Slot Styles (Google Calendar-like)

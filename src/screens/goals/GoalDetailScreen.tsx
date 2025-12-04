@@ -442,21 +442,21 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
     return icons[category.toLowerCase()] || 'target';
   };
 
-  const getTimeStatus = (targetDate?: string) => {
-    if (!targetDate) return null;
+  // const getTimeStatus = (targetDate?: string) => {
+  //   if (!targetDate) return null;
 
-    const target = new Date(targetDate);
-    const now = new Date();
+  //   const target = new Date(targetDate);
+  //   const now = new Date();
 
-    if (isToday(target)) return { text: t('goals.dueToday'), color: theme.colors.warning || '#FF9800' };
-    if (isTomorrow(target)) return { text: t('goals.dueTomorrow'), color: theme.colors.info || '#2196F3' };
-    if (isBefore(target, now)) return { text: t('goals.overdue'), color: theme.colors.error || '#F44336' };
+  //   if (isToday(target)) return { text: t('goals.dueToday'), color: theme.colors.warning || '#FF9800' };
+  //   if (isTomorrow(target)) return { text: t('goals.dueTomorrow'), color: theme.colors.info || '#2196F3' };
+  //   if (isBefore(target, now)) return { text: t('goals.overdue'), color: theme.colors.error || '#F44336' };
 
-    const daysLeft = differenceInDays(target, now);
-    if (daysLeft <= 7) return { text: t('goals.dueInDays', { days: daysLeft }), color: theme.colors.warning || '#FF9800' };
+  //   const daysLeft = differenceInDays(target, now);
+  //   if (daysLeft <= 7) return { text: t('goals.dueInDays', { days: daysLeft }), color: theme.colors.warning || '#FF9800' };
 
-    return { text: format(target, 'MMM dd, yyyy'), color: theme.colors.textSecondary };
-  };
+  //   return { text: format(target, 'MMM dd, yyyy'), color: theme.colors.textSecondary };
+  // };
 
   const getProgressColor = (progress: number) => {
     if (progress >= 80) return theme.colors.success;
@@ -467,7 +467,7 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
   const renderGoalHeader = () => {
     if (!currentGoal) return null;
 
-    const timeStatus = getTimeStatus(currentGoal.targetDate);
+    // const timeStatus = getTimeStatus(currentGoal.targetDate);
     const completedMilestones = currentGoal?.milestones?.filter(m => m.status === MilestoneStatus.DONE).length;
     const totalMilestones = currentGoal.milestones.length;
     const progressColor = getProgressColor(currentGoal.progress);
@@ -559,7 +559,7 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
             >
               {currentGoal.category}
             </Chip>
-            {timeStatus && (
+            {/* {timeStatus && (
               <Chip
                 mode="outlined"
                 textStyle={[styles.timeChipText, { color: timeStatus.color }]}
@@ -571,7 +571,7 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
               >
                 {timeStatus.text}
               </Chip>
-            )}
+            )} */}
             {currentGoal.targetDate && (
               <Chip
                 mode="outlined"

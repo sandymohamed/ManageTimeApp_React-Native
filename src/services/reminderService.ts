@@ -77,7 +77,6 @@ class ReminderServiceClass {
           return isInRange;
         }
         
-        console.log('Reminder has no routineId in schedule:', reminder.schedule);
         return false;
       });
 

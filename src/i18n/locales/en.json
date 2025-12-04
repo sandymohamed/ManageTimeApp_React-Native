@@ -279,6 +279,7 @@
     "title": "Invitations",
     "projectInvitation": "Project Invitation",
     "projectInvitations": "Project Invitations",
+    "projectInvitationsDescription": "Manage your project invitations",
     "invitationDetails": "Invitation Details",
     "invitedBy": "Invited by",
     "receivedOn": "Received on",
@@ -321,6 +322,13 @@
     "noSentInvitations": "No sent invitations",
     "noReceivedInvitations": "No received invitations",
     "status": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "declined": "Declined",
+      "expired": "Expired",
+      "cancelled": "Cancelled"
+    },
+    "status_options": {
       "pending": "Pending",
       "accepted": "Accepted",
       "declined": "Declined",
@@ -637,6 +645,10 @@
     "notificationSettings": "Notification Settings",
     "privacy": "Privacy",
     "helpSupport": "Help & Support",
+    "helpSupportDescription": "Get help and contact support",
+    "settingsDescription": "Manage your account preferences",
+    "changePasswordDescription": "Update your password",
+    "aboutDescription": "App version and information",
     "dataStorage": "Data & Storage",
     "emailCannotBeChanged": "Email cannot be changed",
     "timezoneHelper": "Your timezone for scheduling and reminders",
@@ -830,7 +842,8 @@
     "edit": "Edit",
     "priority": "Priority",
     "status": "Status",
-    "dueDate": "Due Date"
+    "dueDate": "Due Date",
+    "reminders": "Reminders"
   },
   "routines": {
     "myRoutines": "My Routines",
@@ -884,7 +897,15 @@
     "createExamples": "Create Example Routines",
     "exampleRoutinesCreated": "Example routines created successfully",
     "createError": "Failed to create routine",
-    "updateError": "Failed to update routine"
+    "updateError": "Failed to update routine",
+    "whenToRemind": "When to Remind",
+    "hoursBefore": "Hours Before",
+    "hours": "Hours",
+    "daysBefore": "Days Before",
+    "days": "Days",
+    "weeks": "Weeks",
+    "reminderHelperDaily": "Set how many hours before the routine time you want to be reminded",
+    "reminderHelperWeekly": "Set how many days or weeks before the routine time you want to be reminded"
   },
   "validation": {
     "titleRequired": "Title is required",

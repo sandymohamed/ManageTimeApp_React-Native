@@ -87,7 +87,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
       }, 300);
       fetchProjectMilestones();
       fetchPendingInvitations();
-      
+
       // Cleanup timeout on unmount
       return () => {
         clearTimeout(timeoutId);
@@ -634,14 +634,21 @@ export const ProjectDetailScreen: React.FC<ProjectDetailScreenProps> = ({ naviga
             <Text variant="titleMedium" style={[styles.sectionTitle, { color: theme.colors.text }]}>
               {t('projects.milestones')} ({projectMilestones.length})
             </Text>
-            <Button
+            {/* <Button
               mode="outlined"
               icon="plus"
               onPress={() => navigation.navigate('MilestoneCreate', { projectId })}
               style={styles.addButton}
             >
               {t('projects.addMilestone')}
-            </Button>
+            </Button> */}
+
+            <IconButton
+              mode="outlined"
+              icon="plus"
+              onPress={() => navigation.navigate('MilestoneCreate', { projectId })}
+              style={styles.addButton}
+            />
           </View>
 
           {projectMilestones.length === 0 ? (

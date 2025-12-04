@@ -1,17 +1,17 @@
 // @ts-ignore - React version compatibility issue
 import React, { useState, useEffect, useCallback } from 'react';
-import {View, StyleSheet, ScrollView, Alert} from 'react-native';
-import {Text, Card, List, Button, Avatar, Divider, useTheme, Badge} from 'react-native-paper';
-import {useTranslation} from 'react-i18next';
-import {useNavigation, useFocusEffect} from '@react-navigation/native';
-import {useAuthStore} from '@/store/authStore';
-import {useTheme as useCustomTheme} from '@/contexts/ThemeContext';
-import {notificationService} from '@/services/notificationService';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { Text, Card, List, Button, Avatar, Divider, useTheme, Badge } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useAuthStore } from '@/store/authStore';
+import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
+import { notificationService } from '@/services/notificationService';
 
 export const ProfileScreen: React.FC = () => {
-  const {t} = useTranslation();
+  const { t } = useTranslation();
   const navigation = useNavigation();
-  const {user, logout, isLoading} = useAuthStore();
+  const { user, logout, isLoading } = useAuthStore();
   const paperTheme = useTheme();
   const customTheme = useCustomTheme();
   const theme = customTheme.theme;
@@ -43,8 +43,8 @@ export const ProfileScreen: React.FC = () => {
       t('auth.logout'),
       t('auth.logoutConfirmation'),
       [
-        {text: t('common.cancel'), style: 'cancel'},
-        {text: t('auth.logout'), style: 'destructive', onPress: logout},
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('auth.logout'), style: 'destructive', onPress: logout },
       ]
     );
   };
@@ -112,7 +112,7 @@ export const ProfileScreen: React.FC = () => {
         <Card.Content>
           <List.Item
             title={t('profile.settings')}
-            description="Manage your account preferences"
+            description={t('profile.settingsDescription')}
             left={(props: any) => <List.Icon {...props} icon="account-cog" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleSettings}
@@ -120,7 +120,7 @@ export const ProfileScreen: React.FC = () => {
           <Divider />
           <List.Item
             title={t('invitations.projectInvitations')}
-            description="Manage your project invitations"
+            description={t('invitations.projectInvitationsDescription')}
             left={(props: any) => <List.Icon {...props} icon="account-plus" />}
             right={(props: any) => (
               <View style={styles.rightContainer}>
@@ -136,8 +136,8 @@ export const ProfileScreen: React.FC = () => {
           />
           <Divider />
           <List.Item
-            title="Change Password"
-            description="Update your password"
+            title={t('profile.changePassword')}
+            description={t('profile.changePasswordDescription')}
             left={(props: any) => <List.Icon {...props} icon="lock" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleChangePassword}
@@ -164,8 +164,8 @@ export const ProfileScreen: React.FC = () => {
       <Card style={[styles.card, { backgroundColor: theme?.colors?.surface }]}>
         <Card.Content>
           <List.Item
-            title="Help & Support"
-            description="Get help and contact support"
+            title={t('profile.helpSupport')}
+            description={t('profile.helpSupportDescription')}
             left={(props: any) => <List.Icon {...props} icon="help-circle" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleHelp}
@@ -173,7 +173,7 @@ export const ProfileScreen: React.FC = () => {
           <Divider />
           <List.Item
             title={t('profile.about')}
-            description="App version and information"
+            description={t('profile.aboutDescription')}
             left={(props: any) => <List.Icon {...props} icon="information" />}
             right={(props: any) => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleAbout}
@@ -218,7 +218,7 @@ export const ProfileScreen: React.FC = () => {
         <Text variant="bodySmall" style={styles.footerText}>
           Manage Time App v1.0.0
         </Text>
-        
+
       </View>
     </ScrollView>
   );
