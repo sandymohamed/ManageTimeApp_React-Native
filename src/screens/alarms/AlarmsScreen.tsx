@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Sound from 'react-native-sound';
+import BackgroundTimer from 'react-native-background-timer';
 import { Text, FAB, Card, Button, Chip, SegmentedButtons, Portal, Modal, TextInput, IconButton, Dialog, Avatar } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
@@ -481,46 +482,80 @@ export const AlarmsScreen: React.FC = () => {
     checkAlarmsRef.current = checkAlarmsThatShouldHaveFired;
   }, [checkAlarmsThatShouldHaveFired]);
 
-  // Timer countdown with background support
+  // Timer countdown with background support using BackgroundTimer
   const startTimerCountdown = (timer: Timer) => {
     // Clear any existing interval
     if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
+      if (Platform.OS === 'android') {
+        BackgroundTimer.clearInterval(timerIntervalRef.current as number);
+      } else {
+        clearInterval(timerIntervalRef.current);
+      }
+      timerIntervalRef.current = null;
     }
 
-    // Calculate start time
+    // Calculate start time and end time
     const now = Date.now();
+    const endTime = now + (timer.remainingTime * 1000);
     timerStartTimeRef.current = now;
     timerPausedTimeRef.current = 0;
+
+    // Store timer end time in AsyncStorage for recovery
+    AsyncStorage.setItem(`timer_end_time_${timer.id}`, endTime.toString()).catch(console.error);
+    AsyncStorage.setItem(`timer_running_${timer.id}`, 'true').catch(console.error);
 
     // Initial notification update
     notificationService.updateTimerNotification(timer.id, timer.title, timer.remainingTime);
 
-    // Start countdown
-    timerIntervalRef.current = setInterval(() => {
+    // Use BackgroundTimer for Android (works in background), regular setInterval for iOS
+    const intervalCallback = () => {
       const currentTimer = timers.find(t => t.id === timer.id);
       if (!currentTimer || !currentTimer.isRunning || currentTimer.isPaused) {
         if (timerIntervalRef.current) {
-          clearInterval(timerIntervalRef.current);
+          if (Platform.OS === 'android') {
+            BackgroundTimer.clearInterval(timerIntervalRef.current as number);
+          } else {
+            clearInterval(timerIntervalRef.current);
+          }
           timerIntervalRef.current = null;
         }
+        AsyncStorage.removeItem(`timer_end_time_${timer.id}`).catch(console.error);
+        AsyncStorage.removeItem(`timer_running_${timer.id}`).catch(console.error);
         return;
       }
 
-      // Calculate elapsed time accounting for background
-      const elapsed = Math.floor((Date.now() - (timerStartTimeRef.current || now)) / 1000) - timerPausedTimeRef.current;
-      const newRemaining = Math.max(0, timer.duration * 60 - elapsed);
+      // Calculate remaining time from end time
+      const currentTime = Date.now();
+      const newRemaining = Math.max(0, Math.floor((endTime - currentTime) / 1000));
 
       if (newRemaining <= 0) {
+        // Timer completed
+        AsyncStorage.removeItem(`timer_end_time_${timer.id}`).catch(console.error);
+        AsyncStorage.removeItem(`timer_running_${timer.id}`).catch(console.error);
+        if (timerIntervalRef.current) {
+          if (Platform.OS === 'android') {
+            BackgroundTimer.clearInterval(timerIntervalRef.current as number);
+          } else {
+            clearInterval(timerIntervalRef.current);
+          }
+          timerIntervalRef.current = null;
+        }
         handleTimerCompletion(currentTimer);
       } else {
+        // Update timer state
         updateTimerRemainingTime(currentTimer.id, newRemaining);
         
-        // Always update notification - foreground service will keep it updated even when app is closed
-        // Update every second to keep notification bar countdown accurate
+        // Update notification every second - this works even in background with BackgroundTimer
         notificationService.updateTimerNotification(currentTimer.id, currentTimer.title, newRemaining);
       }
-    }, 1000);
+    };
+
+    // Start countdown using BackgroundTimer for Android
+    if (Platform.OS === 'android') {
+      timerIntervalRef.current = BackgroundTimer.setInterval(intervalCallback, 1000) as any;
+    } else {
+      timerIntervalRef.current = setInterval(intervalCallback, 1000);
+    }
   };
 
   // Handle app state changes for timer
@@ -638,11 +673,16 @@ export const AlarmsScreen: React.FC = () => {
       setTimeUpdateKey(prev => prev + 1);
     }, 60000);
 
-    return () => {
+      return () => {
       clearInterval(alarmCheckInterval);
       clearInterval(timeUpdateInterval);
       if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
+        if (Platform.OS === 'android') {
+          BackgroundTimer.clearInterval(timerIntervalRef.current as number);
+        } else {
+          clearInterval(timerIntervalRef.current);
+        }
+        timerIntervalRef.current = null;
       }
       soundManager.stopSound();
       // Clean up all alarm deletion timeouts
@@ -711,18 +751,26 @@ export const AlarmsScreen: React.FC = () => {
     checkActiveAlarm();
   }, [alarms, handleAlarmFired]);
 
-  // Handle timer completion
+  // Handle timer completion - simplified to prevent duplicates
   const handleTimerCompletion = async (timer: Timer) => {
-    if (activeTimerId === timer.id || isStopping) return;
+    // Prevent duplicate completion
+    if (activeTimerId === timer.id || isStopping) {
+      return;
+    }
     const isTimerViewActive = isFocused && activeTab === 'timers';
 
     try {
       console.log('🎯 Timer completed:', timer.title);
       setActiveTimerId(timer.id);
       
+      // Cancel scheduled notification to prevent duplicate
+      notificationService.cancelTimer(timer.id);
+      notificationService.cancelTimerNotification(timer.id);
+      
       // Play sound
       soundManager.playAlarmSound();
 
+      // Trigger immediate notification (this will ring)
       notificationService.triggerImmediateTimerNotification({ id: timer.id, title: timer.title });
 
       // Stop timer
@@ -733,9 +781,17 @@ export const AlarmsScreen: React.FC = () => {
 
       // Clear interval
       if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
+        if (Platform.OS === 'android') {
+          BackgroundTimer.clearInterval(timerIntervalRef.current as number);
+        } else {
+          clearInterval(timerIntervalRef.current);
+        }
         timerIntervalRef.current = null;
       }
+      
+      // Clean up AsyncStorage
+      AsyncStorage.removeItem(`timer_end_time_${timer.id}`).catch(console.error);
+      AsyncStorage.removeItem(`timer_running_${timer.id}`).catch(console.error);
 
       if (!isTimerViewActive) {
         setPendingTimer({ id: timer.id, title: timer.title });
@@ -855,8 +911,9 @@ export const AlarmsScreen: React.FC = () => {
       notificationService.cancelTimer(timer.id);
       notificationService.cancelTimerNotification(timer.id);
       
-      // Cancel native timer
-      // Timer cancellation handled by notificationService
+      // Clean up AsyncStorage
+      AsyncStorage.removeItem(`timer_end_time_${timer.id}`).catch(console.error);
+      AsyncStorage.removeItem(`timer_running_${timer.id}`).catch(console.error);
       
       if (activeTimerId === timer.id) {
         handleStopTimer(timer.id);

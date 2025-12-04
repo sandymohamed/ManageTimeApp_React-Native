@@ -403,8 +403,15 @@ class NotificationService {
    */
   cancelTimerNotification(timerId: string): void {
     try {
-      const notificationId = `${this.getNotificationBaseId(timerId)}-ongoing`;
-      PushNotification.cancelLocalNotification(notificationId);
+      // Cancel ongoing notification (the countdown one)
+      const ongoingNotificationId = (this.getNotificationBaseId(timerId) + 10000).toString();
+      PushNotification.cancelLocalNotification(ongoingNotificationId);
+      
+      // Also cancel any scheduled completion notification
+      const scheduledNotificationId = this.getNotificationBaseId(timerId).toString();
+      PushNotification.cancelLocalNotification(scheduledNotificationId);
+      
+      console.log(`✅ Cancelled timer notifications for ${timerId}`);
     } catch (error) {
       console.error(`Failed to cancel timer notification ${timerId}:`, error);
     }
