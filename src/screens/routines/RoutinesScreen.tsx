@@ -1,7 +1,7 @@
 
 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { routineService } from '@/services/routineService';
 import { Routine, RoutineTask, RoutineFrequency } from '@/types/routine';
 import { useNotification } from '@/contexts/NotificationContext';
@@ -33,12 +34,89 @@ const RoutinesScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [creatingExamples, setCreatingExamples] = useState(false);
   const loadingRef = React.useRef(false);
+  const [pendingAlarmRoutineId, setPendingAlarmRoutineId] = useState<string | null>(null);
+  const [pendingAlarmInfo, setPendingAlarmInfo] = useState<{ title: string; targetId?: string } | null>(null);
 
   useFocusEffect(
     React.useCallback(() => {
       loadRoutines();
+      checkPendingAlarm();
     }, [])
   );
+
+  // Check for pending task/routine alarm when screen comes into focus
+  const checkPendingAlarm = React.useCallback(async () => {
+    try {
+      // Check both pending_task_routine_alarm and pending_alarm_id
+      const pendingAlarmData = await AsyncStorage.getItem('pending_task_routine_alarm');
+      const pendingAlarmId = await AsyncStorage.getItem('pending_alarm_id');
+      
+      if (pendingAlarmData) {
+        const alarmInfo = JSON.parse(pendingAlarmData);
+        // Check if this is a routine reminder
+        if (alarmInfo.targetType === 'ROUTINE' || alarmInfo.notificationType === 'ROUTINE_REMINDER') {
+          // Extract routine ID from targetId (could be routineId or routine_task_${taskId})
+          let routineId: string | null = null;
+          if (alarmInfo.targetId) {
+            // If targetId starts with "routine_task_", extract taskId and find its routine
+            if (alarmInfo.targetId.startsWith('routine_task_')) {
+              const taskId = alarmInfo.targetId.replace('routine_task_', '');
+              // Find routine that contains this task
+              const routine = routines.find(r => 
+                r.routineTasks?.some(t => t.id === taskId)
+              );
+              routineId = routine?.id || null;
+            } else {
+              // Assume targetId is the routineId
+              routineId = alarmInfo.targetId;
+            }
+          }
+          
+          if (routineId) {
+            setPendingAlarmRoutineId(routineId);
+            setPendingAlarmInfo({
+              title: alarmInfo.title || 'Routine Reminder',
+              targetId: alarmInfo.targetId,
+            });
+          }
+        }
+      } else if (pendingAlarmId) {
+        // Fallback: Check if any routine has a matching alarm title
+        // Look for alarms with "Routine:" prefix
+        const routineWithAlarm = routines.find(r => {
+          // This is a fallback - ideally we'd have the routine ID from pending_task_routine_alarm
+          // But if that's missing, we can try to match by alarm title pattern
+          return true; // Show banner for first routine as fallback
+        });
+        
+        if (routineWithAlarm && routines.length > 0) {
+          setPendingAlarmRoutineId(routines[0].id); // Show for first routine as fallback
+          setPendingAlarmInfo({
+            title: 'Routine Reminder',
+            targetId: routines[0].id,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error checking pending alarm:', error);
+    }
+  }, [routines]);
+
+  // Re-check when routines are loaded
+  useEffect(() => {
+    if (routines.length > 0) {
+      checkPendingAlarm();
+    }
+  }, [routines, checkPendingAlarm]);
+
+  // Clear pending alarm indicator
+  const clearPendingAlarm = React.useCallback(async () => {
+    await AsyncStorage.removeItem('pending_task_routine_alarm').catch(() => {});
+    // Also clear pending_alarm_id if it exists (to fully clear the alarm state)
+    await AsyncStorage.removeItem('pending_alarm_id').catch(() => {});
+    setPendingAlarmRoutineId(null);
+    setPendingAlarmInfo(null);
+  }, []);
 
   // Helper function to calculate next occurrence time for sorting
   const calculateNextOccurrenceTime = (routine: Routine): Date => {
@@ -360,9 +438,17 @@ const RoutinesScreen: React.FC = () => {
     const completedTasks = routine.routineTasks.filter(t => t.completed).length;
     const totalTasks = routine.routineTasks.length;
     const progress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+    const isAlarmRoutine = routine.id === pendingAlarmRoutineId; // Highlight if this is the alarm routine
 
     return (
-      <Card style={styles.routineCard}>
+      <Card style={[
+        styles.routineCard,
+        isAlarmRoutine && {
+          borderWidth: 3,
+          borderColor: theme.colors.error,
+          backgroundColor: theme.colors.error + '10',
+        }
+      ]}>
         <Card.Content>
           <View style={styles.routineHeader}>
             <View style={styles.routineTitleContainer}>
@@ -504,8 +590,49 @@ const RoutinesScreen: React.FC = () => {
     );
   }
 
+  // Find the routine that has the pending alarm
+  const alarmRoutine = pendingAlarmRoutineId 
+    ? routines.find(r => r.id === pendingAlarmRoutineId)
+    : null;
+
   return (
     <View style={styles.container}>
+      {/* Show banner at top if there's a pending routine alarm */}
+      {pendingAlarmRoutineId && alarmRoutine && pendingAlarmInfo && (
+        <Card 
+          style={[
+            styles.alarmBanner,
+            { 
+              backgroundColor: theme.colors.error + '20',
+              borderLeftWidth: 4,
+              borderLeftColor: theme.colors.error,
+            }
+          ]}
+        >
+          <Card.Content>
+            <View style={styles.alarmBannerContent}>
+              <View style={styles.alarmBannerLeft}>
+                <Icon name="bell-ring" size={24} color={theme.colors.error} />
+                <View style={styles.alarmBannerText}>
+                  <Title style={[styles.alarmBannerTitle, { color: theme.colors.error }]}>
+                    ⏰ {pendingAlarmInfo.title || alarmRoutine.title}
+                  </Title>
+                  <Paragraph style={styles.alarmBannerMessage}>
+                    This routine needs your attention!
+                  </Paragraph>
+                </View>
+              </View>
+              <IconButton
+                icon="close"
+                size={20}
+                iconColor={theme.colors.text}
+                onPress={clearPendingAlarm}
+              />
+            </View>
+          </Card.Content>
+        </Card>
+      )}
+
       <ScrollView
         style={styles.scrollView}
         refreshControl={
@@ -737,6 +864,35 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   fabContent: {
     height: 56,
+  },
+  alarmBanner: {
+    margin: 16,
+    marginBottom: 8,
+    elevation: 4,
+    borderRadius: 8,
+  },
+  alarmBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  alarmBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  alarmBannerText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  alarmBannerTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  alarmBannerMessage: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
   },
 });
 

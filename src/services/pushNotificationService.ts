@@ -399,6 +399,18 @@ class PushNotificationService {
               logger.error(`❌ Failed to schedule alarm with Notifee:`, scheduleError);
               // Store as pending so it can be handled when app opens
               AsyncStorage.setItem('pending_alarm_id', alarmIdToUse).catch(() => {});
+              
+              // Also store task/routine info for future reference
+              if (data.targetId || data.taskId || data.routineId) {
+                const taskRoutineInfo = {
+                  targetId: data.targetId || data.taskId || data.routineId,
+                  targetType: data.targetType || (notificationType === 'TASK_REMINDER' ? 'TASK' : notificationType === 'ROUTINE_REMINDER' ? 'ROUTINE' : null),
+                  alarmId: alarmIdToUse,
+                  title: alarmTitle,
+                  notificationType: notificationType,
+                };
+                AsyncStorage.setItem('pending_task_routine_alarm', JSON.stringify(taskRoutineInfo)).catch(() => {});
+              }
             }
           } else {
             // Alarm time has passed - ring immediately (missed alarm recovery)
@@ -406,6 +418,19 @@ class PushNotificationService {
             
             // Store as pending alarm
             AsyncStorage.setItem('pending_alarm_id', alarmIdToUse).catch(() => {});
+            
+            // Store task/routine info if this is a task or routine reminder
+            // This helps TasksScreen/RoutinesScreen show which item needs action
+            if (data.targetId || data.taskId || data.routineId || notificationType === 'TASK_REMINDER' || notificationType === 'ROUTINE_REMINDER') {
+              const taskRoutineInfo = {
+                targetId: data.targetId || data.taskId || data.routineId,
+                targetType: data.targetType || (notificationType === 'TASK_REMINDER' ? 'TASK' : notificationType === 'ROUTINE_REMINDER' ? 'ROUTINE' : null),
+                alarmId: alarmIdToUse,
+                title: alarmTitle,
+                notificationType: notificationType,
+              };
+              AsyncStorage.setItem('pending_task_routine_alarm', JSON.stringify(taskRoutineInfo)).catch(() => {});
+            }
             
             // Ring immediately using Notifee
             try {
@@ -452,6 +477,18 @@ class PushNotificationService {
           // No alarm time - store as pending for handling when app opens
           logger.info(`📝 No alarm time provided, storing as pending: ${alarmIdToUse}`);
           AsyncStorage.setItem('pending_alarm_id', alarmIdToUse).catch(() => {});
+          
+          // Store task/routine info
+          if (data.targetId || data.taskId || data.routineId) {
+            const taskRoutineInfo = {
+              targetId: data.targetId || data.taskId || data.routineId,
+              targetType: data.targetType || (notificationType === 'TASK_REMINDER' ? 'TASK' : notificationType === 'ROUTINE_REMINDER' ? 'ROUTINE' : null),
+              alarmId: alarmIdToUse,
+              title: alarmTitle,
+              notificationType: notificationType,
+            };
+            AsyncStorage.setItem('pending_task_routine_alarm', JSON.stringify(taskRoutineInfo)).catch(() => {});
+          }
         }
       }
       
@@ -531,13 +568,16 @@ class PushNotificationService {
           break;
         case 'TASK_ASSIGNMENT':
         case 'TASK_COMMENT':
-        case 'TASK_REMINDER':
-        case 'DUE_DATE_REMINDER':
           if (taskId) {
             navigate('TaskDetail', { taskId: String(taskId) });
           } else {
             navigate('Tasks');
           }
+          break;
+        case 'TASK_REMINDER':
+        case 'DUE_DATE_REMINDER':
+          // Navigate to Tasks screen so user can see which task needs action
+          navigate('Tasks');
           break;
         case 'GOAL_REMINDER':
           if (goalId) {
@@ -550,16 +590,8 @@ class PushNotificationService {
           navigate('Alarms');
           break;
         case 'ROUTINE_REMINDER':
-          // Since routine reminders now work as alarms, navigate to Alarms screen
-          // This is consistent with how we handle ALARM_TRIGGER notifications
-          // Extract routineId or taskId from targetId (format: routine_task_${taskId})
-          const routineTaskId = data.targetId;
-          if (routineTaskId && routineTaskId.startsWith('routine_task_')) {
-            const extractedTaskId = routineTaskId.replace('routine_task_', '');
-            logger.info(`📬 Routine reminder for task: ${extractedTaskId}`);
-          }
-          // Route to Alarms screen (same as other alarm notifications)
-          navigate('Alarms');
+          // Navigate to Routines screen so user can see which routine needs action
+          navigate('Routines');
           break;
         default:
           // Fallbacks: try project detail if projectId exists, otherwise dashboard

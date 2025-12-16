@@ -1017,15 +1017,15 @@ const RoutineEditScreen: React.FC = () => {
                   : (t('routines.daysBefore') || 'Days before')}
                 value={reminderValue}
                 onChangeText={(text) => {
-                  const numValue = text.replace(/[^0-9]/g, '');
-                  updateReminder(numValue, reminderUnit);
+                  // const numValue = text.replace(/[^0-9]/g, '');
+                  updateReminder(text, reminderUnit);
                 }}
                 keyboardType="numeric"
                 mode="outlined"
                 style={[styles.input, styles.reminderInput]}
                 outlineColor={theme.colors.outline}
                 activeOutlineColor={theme.colors.primary}
-                placeholder={formData.frequency === 'DAILY' ? '2' : '1'}
+                // placeholder={formData.frequency === 'DAILY' ? '2' : '1'}
               />
               {formData.frequency === 'DAILY' ? (
                 <Chip

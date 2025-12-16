@@ -401,16 +401,20 @@ export const AlarmsScreen: React.FC = () => {
         await validateAndCleanPendingState(alarms, timers);
         
         // Check for pending alarm from push notification
+        // Note: Don't remove pending_alarm_id immediately - keep it so Tasks/Routines screens can show banner
+        // It will be cleared when user dismisses the banner or stops the alarm
         const pendingAlarmId = await AsyncStorage.getItem('pending_alarm_id');
         if (pendingAlarmId) {
-          await AsyncStorage.removeItem('pending_alarm_id'); // Remove immediately to prevent retrigger
           const alarm = alarms.find(a => a.id === pendingAlarmId);
           // ONLY trigger if alarm exists AND is enabled
           if (alarm && alarm.enabled) {
             console.log('🎯 Triggering alarm from push notification:', alarm.title);
             handleAlarmFired(alarm);
+            // Don't remove pending_alarm_id here - let Tasks/Routines screens handle it when they check
           } else {
             console.log('🧹 Ignoring pending alarm - not found or disabled:', pendingAlarmId);
+            // Only remove if alarm doesn't exist
+            await AsyncStorage.removeItem('pending_alarm_id').catch(() => {});
           }
         }
         
@@ -637,6 +641,8 @@ export const AlarmsScreen: React.FC = () => {
     try {
       await clearAlarmState(alarmId);
       await AsyncStorage.removeItem('pending_alarm_id').catch(console.error);
+      // Also clear pending task/routine alarm info
+      await AsyncStorage.removeItem('pending_task_routine_alarm').catch(console.error);
     } catch (error) {
       console.error('Error cleaning alarm state:', error);
     }

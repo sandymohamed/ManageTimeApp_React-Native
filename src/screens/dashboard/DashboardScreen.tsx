@@ -28,7 +28,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   const styles = createStyles(theme);
   const { getDayName } = useDayTranslations();
 
-  const { tasks, fetchTasks,   } = useTaskStore();
+  const { tasks, filteredTasks, fetchTasks } = useTaskStore();
   const { projects, fetchProjects } = useProjectStore();
   const { goals, fetchGoals } = useGoalStore();
 
@@ -36,20 +36,39 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
   const [selectedPeriod, setSelectedPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
   const [activeChart, setActiveChart] = useState<'progress' | 'priority'>('progress');
   const [routineReminders, setRoutineReminders] = useState<Reminder[]>([]);
+  const [routines, setRoutines] = useState<any[]>([]);
+
+  const loadDashboardData = async () => {
+    await Promise.all([
+      fetchTasks(),
+      fetchProjects(),
+      fetchGoals(),
+      loadRoutineReminders(),
+      loadRoutines(),
+    ]);
+  };
 
   useEffect(() => {
-    fetchTasks();
-    fetchProjects();
-    fetchGoals();
-    loadRoutineReminders();
+    loadDashboardData();
   }, []);
+
+  const loadRoutines = async () => {
+    try {
+      const { routineService } = await import('@/services/routineService');
+      const routinesData = await routineService.getUserRoutines();
+      setRoutines(routinesData);
+    } catch (error) {
+      console.error('Error loading routines:', error);
+    }
+  };
 
   const loadRoutineReminders = async () => {
     try {
       const reminders = await reminderService.getUpcomingReminders();
-      // Filter for routine reminders only
+      // Filter for routine reminders - use more flexible criteria
       const routineRemindersList = reminders.filter(r => 
-        r.schedule?.routineId && r.title?.includes('Routine Reminder:')
+        (r.targetType === 'CUSTOM' || r.schedule?.routineId) &&
+        (r.title?.includes('Routine') || r.title?.includes('routine') || r.schedule?.routineId)
       );
       setRoutineReminders(routineRemindersList);
     } catch (error) {
@@ -57,15 +76,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     }
   };
 
-  // React to changes in tasks and projects
+  // React to changes in tasks, projects, routines, and reminders
   useEffect(() => {
-    // This will trigger re-renders when tasks or projects change
+    // This will trigger re-renders when data changes
     // The analytics calculations will automatically update
-  }, [tasks, projects]);
+  }, [tasks, projects, routines, routineReminders]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchTasks(), fetchProjects(), fetchGoals(), loadRoutineReminders()]);
+    await loadDashboardData();
     setRefreshing(false);
   };
 
@@ -108,13 +127,28 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     };
   };
 
-  // Get urgent tasks
+  // Get urgent tasks - use all tasks from store, not filteredTasks
   const getUrgentTasks = () => {
-    const urgentTasks = tasks.filter(task =>
+    // Use tasks (all tasks) not filteredTasks to ensure we see everything
+    const allTasks = tasks || [];
+    
+    if (allTasks.length === 0) {
+      return [];
+    }
+    
+    // Filter for urgent tasks that are not done - NO dueDate restriction
+    const urgentTasks = allTasks.filter(task => 
       task.priority === TaskPriority.URGENT &&
-      task.status !== TaskStatus.DONE &&
-      (!task.dueDate || new Date(task.dueDate) >= new Date())
+      task.status !== TaskStatus.DONE
     );
+    
+    // Sort by dueDate (if exists) - earlier dates first, then tasks without dueDate
+    urgentTasks.sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
     
     // Deduplicate by task.id to ensure uniqueness
     const uniqueTasksMap = new Map<string, Task>();
@@ -127,24 +161,107 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     return Array.from(uniqueTasksMap.values()).slice(0, 5);
   };
 
-  // Get this week's tasks
+  // Get this week's tasks (includes regular tasks, routine tasks, and project milestones)
   const getWeeklyTasks = () => {
     const now = new Date();
     const weekStart = startOfWeek(now);
     const weekEnd = endOfWeek(now);
 
+    // 1. Regular tasks from task store
     const weekTasks = tasks.filter(task => {
       if (!task.dueDate) return false;
       const taskDate = new Date(task.dueDate);
       return taskDate >= weekStart && taskDate <= weekEnd;
     });
 
+    // 2. Routine tasks - convert routine occurrences to task-like objects
+    const routineTasks: any[] = [];
+    routines.forEach(routine => {
+      if (!routine.enabled || !routine.schedule?.time) return;
+      
+      const [hours, minutes] = routine.schedule.time.split(':').map(Number);
+      
+      // Check each day of the week
+      for (let i = 0; i < 7; i++) {
+        const day = addDays(weekStart, i);
+        const dayKey = format(day, 'yyyy-MM-dd');
+        let shouldInclude = false;
+        
+        if (routine.frequency === 'DAILY') {
+          shouldInclude = true;
+        } else if (routine.frequency === 'WEEKLY' && routine.schedule.days) {
+          shouldInclude = routine.schedule.days.includes(day.getDay());
+        } else if (routine.frequency === 'MONTHLY' && routine.schedule.day) {
+          shouldInclude = day.getDate() === routine.schedule.day;
+        }
+        
+        if (shouldInclude) {
+          const routineDate = new Date(day);
+          routineDate.setHours(hours, minutes, 0, 0);
+          
+          // Add routine as a task-like object
+          routineTasks.push({
+            id: `routine_${routine.id}_${dayKey}`,
+            title: `🔄 ${routine.title}`,
+            dueDate: routineDate.toISOString(),
+            status: TaskStatus.TODO,
+            priority: TaskPriority.MEDIUM,
+            isRoutine: true,
+            routineId: routine.id,
+          });
+        }
+      }
+    });
+
+    // 3. Project milestones/deadlines
+    const projectMilestones: any[] = [];
+    projects.forEach(project => {
+      if (!project.milestones) return;
+      
+      project.milestones.forEach(milestone => {
+        if (!milestone.dueDate || milestone.status === MilestoneStatus.DONE) return;
+        
+        const milestoneDate = new Date(milestone.dueDate);
+        if (milestoneDate >= weekStart && milestoneDate <= weekEnd) {
+          projectMilestones.push({
+            id: `milestone_${milestone.id}`,
+            title: `🎯 ${milestone.title}`,
+            dueDate: milestoneDate.toISOString(),
+            status: TaskStatus.TODO,
+            priority: TaskPriority.MEDIUM,
+            isMilestone: true,
+            projectId: project.id,
+            milestoneId: milestone.id,
+          });
+        }
+      });
+      
+      // Also include project deadline (endDate) if it exists
+      if (project.endDate) {
+        const deadlineDate = new Date(project.endDate);
+        if (deadlineDate >= weekStart && deadlineDate <= weekEnd) {
+          projectMilestones.push({
+            id: `project_deadline_${project.id}`,
+            title: `📅 ${project.name} (Deadline)`,
+            dueDate: deadlineDate.toISOString(),
+            status: TaskStatus.TODO,
+            priority: TaskPriority.HIGH,
+            isProjectDeadline: true,
+            projectId: project.id,
+          });
+        }
+      }
+    });
+
+    // Combine all tasks
+    const allWeekTasks = [...weekTasks, ...routineTasks, ...projectMilestones];
+
     // Group by day
-    const tasksByDay: { [key: string]: Task[] } = {};
+    const tasksByDay: { [key: string]: any[] } = {};
     for (let i = 0; i < 7; i++) {
       const day = addDays(weekStart, i);
       const dayKey = format(day, 'yyyy-MM-dd');
-      tasksByDay[dayKey] = weekTasks.filter(task => {
+      tasksByDay[dayKey] = allWeekTasks.filter(task => {
         if (!task.dueDate) return false;
         const taskDate = new Date(task.dueDate);
         return taskDate.toDateString() === day.toDateString();
