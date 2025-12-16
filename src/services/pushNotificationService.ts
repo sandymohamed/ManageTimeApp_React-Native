@@ -69,7 +69,7 @@ class PushNotificationService {
       const configureOptions: any = {
         senderID: '93362201097',
         // Called when a notification is received (foreground AND background)
-        onNotification: (notification: Omit<ReceivedNotification, 'userInfo'>) => {
+        onNotification: async (notification: Omit<ReceivedNotification, 'userInfo'>) => {
           const isForeground = (notification as any).foreground === true;
           const payload = (notification as any).data || (notification as any).userInfo || {};
           const notificationType = payload.type || payload.notificationType;
@@ -89,16 +89,23 @@ class PushNotificationService {
             logger.info(`📬 Notification type: ${notificationType}`, payload);
           }
 
-          // Handle alarm notifications FIRST (before showing banner) - works in both foreground and background
-          if (notificationType === 'ALARM_TRIGGER' || notificationType === 'alarm') {
-            this.handleAlarmNotification(notification as any);
-            // Don't show banner for alarms - they handle their own notification
+          // Handle alarm-related notifications (for sync, not for ringing)
+          // NEW ARCHITECTURE: FCM is used for data sync only, NOT for ringing alarms
+          // All alarms must be scheduled locally with Notifee triggers (which ring even when app is closed)
+          if (notificationType === 'ALARM_TRIGGER' || 
+              notificationType === 'alarm' ||
+              notificationType === 'TASK_REMINDER' ||
+              notificationType === 'DUE_DATE_REMINDER' ||
+              notificationType === 'ROUTINE_REMINDER') {
+            // Handle as sync notification - will re-schedule local Notifee triggers if needed
+            await this.handleAlarmSyncNotification(notification as any);
+            // Don't show banner - alarms are handled by Notifee triggers
             return;
           }
           
           // Handle timer notifications
           if (notificationType === 'timer') {
-            this.handleTimerNotification(notification as any);
+            await this.handleTimerNotification(notification as any);
             // Don't show banner for timers - they handle their own notification
             return;
           }
@@ -313,65 +320,139 @@ class PushNotificationService {
   }
 
   /**
-   * Handle alarm notification
+   * Handle alarm sync notification (NEW ARCHITECTURE)
+   * FCM notifications are used for SYNC only, not for ringing alarms.
+   * This method:
+   * 1. Extracts alarm data from FCM notification
+   * 2. Re-schedules alarm locally with Notifee triggers if needed (for future alarms)
+   * 3. Rings alarm immediately if time has passed (missed alarm recovery)
+   * 
+   * Note: Primary alarm ringing is handled by Notifee trigger notifications scheduled locally
    */
-  private handleAlarmNotification(notification: any): void {
+  private async handleAlarmSyncNotification(notification: any): Promise<void> {
     try {
       const data = notification.data || notification.userInfo || {};
       const alarmId = data.alarmId;
       const notificationType = data.notificationType || data.type;
-      const isForeground = (notification as any).foreground === true;
       
-      logger.info('Alarm notification received from backend:', { 
+      logger.info('📬 Alarm sync notification received from backend:', { 
         alarmId, 
         notificationType,
-        isForeground,
         appState: (notification as any).foreground ? 'foreground' : 'background'
       });
       
-      // For ALARM_TRIGGER notifications from backend, trigger immediate local notification
-      // This ensures the alarm rings even when app is closed
-      if (notificationType === 'ALARM_TRIGGER' && alarmId) {
-        // Store alarm ID in AsyncStorage so AlarmsScreen can handle it when app opens
-        AsyncStorage.setItem('pending_alarm_id', alarmId).catch(err => {
-          logger.error('Failed to store pending alarm ID:', err);
-        });
-        
-        // Trigger immediate notification with sound and vibration
-        // This will wake the device and play sound even when app is closed
+      // For ALARM_TRIGGER, TASK_REMINDER, DUE_DATE_REMINDER, and ROUTINE_REMINDER notifications
+      const isAlarmType = notificationType === 'ALARM_TRIGGER' || 
+                          notificationType === 'TASK_REMINDER' ||
+                          notificationType === 'DUE_DATE_REMINDER' ||
+                          notificationType === 'ROUTINE_REMINDER';
+      
+      // Get alarm ID from various sources
+      const alarmIdFromData = alarmId || data.targetId || data.taskId || data.routineId;
+      
+      if (isAlarmType && alarmIdFromData) {
+        const alarmIdToUse = alarmIdFromData;
         const alarmTitle = data.title || notification.title || 'Alarm';
+        const alarmTimeStr = data.alarmTime || data.time;
         const alarmMessage = data.body || notification.message || data.message || 'It\'s time!';
         
-        PushNotification.localNotification({
-          id: `alarm-${alarmId}-${Date.now()}`,
-          title: `⏰ ${alarmTitle}`,
-          message: alarmMessage,
-          playSound: true,
-          soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
-          vibrate: true,
-          vibration: [0, 1000, 500, 1000, 500, 1000] as any, // Pattern vibration
-          priority: 'max',
-          importance: 5 as any, // MAX importance (5) for alarms - ensures sound and vibration
-          allowWhileIdle: true, // Critical: allows notification even in doze mode
-          channelId: Platform.OS === 'android' ? 'alarm-channel-v2' : undefined,
-          ongoing: true, // Keep ringing until dismissed
-          autoCancel: false,
-          visibility: 'public',
-          data: {
-            type: 'alarm',
-            alarmId: alarmId,
-            fromPush: true,
-            notificationType: 'ALARM_TRIGGER',
-          },
-          userInfo: {
-            type: 'alarm',
-            alarmId: alarmId,
-            fromPush: true,
-            notificationType: 'ALARM_TRIGGER',
-          },
+        logger.info(`📬 Alarm sync notification received (type: ${notificationType}):`, {
+          alarmId: alarmIdToUse,
+          title: alarmTitle,
+          alarmTime: alarmTimeStr,
         });
         
-        logger.info('Alarm local notification triggered:', { alarmId, title: alarmTitle });
+        // NEW ARCHITECTURE: FCM is for sync only
+        // 1. If alarm time is in the future, re-schedule with Notifee triggers (if not already scheduled)
+        // 2. If alarm time has passed, ring immediately (missed alarm recovery)
+        
+        if (alarmTimeStr) {
+          const alarmTime = new Date(alarmTimeStr);
+          const now = new Date();
+          const timeDiff = alarmTime.getTime() - now.getTime();
+          
+          if (timeDiff > 0) {
+            // Alarm is in the future - schedule with Notifee triggers
+            // This ensures it rings even when app is closed
+            logger.info(`⏰ Scheduling future alarm with Notifee triggers: ${alarmIdToUse}`, {
+              timeUntilAlarm: Math.floor(timeDiff / 1000) + ' seconds',
+            });
+            
+            try {
+              const { reliableAlarmService } = await import('@/services/ReliableAlarmService');
+              const { Alarm } = await import('@/types/alarm');
+              
+              // Create alarm object for scheduling
+              const alarmForScheduling: Alarm = {
+                id: alarmIdToUse,
+                title: alarmTitle,
+                time: alarmTimeStr,
+                recurrenceRule: data.recurrenceRule || 'none',
+                enabled: true,
+                userId: data.userId || '',
+              };
+              
+              // Schedule with Notifee triggers (works even when app is closed)
+              await reliableAlarmService.scheduleAlarm(alarmForScheduling);
+              logger.info(`✅ Alarm scheduled with Notifee triggers: ${alarmIdToUse}`);
+            } catch (scheduleError) {
+              logger.error(`❌ Failed to schedule alarm with Notifee:`, scheduleError);
+              // Store as pending so it can be handled when app opens
+              AsyncStorage.setItem('pending_alarm_id', alarmIdToUse).catch(() => {});
+            }
+          } else {
+            // Alarm time has passed - ring immediately (missed alarm recovery)
+            logger.info(`🔔 Missed alarm - ringing immediately: ${alarmIdToUse}`);
+            
+            // Store as pending alarm
+            AsyncStorage.setItem('pending_alarm_id', alarmIdToUse).catch(() => {});
+            
+            // Ring immediately using Notifee
+            try {
+              const notifee = await import('@notifee/react-native');
+              const { AndroidImportance, AndroidVisibility } = await import('@notifee/react-native');
+              
+              await notifee.default.displayNotification({
+                title: `⏰ ${alarmTitle}`,
+                body: alarmMessage,
+                android: {
+                  channelId: 'alarm-channel-v2',
+                  importance: AndroidImportance.HIGH,
+                  sound: 'alarm',
+                  vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
+                  lights: ['#FF0000', 1000, 1000],
+                  pressAction: { id: 'default', launchActivity: 'default' },
+                  actions: [{ title: 'Stop', pressAction: { id: 'stop' } }],
+                  autoCancel: false,
+                  ongoing: true,
+                  visibility: AndroidVisibility.PUBLIC,
+                },
+                data: {
+                  type: 'alarm',
+                  alarmId: alarmIdToUse,
+                  fromPush: true,
+                  notificationType: notificationType,
+                  ...(data.targetId && { targetId: data.targetId }),
+                  ...(data.targetType && { targetType: data.targetType }),
+                },
+              });
+              
+              // Also trigger ReliableAlarmService if app is running
+              try {
+                const { reliableAlarmService } = await import('@/services/ReliableAlarmService');
+                await reliableAlarmService.ringAlarm(alarmIdToUse, alarmTitle);
+              } catch (ringError) {
+                logger.info('ℹ️ ReliableAlarmService not available (app may be closed)');
+              }
+            } catch (notifeeError) {
+              logger.error('❌ Failed to ring missed alarm:', notifeeError);
+            }
+          }
+        } else {
+          // No alarm time - store as pending for handling when app opens
+          logger.info(`📝 No alarm time provided, storing as pending: ${alarmIdToUse}`);
+          AsyncStorage.setItem('pending_alarm_id', alarmIdToUse).catch(() => {});
+        }
       }
       
       // Cancel the original notification if it has an ID
@@ -386,7 +467,7 @@ class PushNotificationService {
   /**
    * Handle timer notification
    */
-  private handleTimerNotification(notification: any): void {
+  private async handleTimerNotification(notification: any): Promise<void> {
     try {
       const data = notification.data || notification.userInfo || {};
       const timerId = data.timerId;
@@ -469,14 +550,16 @@ class PushNotificationService {
           navigate('Alarms');
           break;
         case 'ROUTINE_REMINDER':
+          // Since routine reminders now work as alarms, navigate to Alarms screen
+          // This is consistent with how we handle ALARM_TRIGGER notifications
           // Extract routineId or taskId from targetId (format: routine_task_${taskId})
           const routineTaskId = data.targetId;
           if (routineTaskId && routineTaskId.startsWith('routine_task_')) {
             const extractedTaskId = routineTaskId.replace('routine_task_', '');
             logger.info(`📬 Routine reminder for task: ${extractedTaskId}`);
           }
-          // Route to routines screen
-          navigate('Routines');
+          // Route to Alarms screen (same as other alarm notifications)
+          navigate('Alarms');
           break;
         default:
           // Fallbacks: try project detail if projectId exists, otherwise dashboard

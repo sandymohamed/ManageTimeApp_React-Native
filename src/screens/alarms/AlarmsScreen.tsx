@@ -127,10 +127,32 @@ export const AlarmsScreen: React.FC = () => {
     dismissAlarm,
   } = useAlarmStore();
 
+  // Refresh alarms when screen is focused (e.g., after creating a routine)
+  // This ensures alarms created from routines are visible
+  useEffect(() => {
+    if (isFocused) {
+      console.log('🔄 AlarmsScreen focused - refreshing alarms and timers...');
+      // Immediate refresh
+      fetchAlarms();
+      fetchTimers();
+      
+      // Also refresh after a short delay to catch async alarm creation from routines
+      const delayedRefresh = setTimeout(() => {
+        console.log('🔄 Delayed refresh for routine-created alarms...');
+        fetchAlarms();
+        fetchTimers();
+      }, 2000); // 2 seconds delay
+      
+      return () => clearTimeout(delayedRefresh);
+    }
+  }, [isFocused, fetchAlarms, fetchTimers]);
+
   // Track fired alarms per minute to prevent duplicates
   const firedAlarmsRef = useRef<Set<string>>(new Set());
   const alarmDeleteTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const autoDeleteFailuresRef = useRef<Set<string>>(new Set());
+  // Track alarms that were stopped this occurrence to prevent re-ringing
+  const stoppedAlarmsThisOccurrenceRef = useRef<Map<string, number>>(new Map());
 
   const getAlarmMinuteKey = (alarmId: string, alarmTime: Date, isRecurring: boolean): string => {
     if (isRecurring) {
@@ -139,22 +161,44 @@ export const AlarmsScreen: React.FC = () => {
     return `${alarmId}-${alarmTime.getTime()}`;
   };
 
+  // Use ref for handleAlarmFired to avoid dependency issues
+  const handleAlarmFiredRef = useRef<((alarm: Alarm) => void) | null>(null);
+
   // Check alarms that should have fired
   const checkAlarmsThatShouldHaveFired = React.useCallback(() => {
     const now = new Date();
+    const routineAlarms = alarms.filter(a => a.enabled && a.title?.includes('Routine:'));
+    if (routineAlarms.length > 0) {
+      console.log(`🔍 Checking ${routineAlarms.length} routine alarms at ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`);
+    }
     alarms.forEach((alarm) => {
       if (!alarm.enabled) return;
+      
+      // Don't process if we're currently stopping alarms
+      if (isStopping) return;
 
       const alarmTime = new Date(alarm.time);
-      const isRecurring = alarm.recurrenceRule && alarm.recurrenceRule !== 'none';
+      const isRecurring = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none');
+      
+      // Don't check if alarm is already active (prevents loops)
+      if (activeAlarmId === alarm.id) {
+        return;
+      }
       
       // Check if alarm should fire
       let shouldFire = false;
       if (isRecurring) {
         // For recurring alarms, check if current time matches alarm time (within 1 minute window)
+        // Fire if we're at the exact minute (any second within that minute)
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
         const alarmMinutes = alarmTime.getHours() * 60 + alarmTime.getMinutes();
-        shouldFire = Math.abs(currentMinutes - alarmMinutes) <= 1;
+        // Fire only at the exact minute (not before or after)
+        shouldFire = currentMinutes === alarmMinutes;
+        
+        // Debug log for routine alarms
+        if (alarm.title.includes('Routine:')) {
+          console.log(`🔍 Checking routine alarm "${alarm.title}": current=${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}, alarm=${alarmTime.getHours()}:${alarmTime.getMinutes()}, shouldFire=${shouldFire}`);
+        }
       } else {
         // For one-time alarms, check if time has passed (within 1 minute window)
         const timeDiff = now.getTime() - alarmTime.getTime();
@@ -163,22 +207,70 @@ export const AlarmsScreen: React.FC = () => {
 
       if (shouldFire) {
         const minuteKey = getAlarmMinuteKey(alarm.id, alarmTime, isRecurring);
-        if (!firedAlarmsRef.current.has(minuteKey)) {
-          firedAlarmsRef.current.add(minuteKey);
-          handleAlarmFired(alarm);
+        
+        // Check if this alarm was already stopped for this occurrence
+        // Only prevent re-ringing if stopped within the same minute window
+        const stoppedTime = stoppedAlarmsThisOccurrenceRef.current.get(alarm.id);
+        if (stoppedTime) {
+          const timeSinceStop = now.getTime() - stoppedTime;
+          const stoppedDate = new Date(stoppedTime);
+          const stoppedMinutes = stoppedDate.getHours() * 60 + stoppedDate.getMinutes();
+          const currentMinutes = now.getHours() * 60 + now.getMinutes();
+          const isSameMinute = currentMinutes === stoppedMinutes;
+          const isSameDay = stoppedDate.getDate() === now.getDate() && 
+                           stoppedDate.getMonth() === now.getMonth() &&
+                           stoppedDate.getFullYear() === now.getFullYear();
           
-          // Clear the key after 2 minutes to allow next occurrence
+          // Only prevent if:
+          // 1. Stopped within the last 2 minutes AND
+          // 2. We're in the same minute AND  
+          // 3. It's the same day
+          // This prevents re-ringing in the same minute after stopping, but allows next day
+          if (timeSinceStop < 2 * 60000 && isSameMinute && isSameDay) {
+            if (alarm.title.includes('Routine:')) {
+              console.log(`🚫 Routine alarm ${alarm.id} was stopped in same minute today, skipping re-fire`);
+            }
+            return; // Don't fire - was recently stopped in same minute today
+          } else {
+            // Clear the stopped marker if it's old, different minute, or different day
+            stoppedAlarmsThisOccurrenceRef.current.delete(alarm.id);
+            if (alarm.title.includes('Routine:')) {
+              console.log(`🧹 Cleared stopped marker for routine alarm ${alarm.id} (old/different minute/day)`);
+            }
+          }
+        }
+        
+        // Only fire if we haven't fired for this minute key
+        // This prevents multiple fires in the same minute window
+        if (!firedAlarmsRef.current.has(minuteKey)) {
+          console.log(`✅ Firing alarm: ${alarm.title} at ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`);
+          firedAlarmsRef.current.add(minuteKey);
+          if (handleAlarmFiredRef.current) {
+            handleAlarmFiredRef.current(alarm);
+          }
+          
+          // For recurring alarms, clear the key after 2 minutes to allow next occurrence
+          // For one-time alarms, clear after 5 minutes
+          const clearTimeout = isRecurring ? 2 * 60 * 1000 : 5 * 60 * 1000;
           setTimeout(() => {
             firedAlarmsRef.current.delete(minuteKey);
-          }, 2 * 60 * 1000);
+          }, clearTimeout);
         }
       }
     });
-  }, [alarms]);
+  }, [alarms, activeAlarmId, isStopping]);
 
-  const checkAlarmsRef = useRef(checkAlarmsThatShouldHaveFired);
+  // Register alarm check function with global alarm engine
   useEffect(() => {
-    checkAlarmsRef.current = checkAlarmsThatShouldHaveFired;
+    const { registerAlarmCheckFunction, unregisterAlarmCheckFunction } = require('@/services/GlobalAlarmEngine');
+    
+    // Register our check function with the global engine
+    registerAlarmCheckFunction(checkAlarmsThatShouldHaveFired);
+    
+    // Cleanup: unregister when component unmounts (optional, engine handles missing function gracefully)
+    return () => {
+      unregisterAlarmCheckFunction();
+    };
   }, [checkAlarmsThatShouldHaveFired]);
 
   // Timer countdown with background support using BackgroundTimer
@@ -400,18 +492,16 @@ export const AlarmsScreen: React.FC = () => {
     fetchAlarms();
     fetchTimers();
 
-    // Check alarms every second
-    const alarmCheckInterval = setInterval(() => {
-      checkAlarmsRef.current();
-    }, 1000);
-
+    // REMOVED: Alarm checking interval - now handled by GlobalAlarmEngine at app level
+    // This ensures alarms ring regardless of which screen user is viewing
+    
     // Update time-until display every minute
     const timeUpdateInterval = setInterval(() => {
       setTimeUpdateKey(prev => prev + 1);
     }, 60000);
 
     return () => {
-      clearInterval(alarmCheckInterval);
+      // REMOVED: clearInterval(alarmCheckInterval) - no longer needed, handled by GlobalAlarmEngine
       clearInterval(timeUpdateInterval);
       if (timerIntervalRef.current) {
         if (Platform.OS === 'android') {
@@ -468,9 +558,19 @@ export const AlarmsScreen: React.FC = () => {
       alarms.forEach(alarm => {
         if (alarm.enabled) {
           try {
-            // Schedule alarm with ReliableAlarmService
-            reliableAlarmService.scheduleAlarm(alarm);
-            console.log(`✅ Alarm scheduled via ReliableAlarmService: ${alarm.title}`);
+            // Schedule alarm with ReliableAlarmService (uses Notifee triggers for when app is closed)
+            // Note: This is a backup mechanism. Primary mechanism is backend push notifications
+            reliableAlarmService.scheduleAlarm(alarm).then(() => {
+              console.log(`✅ Alarm scheduled via ReliableAlarmService: ${alarm.title}`, {
+                alarmId: alarm.id,
+                alarmTime: alarm.time,
+                isRecurring: !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none'),
+                isRoutine: alarm.title?.includes('Routine:'),
+                isTask: alarm.title?.includes('Task:'),
+              });
+            }).catch((error) => {
+              console.error(`❌ Failed to schedule alarm ${alarm.id}:`, error);
+            });
           } catch (error) {
             console.error(`❌ Failed to schedule alarm ${alarm.id}:`, error);
           }
@@ -541,6 +641,14 @@ export const AlarmsScreen: React.FC = () => {
       console.error('Error cleaning alarm state:', error);
     }
     
+    // Mark this alarm as stopped for this occurrence (prevents re-ringing)
+    // This prevents the alarm from firing again in the current minute window
+    stoppedAlarmsThisOccurrenceRef.current.set(alarmId, Date.now());
+    
+    // DON'T clear fired alarms ref entries when stopping - we want to prevent re-firing
+    // The firedAlarmsRef entries will be cleared automatically after the timeout
+    // This ensures that if the alarm was stopped, it won't fire again in the same window
+    
     // Clear any existing delete timeout for this alarm
     const existingTimeout = alarmDeleteTimeoutsRef.current.get(alarmId);
     if (existingTimeout) {
@@ -554,18 +662,25 @@ export const AlarmsScreen: React.FC = () => {
     const shouldAttemptAutoDelete = !!alarm && !skipAutoDelete && !hasPreviousFailure;
 
     if (shouldAttemptAutoDelete) {
+      // Don't auto-delete routine or task alarms (they're tied to routines/tasks)
+      const isRoutineOrTaskAlarm = alarm.title?.includes('Routine:') || alarm.title?.includes('Task:');
       const isOneTimeAlarm = !alarm.recurrenceRule || alarm.recurrenceRule === 'none';
-      if (isOneTimeAlarm) {
+      
+      // Only auto-delete one-time alarms that are NOT routine/task alarms
+      if (isOneTimeAlarm && !isRoutineOrTaskAlarm) {
         const timeout = setTimeout(async () => {
           try {
             await deleteAlarm(alarmId);
             console.log('✅ Auto-deleted one-time alarm after ringing:', alarmId);
           } catch (error) {
-            console.error('❌ Auto-delete failed:', error);
+            // Silently handle errors - alarm might already be deleted or backend validation failed
+            console.error('❌ Auto-delete failed (non-critical):', error);
             autoDeleteFailuresRef.current.add(alarmId);
           }
         }, 30000);
         alarmDeleteTimeoutsRef.current.set(alarmId, timeout);
+      } else if (isRoutineOrTaskAlarm) {
+        console.log('⏭️ Skipping auto-delete for routine/task alarm:', alarm.title);
       }
     }
 
@@ -581,19 +696,44 @@ export const AlarmsScreen: React.FC = () => {
 
     const isAlarmViewActive = isFocused && activeTab === 'alarms';
 
-    console.log('🎯 Alarm fired:', alarm.title);
+    console.log('🎯 Alarm fired:', alarm.title, 'at', new Date().toISOString());
     setActiveAlarmId(alarm.id);
 
-    // Use ReliableAlarmService to ring alarm
-    reliableAlarmService.ringAlarm(alarm.id, alarm.title);
+    try {
+      // Use ReliableAlarmService to ring alarm (shows notification, plays sound, vibrates)
+      reliableAlarmService.ringAlarm(alarm.id, alarm.title);
+      console.log('✅ ReliableAlarmService.ringAlarm called for:', alarm.title);
+    } catch (error) {
+      console.error('❌ Error calling ReliableAlarmService.ringAlarm:', error);
+    }
     
-    // Also play sound locally (backup)
-    soundManager.playAlarmSound();
+    // Also play sound locally (ensures immediate ringing even if ReliableAlarmService is slow)
+    try {
+      soundManager.playAlarmSound();
+      console.log('✅ Local sound manager playing alarm');
+    } catch (error) {
+      console.error('❌ Error playing local sound:', error);
+    }
+    
+    // Start vibration if not already started by ReliableAlarmService
+    try {
+      if (Platform.OS === 'android') {
+        Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
+        console.log('✅ Vibration started');
+      }
+    } catch (error) {
+      console.error('❌ Error starting vibration:', error);
+    }
 
     if (!isAlarmViewActive) {
       setPendingAlarm(alarm);
     }
   }, [activeAlarmId, isStopping, isFocused, activeTab]);
+
+  // Update ref when handleAlarmFired changes
+  useEffect(() => {
+    handleAlarmFiredRef.current = handleAlarmFired;
+  }, [handleAlarmFired]);
 
   // Handle timer completion - simplified to prevent duplicates
   const handleTimerCompletion = async (timer: Timer) => {
