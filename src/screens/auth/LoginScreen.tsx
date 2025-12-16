@@ -267,10 +267,14 @@ export const LoginScreen: React.FC = () => {
 
   // Debug logging
 
+
   // const [email, setEmail] = useState('test@example.com');
   // const [password, setPassword] = useState('password123');
-  const [email, setEmail] = useState('test@gmail.com');
-  const [password, setPassword] = useState('test@123');
+  // const [email, setEmail] = useState('test@gmail.com');
+  // const [password, setPassword] = useState('test@123');
+
+  const [email, setEmail] = useState('sandysawy@gmail.com');
+  const [password, setPassword] = useState('12345678');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);

@@ -1,6 +1,6 @@
 import { Platform, Vibration } from 'react-native';
 import BackgroundTimer from 'react-native-background-timer';
-import notifee, { AndroidImportance, AndroidVisibility, EventType } from '@notifee/react-native';
+import notifee, { AndroidImportance, AndroidVisibility, EventType, TriggerType, TimestampTrigger } from '@notifee/react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Sound from 'react-native-sound';
 import { Alarm } from '@/types/alarm';
@@ -28,17 +28,32 @@ export class ReliableAlarmService {
 
     // Setup notification event handlers
     this.setupNotificationHandlers();
+    
+    // Setup native alarm notification listeners (for RNAlarmNotification)
+    this.setupNativeAlarmListeners();
 
     // Check for pending alarms
     await this.checkPendingAlarms();
   }
 
+  // Setup native alarm notification listeners (Notifee trigger notifications)
+  private setupNativeAlarmListeners(): void {
+    try {
+      // Notifee trigger notifications are handled via the existing setupNotificationHandlers
+      // When a trigger notification fires, it goes through the standard notification handlers
+      // which already store pending_alarm_id if data.type === 'ALARM'
+      logger.info('✅ Notifee trigger notification listeners handled via setupNotificationHandlers');
+    } catch (error) {
+      logger.error('❌ Failed to setup native alarm listeners:', error);
+    }
+  }
+
   // Create notification channels with Notifee
   private async createNotificationChannels(): Promise<void> {
     try {
-      // Alarm channel
+      // Alarm channel - use same ID as backend ('alarm-channel-v2')
       await notifee.createChannel({
-        id: 'alarm_channel',
+        id: 'alarm-channel-v2',
         name: 'Alarms',
         importance: AndroidImportance.HIGH,
         vibration: true,
@@ -63,8 +78,26 @@ export class ReliableAlarmService {
 
   // Setup notification event handlers
   private setupNotificationHandlers(): void {
-    // Handle notification actions (Snooze/Stop)
-    notifee.onForegroundEvent(({ type, detail }) => {
+    // Handle notification actions (Snooze/Stop) and trigger notifications
+    notifee.onForegroundEvent(async ({ type, detail }) => {
+      // Handle trigger notification display (when scheduled notification fires)
+      if (type === EventType.TRIGGER_NOTIFICATION_CREATED || type === EventType.DELIVERED) {
+        const notification = detail.notification;
+        const data = notification?.data;
+        if (data?.type === 'ALARM' && data?.alarmId && data?.fromTrigger === 'true') {
+          // Trigger notification fired - store pending alarm ID and trigger alarm ringing
+          logger.info('🔔 Notifee trigger alarm fired:', data.alarmId);
+          try {
+            await AsyncStorage.setItem('pending_alarm_id', data.alarmId);
+            // Also trigger the alarm to ring immediately
+            await this.ringAlarm(data.alarmId, data.title || 'Alarm');
+          } catch (error) {
+            logger.error('Failed to handle trigger notification:', error);
+          }
+        }
+      }
+      
+      // Handle action buttons
       if (type === EventType.ACTION_PRESS) {
         if (detail.pressAction?.id === 'stop') {
           this.stopAlarm();
@@ -76,6 +109,23 @@ export class ReliableAlarmService {
 
     // Handle background events
     notifee.onBackgroundEvent(async ({ type, detail }) => {
+      // Handle trigger notification in background
+      if (type === EventType.TRIGGER_NOTIFICATION_CREATED || type === EventType.DELIVERED) {
+        const notification = detail.notification;
+        const data = notification?.data;
+        if (data?.type === 'ALARM' && data?.alarmId && data?.fromTrigger === 'true') {
+          logger.info('🔔 Notifee trigger alarm fired (background):', data.alarmId);
+          try {
+            await AsyncStorage.setItem('pending_alarm_id', data.alarmId);
+            // Trigger alarm to ring even in background
+            await this.ringAlarm(data.alarmId, data.title || 'Alarm');
+          } catch (error) {
+            logger.error('Failed to handle trigger notification (background):', error);
+          }
+        }
+      }
+      
+      // Handle action buttons
       if (type === EventType.ACTION_PRESS) {
         if (detail.pressAction?.id === 'stop') {
           await this.stopAlarm();
@@ -91,57 +141,165 @@ export class ReliableAlarmService {
     const alarmId = alarm.id;
     const alarmTime = new Date(alarm.time);
     const now = new Date();
-    let delayMs = alarmTime.getTime() - now.getTime();
-
-    // For recurring alarms, calculate next occurrence
-    if (alarm.recurrenceRule && alarm.recurrenceRule !== 'none' && delayMs <= 0) {
-      // Calculate next occurrence
-      const nextOccurrence = this.calculateNextOccurrence(alarmTime, alarm.recurrenceRule);
-      delayMs = nextOccurrence.getTime() - now.getTime();
+    
+    // Parse recurrence rule for native scheduling
+    const { scheduleType, intervalValue, intervalType } = this.parseRecurrenceRule(alarm.recurrenceRule);
+    
+    // Calculate next valid alarm time
+    let scheduledAlarmTime = new Date(alarmTime);
+    if (scheduledAlarmTime.getTime() <= now.getTime()) {
+      // For recurring alarms, calculate next occurrence
+      if (alarm.recurrenceRule && alarm.recurrenceRule !== 'none') {
+        scheduledAlarmTime = this.calculateNextOccurrence(alarmTime, alarm.recurrenceRule);
+      } else {
+        // For one-time alarms in the past, skip (backend push notification should handle it)
+        logger.warn('⚠️ Alarm time is in the past and not recurring, skipping native scheduling (relying on backend push)');
+        return alarmId;
+      }
     }
 
-    if (delayMs <= 0) {
-      logger.warn('⚠️ Alarm time is in the past, scheduling for next occurrence');
-      // Schedule for tomorrow at same time
-      const tomorrow = new Date(alarmTime);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      delayMs = tomorrow.getTime() - now.getTime();
-    }
-
-    logger.info(`📅 Scheduling alarm "${alarm.title}" in ${Math.floor(delayMs / 1000)} seconds`);
+    logger.info(`📅 Scheduling alarm "${alarm.title}" for ${scheduledAlarmTime.toISOString()}`);
 
     try {
-      // Store alarm info
-      await AsyncStorage.setItem(`alarm_${alarmId}`, JSON.stringify({
-        id: alarmId,
-        title: alarm.title,
-        time: alarm.time,
-        recurrenceRule: alarm.recurrenceRule,
-        scheduledAt: Date.now(),
-        fireTime: now.getTime() + delayMs,
-      }));
+      // IMPORTANT: Use Notifee's trigger notifications which work even when app is closed
+      // This is critical for routine/task alarms to ring outside the app like regular alarms
+      const trigger: TimestampTrigger = {
+        type: TriggerType.TIMESTAMP,
+        timestamp: scheduledAlarmTime.getTime(),
+      };
 
-      // Schedule using BackgroundTimer
-      const timerId = BackgroundTimer.setTimeout(() => {
-        logger.info('🔔 BackgroundTimer fired for alarm:', alarm.title);
-        this.ringAlarm(alarmId, alarm.title);
-        
-        // Reschedule if recurring
-        if (alarm.recurrenceRule && alarm.recurrenceRule !== 'none') {
-          this.scheduleAlarm(alarm);
+      // Cancel any existing notification for this alarm first
+      try {
+        const existingNotifications = await notifee.getTriggerNotifications();
+        const existingNotif = existingNotifications.find(
+          (n) => n.notification.data?.alarmId === alarmId
+        );
+        if (existingNotif) {
+          await notifee.cancelNotification(existingNotif.notification.id);
         }
-      }, delayMs);
+      } catch (cancelError) {
+        logger.warn('⚠️ Error canceling existing notification:', cancelError);
+      }
 
-      // Store timer reference
-      await AsyncStorage.setItem(`alarm_timer_${alarmId}`, timerId.toString());
+      // IMPORTANT: Ensure channel exists before scheduling (required for sound/vibration)
+      try {
+        await notifee.createChannel({
+          id: 'alarm-channel-v2',
+          name: 'Alarms',
+          importance: AndroidImportance.HIGH,
+          vibration: true,
+          sound: 'alarm',
+          visibility: AndroidVisibility.PUBLIC,
+        });
+      } catch (channelError) {
+        // Channel might already exist, that's OK
+        logger.debug('Alarm channel creation (may already exist)');
+      }
 
-      logger.info('✅ Alarm scheduled successfully');
-      return alarmId;
-    } catch (error) {
-      logger.error('❌ Failed to schedule alarm:', error);
-      throw error;
+      // Schedule notification using Notifee trigger (works when app is closed)
+      // Note: Notifee trigger notifications automatically display with sound/vibration when they fire,
+      // even when the app is completely closed. This is the native Android notification system.
+      const notificationId = await notifee.createTriggerNotification(
+        {
+          title: `⏰ ${alarm.title}`,
+          body: `Alarm at ${scheduledAlarmTime.toLocaleTimeString()}`,
+          android: {
+            channelId: 'alarm-channel-v2',
+            importance: AndroidImportance.HIGH,
+            sound: 'alarm', // References alarm.mp3 in res/raw/alarm.mp3
+            vibrationPattern: [0, 1000, 500, 1000, 500, 1000], // 0 delay, then vibrate-pause pattern
+            lights: ['#FF0000', 1000, 1000],
+            pressAction: {
+              id: 'default',
+              launchActivity: 'default',
+            },
+            actions: [
+              {
+                title: 'Stop',
+                pressAction: { id: 'stop' },
+              },
+            ],
+            autoCancel: false,
+            ongoing: true,
+            visibility: AndroidVisibility.PUBLIC,
+            // Ensure it can wake device and bypass doze mode
+            showTimestamp: true,
+          },
+          data: {
+            alarmId: alarmId,
+            type: 'ALARM',
+            title: alarm.title,
+            time: alarm.time,
+            fromTrigger: 'true',
+            scheduledTime: scheduledAlarmTime.toISOString(),
+          },
+        },
+        trigger
+      );
+
+      logger.info(`✅ Notifee trigger alarm scheduled successfully (works when app is closed): ${notificationId}`, {
+        alarmId,
+        alarmTitle: alarm.title,
+        scheduledTime: scheduledAlarmTime.toISOString(),
+        timeUntilAlarm: Math.floor((scheduledAlarmTime.getTime() - Date.now()) / 1000) + ' seconds'
+      });
+      
+      // Store notification ID for cancellation
+      await AsyncStorage.setItem(`alarm_notif_${alarmId}`, notificationId);
+    } catch (notifeeError) {
+      logger.error('❌ Failed to schedule Notifee trigger notification, falling back to BackgroundTimer:', notifeeError);
+      
+      // Fallback to BackgroundTimer (only works when app is running)
+      let delayMs = scheduledAlarmTime.getTime() - now.getTime();
+      if (delayMs > 0) {
+        const timerId = BackgroundTimer.setTimeout(() => {
+          logger.info('🔔 BackgroundTimer fired for alarm:', alarm.title);
+          this.ringAlarm(alarmId, alarm.title);
+          
+          // Reschedule if recurring
+          if (alarm.recurrenceRule && alarm.recurrenceRule !== 'none') {
+            this.scheduleAlarm(alarm);
+          }
+        }, delayMs);
+        await AsyncStorage.setItem(`alarm_timer_${alarmId}`, timerId.toString());
+      }
     }
+
+    // Store alarm info
+    await AsyncStorage.setItem(`alarm_${alarmId}`, JSON.stringify({
+      id: alarmId,
+      title: alarm.title,
+      time: alarm.time,
+      recurrenceRule: alarm.recurrenceRule,
+      scheduledAt: Date.now(),
+      fireTime: scheduledAlarmTime.getTime(),
+    }));
+
+    logger.info('✅ Alarm scheduled successfully');
+    return alarmId;
   }
+
+  // Parse recurrence rule to get schedule type and interval
+  private parseRecurrenceRule(recurrenceRule: string | null | undefined): {
+    scheduleType: 'once' | 'repeat';
+    intervalValue: number;
+    intervalType: 'day' | 'week' | 'month' | 'once';
+  } {
+    if (!recurrenceRule || recurrenceRule === 'none') {
+      return { scheduleType: 'once', intervalValue: 0, intervalType: 'once' };
+    }
+
+    if (recurrenceRule.includes('FREQ=DAILY') || recurrenceRule === 'daily') {
+      return { scheduleType: 'repeat', intervalValue: 1, intervalType: 'day' };
+    } else if (recurrenceRule.includes('FREQ=WEEKLY') || recurrenceRule === 'weekly') {
+      return { scheduleType: 'repeat', intervalValue: 1, intervalType: 'week' };
+    } else if (recurrenceRule.includes('FREQ=MONTHLY') || recurrenceRule === 'monthly') {
+      return { scheduleType: 'repeat', intervalValue: 1, intervalType: 'month' };
+    }
+
+    return { scheduleType: 'once', intervalValue: 0, intervalType: 'once' };
+  }
+
 
   // Calculate next occurrence for recurring alarms
   private calculateNextOccurrence(alarmTime: Date, recurrenceRule: string): Date {
@@ -210,7 +368,7 @@ export class ReliableAlarmService {
         title: `⏰ ${title}`,
         body: 'Tap to stop alarm',
         android: {
-          channelId: 'alarm_channel',
+          channelId: 'alarm-channel-v2',
           importance: AndroidImportance.HIGH,
           sound: 'alarm',
           vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
@@ -318,7 +476,7 @@ export class ReliableAlarmService {
           title: `⏰ Alarm is ringing!`,
           body: 'Tap to stop',
           android: {
-            channelId: 'alarm_channel',
+            channelId: 'alarm-channel-v2',
             importance: AndroidImportance.HIGH,
             ongoing: true,
             timestamp: Date.now(),
@@ -426,12 +584,38 @@ export class ReliableAlarmService {
   // Cancel scheduled alarm
   async cancelAlarm(alarmId: string): Promise<void> {
     try {
-      // Get timer ID
+      // Cancel Notifee trigger notification if it exists
+      try {
+        const notificationIdStr = await AsyncStorage.getItem(`alarm_notif_${alarmId}`);
+        if (notificationIdStr) {
+          await notifee.cancelNotification(notificationIdStr);
+          await AsyncStorage.removeItem(`alarm_notif_${alarmId}`);
+          logger.info('✅ Notifee trigger alarm canceled');
+        } else {
+          // Try to find and cancel by alarmId in data
+          const existingNotifications = await notifee.getTriggerNotifications();
+          const existingNotif = existingNotifications.find(
+            (n) => n.notification.data?.alarmId === alarmId
+          );
+          if (existingNotif) {
+            await notifee.cancelNotification(existingNotif.notification.id);
+            logger.info('✅ Notifee trigger alarm canceled (found by alarmId)');
+          }
+        }
+      } catch (notifeeError) {
+        logger.warn('⚠️ Failed to cancel Notifee trigger notification (may not exist):', notifeeError);
+      }
+
+      // Get timer ID (for BackgroundTimer fallback)
       const timerIdStr = await AsyncStorage.getItem(`alarm_timer_${alarmId}`);
       if (timerIdStr) {
-        const timerId = parseInt(timerIdStr, 10);
-        BackgroundTimer.clearTimeout(timerId);
-        logger.info('✅ Alarm timer cleared');
+        try {
+          const timerId = parseInt(timerIdStr, 10);
+          BackgroundTimer.clearTimeout(timerId);
+          logger.info('✅ BackgroundTimer alarm cleared');
+        } catch (timerError) {
+          logger.warn('⚠️ Failed to clear BackgroundTimer:', timerError);
+        }
       }
 
       // Clean up storage

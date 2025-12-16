@@ -66,35 +66,55 @@ export class HeadlessTaskHandler {
         timerId,
       });
 
-      if (notificationType === 'ALARM_TRIGGER' || notificationType === 'ALARM_HEADLESS' || notificationType === 'ALARM_IMMEDIATE') {
-        // Store alarm ID for when app opens
-        if (alarmId) {
-          await AsyncStorage.setItem('pending_alarm_id', alarmId);
-          logger.info('Stored pending alarm ID:', alarmId);
+      // Handle alarm types AND task/routine reminders as alarms (so they ring)
+      if (notificationType === 'ALARM_TRIGGER' || 
+          notificationType === 'ALARM_HEADLESS' || 
+          notificationType === 'ALARM_IMMEDIATE' ||
+          notificationType === 'TASK_REMINDER' ||
+          notificationType === 'DUE_DATE_REMINDER' ||
+          notificationType === 'ROUTINE_REMINDER') {
+        // Get alarm ID from various sources (for task/routine reminders, use targetId)
+        const alarmIdToUse = alarmId || payload.targetId || payload.taskId || payload.routineId;
+        
+        // Store alarm/reminder ID for when app opens
+        if (alarmIdToUse) {
+          await AsyncStorage.setItem('pending_alarm_id', alarmIdToUse);
+          logger.info('Stored pending alarm ID:', alarmIdToUse);
         }
 
-        // Trigger immediate notification with sound/vibration
-        PushNotification.localNotification({
-          channelId: 'alarm-channel-v2',
-          title: `⏰ ${payload.title || 'Alarm'}`,
-          message: payload.body || payload.message || 'Time to wake up!',
-          playSound: true,
-          soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
-          vibrate: true,
-          vibration: [0, 1000, 500, 1000, 500, 1000] as any, // TypeScript types don't support arrays, but Android does
-          priority: 'max',
-          importance: 'max' as any, // MAX importance
-          allowWhileIdle: true,
-          ongoing: true,
-          autoCancel: false,
-          userInfo: {
-            alarmId,
-            type: 'ALARM_HEADLESS',
-            title: payload.title,
-          },
-        });
+        // IMPORTANT: Trigger ReliableAlarmService to ring the alarm immediately
+        // This plays sound, vibrates, and shows notification
+        try {
+          const { reliableAlarmService } = await import('@/services/ReliableAlarmService');
+          const alarmTitle = payload.title || 'Alarm';
+          await reliableAlarmService.ringAlarm(alarmIdToUse, alarmTitle);
+          logger.info('✅ Headless alarm ringing triggered immediately:', alarmIdToUse);
+        } catch (ringError) {
+          logger.error('❌ Failed to ring alarm in headless task, falling back to notification:', ringError);
+          
+          // Fallback: Trigger immediate notification with sound/vibration
+          PushNotification.localNotification({
+            channelId: 'alarm-channel-v2',
+            title: `⏰ ${payload.title || 'Alarm'}`,
+            message: payload.body || payload.message || 'Time to wake up!',
+            playSound: true,
+            soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
+            vibrate: true,
+            vibration: [0, 1000, 500, 1000, 500, 1000] as any, // TypeScript types don't support arrays, but Android does
+            priority: 'max',
+            importance: 'max' as any, // MAX importance
+            allowWhileIdle: true,
+            ongoing: true,
+            autoCancel: false,
+            userInfo: {
+              alarmId: alarmIdToUse,
+              type: notificationType || 'ALARM_HEADLESS',
+              title: payload.title,
+            },
+          });
 
-        logger.info('Headless alarm notification triggered:', alarmId);
+          logger.info('Headless alarm notification triggered (fallback):', alarmIdToUse);
+        }
       } else if (notificationType === 'TIMER_COMPLETION' || notificationType === 'TIMER_IMMEDIATE') {
         // Store timer ID for when app opens
         if (timerId) {

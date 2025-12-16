@@ -146,9 +146,28 @@ const RoutinesScreen: React.FC = () => {
       });
       
       setRoutines(sortedRoutines);
-    } catch (error) {
+    } catch (error: any) {
+      // Handle network/database errors gracefully
+      const errorMessage = error?.message || String(error);
+      const isNetworkError = errorMessage.includes('Network') || 
+                            errorMessage.includes('connection') ||
+                            errorMessage.includes('ECONNREFUSED') ||
+                            errorMessage.includes('timeout') ||
+                            errorMessage.includes('fetch');
+      const isDatabaseError = errorMessage.includes('database') || 
+                             errorMessage.includes('Prisma') ||
+                             errorMessage.includes('P1001');
+      
       console.error('Error loading routines:', error);
-      Alert.alert(t('common.error'), t('routines.loadError'));
+      
+      // Only show alert for non-network/database errors (to avoid spam when DB is down)
+      // For network/database errors, silently fail and keep existing routines
+      if (!isNetworkError && !isDatabaseError) {
+        Alert.alert(t('common.error'), t('routines.loadError'));
+      } else {
+        // Silently handle network/database errors - keep existing routines and show in console only
+        console.warn('⚠️ Could not load routines (network/database issue). Using cached data.');
+      }
     } finally {
       setLoading(false);
       loadingRef.current = false;
