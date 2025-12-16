@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, RefreshControl, TouchableOpacity, TextInput, Animated, ScrollView } from 'react-native';
-import { Text, FAB, IconButton, Chip, Card,  } from 'react-native-paper';
+import { Text, FAB, IconButton, Chip, Card, Title, Paragraph, Button } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useFocusEffect } from '@react-navigation/native';
 
 let DraggableFlatList: any = null;
 
@@ -57,6 +60,9 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
     updateTaskOrder,
     setCurrentTask,
   } = useTaskStore();
+  
+  // Track if we've already applied the route filter to prevent loops
+  const routeFilterAppliedRef = React.useRef<string | null>(null);
 
 
   // const [refreshing, setRefreshing] = useState(false);
@@ -67,24 +73,126 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   // const [dragging, setDragging] = useState(false);
 
   const [useFallback, setUseFallback] = useState(true); // Start with fallback
+  const [pendingAlarmTaskId, setPendingAlarmTaskId] = useState<string | null>(null);
+  const [pendingAlarmInfo, setPendingAlarmInfo] = useState<{ title: string; targetId?: string } | null>(null);
 
+  // Check for pending task alarm - don't include in useEffect deps to prevent loops
+  const checkPendingAlarm = useCallback(async () => {
+    try {
+      // Check both pending_task_routine_alarm and pending_alarm_id
+      const pendingAlarmData = await AsyncStorage.getItem('pending_task_routine_alarm');
+      const pendingAlarmId = await AsyncStorage.getItem('pending_alarm_id');
+      
+      if (pendingAlarmData) {
+        const alarmInfo = JSON.parse(pendingAlarmData);
+        // Check if this is a task reminder
+        if (alarmInfo.targetType === 'TASK' || alarmInfo.notificationType === 'TASK_REMINDER' || alarmInfo.notificationType === 'DUE_DATE_REMINDER') {
+          const taskId = alarmInfo.targetId;
+          if (taskId) {
+            setPendingAlarmTaskId(taskId);
+            setPendingAlarmInfo({
+              title: alarmInfo.title || 'Task Reminder',
+              targetId: alarmInfo.targetId,
+            });
+          }
+        }
+      } else if (pendingAlarmId) {
+        // Fallback: Try to find task by matching alarm ID
+        // Look for task that might have this alarm ID
+        // This is a fallback if pending_task_routine_alarm is missing
+        const taskWithAlarm = filteredTasks.find(t => {
+          // If we have the alarm ID, we could match it, but for now just show first task as fallback
+          return true;
+        });
+        
+        if (taskWithAlarm && filteredTasks.length > 0) {
+          // Try to extract task ID from alarm title if it contains "Task:"
+          const alarmTitleMatch = filteredTasks.find(t => 
+            pendingAlarmId && t.id === pendingAlarmId
+          );
+          if (alarmTitleMatch) {
+            setPendingAlarmTaskId(alarmTitleMatch.id);
+            setPendingAlarmInfo({
+              title: 'Task Reminder',
+              targetId: alarmTitleMatch.id,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking pending alarm:', error);
+    }
+  }, [filteredTasks]);
 
+  // Clear pending alarm indicator
+  const clearPendingAlarm = useCallback(async () => {
+    await AsyncStorage.removeItem('pending_task_routine_alarm').catch(() => {});
+    // Also clear pending_alarm_id if it exists (to fully clear the alarm state)
+    await AsyncStorage.removeItem('pending_alarm_id').catch(() => {});
+    setPendingAlarmTaskId(null);
+    setPendingAlarmInfo(null);
+  }, []);
+
+  // Track if we're currently fetching to prevent infinite loops
+  const isFetchingRef = useRef(false);
+  
+  // Fetch tasks when screen comes into focus (but prevent concurrent fetches)
+  useFocusEffect(
+    useCallback(() => {
+      if (!isFetchingRef.current) {
+        isFetchingRef.current = true;
+        fetchTasks()
+          .then(() => {
+            // Check pending alarm after tasks are loaded
+            checkPendingAlarm();
+            isFetchingRef.current = false;
+          })
+          .catch(() => {
+            isFetchingRef.current = false; // Reset on error to allow retry
+          });
+      }
+      // Cleanup: reset flag when screen loses focus
+      return () => {
+        isFetchingRef.current = false;
+      };
+    }, [fetchTasks])
+  );
+  
+  // Check pending alarm when filteredTasks change (but don't trigger fetch)
+  // Use a ref to track if we've already checked to prevent loops
+  const prevTasksLengthRef = useRef(0);
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    const currentLength = filteredTasks.length;
+    if (!isFetchingRef.current && currentLength > 0 && currentLength !== prevTasksLengthRef.current) {
+      prevTasksLengthRef.current = currentLength;
+      checkPendingAlarm();
+    }
+  }, [filteredTasks.length]); // Only depend on length, not the array itself
 
   // Set default sort to dueDate from current time on initial load
+  const sortInitializedRef = useRef(false);
   useEffect(() => {
-    if (sortBy === 'order') {
+    if (!sortInitializedRef.current && sortBy === 'order') {
+      sortInitializedRef.current = true;
       setSortBy('dueDate');
       setSortOrder('asc');
     }
-  }, []); // Only run once on mount
+  }, [sortBy, setSortBy, setSortOrder]);
 
-  // Handle route parameters for filtering
+  // Handle route parameters for filtering - use ref to prevent infinite loops
   useEffect(() => {
-    if (route?.params) {
-      const { filter: filterParam, date } = route.params;
+    if (!route?.params) {
+      // Clear filter tracking when no params
+      routeFilterAppliedRef.current = null;
+      return;
+    }
+    
+    const { filter: filterParam, date } = route.params;
+    const filterKey = filterParam === 'urgent' ? `urgent` : filterParam === 'day' && date ? `day-${date}` : null;
+    
+    // Only apply filter if we haven't already applied this exact filter
+    if (filterKey && routeFilterAppliedRef.current !== filterKey) {
+      routeFilterAppliedRef.current = filterKey;
       
       if (filterParam === 'urgent') {
         setFilter({ priority: [TaskPriority.URGENT] });
@@ -100,14 +208,20 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
           }
         });
       }
-    } else {
-      // Clear filters when navigating from tab bar (no specific parameters)
-      clearFilters();
     }
-  }, [route?.params, setFilter, clearFilters]);
+  }, [route?.params?.filter, route?.params?.date, setFilter]); // Only depend on the actual values
 
   const handleRefresh = async () => {
-    await refreshTasks();
+    if (isFetchingRef.current) return; // Prevent concurrent refreshes
+    isFetchingRef.current = true;
+    try {
+      await refreshTasks();
+      checkPendingAlarm();
+      isFetchingRef.current = false;
+    } catch (error) {
+      isFetchingRef.current = false; // Reset on error to allow retry
+      throw error;
+    }
   };
 
   const handleCreateTask = () => {
@@ -251,6 +365,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
 
   // SIMPLIFIED TASK RENDER - More reliable
   const renderTask = ({ item: task, drag, isActive }: { item: Task; drag?: () => void; isActive?: boolean }) => {
+    const isAlarmTask = task.id === pendingAlarmTaskId; // Highlight if this is the alarm task
     return (
       <Animated.View
         style={[
@@ -258,7 +373,15 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
           isActive && styles.draggingCard,
         ]}
       >
-        <Card style={[styles.taskCard, { backgroundColor: theme.colors.card }]}>
+        <Card style={[
+          styles.taskCard, 
+          { backgroundColor: theme.colors.card },
+          isAlarmTask && {
+            borderWidth: 3,
+            borderColor: theme.colors.error,
+            backgroundColor: theme.colors.error + '10',
+          }
+        ]}>
           <Card.Content style={styles.taskContent}>
             {/* Main Content */}
             <View style={styles.mainContentRow}>
@@ -584,6 +707,47 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
 
       {/* Quick Filters */}
       {filterVisible && renderQuickFilters()}
+
+      {/* Show banner at top if there's a pending task alarm */}
+      {pendingAlarmTaskId && pendingAlarmInfo && (() => {
+        const alarmTask = filteredTasks.find(t => t.id === pendingAlarmTaskId);
+        return alarmTask ? (
+          <Card 
+            style={[
+              styles.alarmBanner,
+              { 
+                backgroundColor: theme.colors.error + '20',
+                borderLeftWidth: 4,
+                borderLeftColor: theme.colors.error,
+                marginHorizontal: 16,
+                marginTop: 8,
+              }
+            ]}
+          >
+            <Card.Content>
+              <View style={styles.alarmBannerContent}>
+                <View style={styles.alarmBannerLeft}>
+                  <Icon name="bell-ring" size={24} color={theme.colors.error} />
+                  <View style={styles.alarmBannerText}>
+                    <Title style={[styles.alarmBannerTitle, { color: theme.colors.error }]}>
+                      ⏰ {pendingAlarmInfo.title || alarmTask.title}
+                    </Title>
+                    <Paragraph style={styles.alarmBannerMessage}>
+                      This task needs your attention!
+                    </Paragraph>
+                  </View>
+                </View>
+                <IconButton
+                  icon="close"
+                  size={20}
+                  iconColor={theme.colors.text}
+                  onPress={clearPendingAlarm}
+                />
+              </View>
+            </Card.Content>
+          </Card>
+        ) : null;
+      })()}
 
       {/* Sort Menu */}
       {sortMenuVisible && (
@@ -958,5 +1122,33 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginRight: 4,
+  },
+  alarmBanner: {
+    elevation: 4,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  alarmBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  alarmBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  alarmBannerText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  alarmBannerTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  alarmBannerMessage: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
   },
 });

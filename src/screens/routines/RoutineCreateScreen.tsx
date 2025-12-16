@@ -287,7 +287,7 @@ const RoutineCreateScreen: React.FC = () => {
                 style={[styles.input, styles.reminderInput]}
                 outlineColor={theme.colors.outline}
                 activeOutlineColor={theme.colors.primary}
-                placeholder={formData.frequency === 'DAILY' ? '2' : '1'}
+                // placeholder={formData.frequency === 'DAILY' ? '2' : '1'}
               />
               {formData.frequency === 'DAILY' ? (
                 <Chip
