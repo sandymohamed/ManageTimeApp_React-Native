@@ -1471,10 +1471,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     flexWrap: 'wrap',
   },
   statusChip: {
-    height: 28,
+    height: 32,
   },
   statusChipText: {
     fontSize: 12,
+    lineHeight: 16,
+    
   },
   durationText: {
     color: theme.colors.onSurfaceVariant,

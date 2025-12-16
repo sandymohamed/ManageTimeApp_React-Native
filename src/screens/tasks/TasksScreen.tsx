@@ -63,6 +63,8 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   
   // Track if we've already applied the route filter to prevent loops
   const routeFilterAppliedRef = React.useRef<string | null>(null);
+  // Track previous filter to detect changes
+  const previousFilterRef = React.useRef<string | null>(null);
 
 
   // const [refreshing, setRefreshing] = useState(false);
@@ -179,37 +181,54 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
     }
   }, [sortBy, setSortBy, setSortOrder]);
 
-  // Handle route parameters for filtering - use ref to prevent infinite loops
-  useEffect(() => {
-    if (!route?.params) {
-      // Clear filter tracking when no params
-      routeFilterAppliedRef.current = null;
-      return;
-    }
-    
-    const { filter: filterParam, date } = route.params;
-    const filterKey = filterParam === 'urgent' ? `urgent` : filterParam === 'day' && date ? `day-${date}` : null;
-    
-    // Only apply filter if we haven't already applied this exact filter
-    if (filterKey && routeFilterAppliedRef.current !== filterKey) {
-      routeFilterAppliedRef.current = filterKey;
+  // Handle route parameters for filtering - check when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const currentParams = route?.params || {};
+      const currentFilter = currentParams.filter;
+      const currentDate = currentParams.date;
+      const hasFilterParams = currentFilter || currentDate;
+      const currentFilterKey = currentFilter === 'urgent' ? `urgent` : currentFilter === 'day' && currentDate ? `day-${currentDate}` : null;
       
-      if (filterParam === 'urgent') {
-        setFilter({ priority: [TaskPriority.URGENT] });
-      } else if (filterParam === 'day' && date) {
-        const filterDate = new Date(date);
-        const startOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate());
-        const endOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate(), 23, 59, 59);
-        
-        setFilter({ 
-          dueDate: {
-            from: startOfDay,
-            to: endOfDay
+      // If no filter params exist, clear filters and route params
+      if (!hasFilterParams) {
+        // Clear filters if they were previously applied
+        if (routeFilterAppliedRef.current !== null) {
+          clearFilters();
+          routeFilterAppliedRef.current = null;
+          previousFilterRef.current = null;
+          // Clear route params explicitly to prevent them from persisting
+          try {
+            navigation.setParams({ filter: undefined, date: undefined });
+          } catch (e) {
+            // Navigation params might not be available, ignore error
           }
-        });
+        }
+        return;
       }
-    }
-  }, [route?.params?.filter, route?.params?.date, setFilter]); // Only depend on the actual values
+      
+      // If filter params exist, apply them (only if different from previous)
+      if (currentFilterKey && routeFilterAppliedRef.current !== currentFilterKey) {
+        routeFilterAppliedRef.current = currentFilterKey;
+        previousFilterRef.current = currentFilterKey;
+        
+        if (currentFilter === 'urgent') {
+          setFilter({ priority: [TaskPriority.URGENT] });
+        } else if (currentFilter === 'day' && currentDate) {
+          const filterDate = new Date(currentDate);
+          const startOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate());
+          const endOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate(), 23, 59, 59);
+          
+          setFilter({ 
+            dueDate: {
+              from: startOfDay,
+              to: endOfDay
+            }
+          });
+        }
+      }
+    }, [route?.params?.filter, route?.params?.date, setFilter, clearFilters, navigation])
+  );
 
   const handleRefresh = async () => {
     if (isFetchingRef.current) return; // Prevent concurrent refreshes

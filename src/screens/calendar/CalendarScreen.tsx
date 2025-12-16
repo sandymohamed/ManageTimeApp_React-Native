@@ -767,33 +767,61 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                       {format(day, 'd')}
                     </Text>
 
-                    {/* Task indicators */}
-                    <View style={styles.taskIndicators}>
-                      {dayTasks.slice(0, 3).map((task) => (
-                        <TouchableOpacity
-                          key={task.id}
-                          onPress={() => handleTaskPress(task)}
-                          style={[
-                            styles.taskIndicator,
-                            { backgroundColor: getPriorityColor(task.priority) }
-                          ]}
-                        >
-                          <Text style={[styles.taskIndicatorText, { color: 'white' }]}>
-                            {task.title.charAt(0).toUpperCase()}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                      {dayTasks.length > 3 && (
-                        <TouchableOpacity
-                          style={[styles.moreTasksIndicator, { backgroundColor: theme.colors.surfaceVariant }]}
-                          onPress={() => setSelectedDate(day)}
-                        >
-                          <Text variant="bodySmall" style={[styles.moreTasksText, { color: theme.colors.text }]}>
-                            +{dayTasks.length - 3}
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                    {/* Task indicators - show one dot per priority color if more than 4 tasks */}
+                    {dayTasks.length > 0 && (() => {
+                      // Group tasks by priority color
+                      const tasksByPriority = new Map<string, Task[]>();
+                      dayTasks.forEach(task => {
+                        const color = getPriorityColor(task.priority);
+                        if (!tasksByPriority.has(color)) {
+                          tasksByPriority.set(color, []);
+                        }
+                        tasksByPriority.get(color)!.push(task);
+                      });
+                      
+                      // If more than 4 tasks, show only one dot per color
+                      // Otherwise show up to 4 individual task dots
+                      const shouldShowOnePerColor = dayTasks.length > 4;
+                      const uniqueColors = Array.from(tasksByPriority.keys());
+                      const totalCount = dayTasks.length;
+                      
+                      return (
+                        <View style={styles.taskIndicators}>
+                          {shouldShowOnePerColor ? (
+                            // Show one dot per color/type
+                            uniqueColors.map((color) => {
+                              const tasksOfThisColor = tasksByPriority.get(color)!;
+                              const firstTask = tasksOfThisColor[0];
+                              return (
+                                <View
+                                  key={color}
+                                  style={[
+                                    styles.taskDot,
+                                    { backgroundColor: color }
+                                  ]}
+                                />
+                              );
+                            })
+                          ) : (
+                            // Show individual dots (up to 4)
+                            dayTasks.slice(0, 4).map((task) => (
+                              <View
+                                key={task.id}
+                                style={[
+                                  styles.taskDot,
+                                  { backgroundColor: getPriorityColor(task.priority) }
+                                ]}
+                              />
+                            ))
+                          )}
+                          {totalCount > (shouldShowOnePerColor ? uniqueColors.length : 4) && (
+                            <Text variant="bodySmall" style={[styles.moreTasksText, { color: theme.colors.text, fontSize: 9 }]}>
+                              +{totalCount - (shouldShowOnePerColor ? uniqueColors.length : 4)}
+                            </Text>
+                          )}
+                        </View>
+                      );
+                    })()}
                     
                     {/* Reminder indicators */}
                     {(() => {
@@ -1486,16 +1514,24 @@ const createStyles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 2,
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
   },
   taskIndicator: {
     width: 6,
     height: 6,
     borderRadius: 3,
   },
+  taskDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
   moreTasksText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '500',
+    marginLeft: 2,
   },
   weekView: {
     marginBottom: 16,
