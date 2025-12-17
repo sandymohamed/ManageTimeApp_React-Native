@@ -90,8 +90,8 @@ android {
         applicationId "com.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 5
+        versionName "1.0.5"
         multiDexEnabled true
         missingDimensionStrategy 'react-native-camera', 'general'
         missingDimensionStrategy 'store', 'play'
@@ -103,17 +103,29 @@ android {
   signingConfigs {
         release {
             if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
-                storeFile file(MYAPP_UPLOAD_STORE_FILE)
-                storePassword MYAPP_UPLOAD_STORE_PASSWORD
-                keyAlias MYAPP_UPLOAD_KEY_ALIAS
-                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+                def keystoreFile = file(MYAPP_UPLOAD_STORE_FILE)
+                if (keystoreFile.exists()) {
+                    storeFile keystoreFile
+                    storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                    keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                    keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+                }
             }
         }
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            // Only use release signing config if keystore exists
+            if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                def keystoreFile = file(MYAPP_UPLOAD_STORE_FILE)
+                if (keystoreFile.exists()) {
+                    signingConfig signingConfigs.release
+                }
+            }
+            // If no keystore, build will use debug signing (for testing)
+            // For production, you must create a keystore and configure it
+            
             minifyEnabled enableProguardInReleaseBuilds
             shrinkResources enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
@@ -130,6 +142,14 @@ dependencies {
 
     implementation project(':react-native-sound')
 
+    // Firebase dependencies (required for react-native-push-notification)
+    // The google-services plugin automatically initializes Firebase, but we add this
+    // to ensure FirebaseApp class is available for explicit initialization if needed
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    implementation 'com.google.firebase:firebase-messaging'
+    // FirebaseApp class is provided by firebase-common (included transitively, but explicitly adding for clarity)
+    implementation 'com.google.firebase:firebase-common'
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
@@ -140,5 +160,18 @@ dependencies {
 configurations.all {
     exclude group: "com.android.support", module: "support-compat"
     exclude group: "com.android.support", module: "support-v4"
+}
+
+// Disable signing validation if keystore doesn't exist
+tasks.whenTaskAdded { task ->
+    if (task.name == 'validateSigningRelease') {
+        task.onlyIf {
+            if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+                def keystoreFile = file(MYAPP_UPLOAD_STORE_FILE)
+                return keystoreFile.exists()
+            }
+            return false
+        }
+    }
 }
 
