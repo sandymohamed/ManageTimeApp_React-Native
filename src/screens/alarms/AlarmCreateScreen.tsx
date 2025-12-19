@@ -500,7 +500,7 @@
 // });
 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Platform, Modal, TouchableWithoutFeedback, Keyboard, Alert } from 'react-native';
 import { Text, Button, Card, TextInput, IconButton, Chip } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
@@ -509,6 +509,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAlarmStore } from '@/store/alarmStore';
 import { CreateAlarmData } from '@/types/alarm';
 import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
+import { nativeAlarmBridge } from '@/services/NativeAlarmBridge';
 
 export const AlarmCreateScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -537,7 +538,22 @@ export const AlarmCreateScreen: React.FC = () => {
   const [timezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [recurrence, setRecurrence] = useState('none');
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [ringtoneUri, setRingtoneUri] = useState<string | null>(null);
+  const [ringtoneName, setRingtoneName] = useState<string>('Default Alarm');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Initialize default ringtone on mount
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      nativeAlarmBridge.getDefaultRingtoneUri().then((uri) => {
+        if (uri) {
+          setRingtoneUri(uri);
+        }
+      }).catch((error) => {
+        console.error('Failed to get default ringtone:', error);
+      });
+    }
+  }, []);
 
   const recurrenceOptions = [
     { value: 'none', label: t('alarms.recurrence.none') || 'None', icon: 'calendar-remove' },
@@ -564,6 +580,56 @@ export const AlarmCreateScreen: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handlePickRingtone = async () => {
+    if (Platform.OS !== 'android') {
+      Alert.alert('Info', 'Ringtone picker is only available on Android');
+      return;
+    }
+
+    console.log('🔔 Opening ringtone picker...');
+    try {
+      const uri = await nativeAlarmBridge.pickRingtone();
+      console.log('🔔 Ringtone picked, URI:', uri);
+      if (uri) {
+        setRingtoneUri(uri);
+        // Try to extract a better name from URI
+        let name = 'Custom Ringtone';
+        try {
+          if (uri.includes('content://')) {
+            // System ringtone - try to get name from URI
+            const uriParts = uri.split('/');
+            const lastPart = uriParts[uriParts.length - 1];
+            if (lastPart && lastPart !== 'default') {
+              name = lastPart.replace(/[_-]/g, ' ').replace(/\.(mp3|ogg|wav|m4a)$/i, '');
+              // Capitalize first letter
+              name = name.charAt(0).toUpperCase() + name.slice(1);
+            } else {
+              name = 'Default Alarm';
+            }
+          } else {
+            name = 'Custom Ringtone';
+          }
+        } catch (e) {
+          console.warn('Could not parse ringtone name:', e);
+          name = uri.includes('default') ? 'Default Alarm' : 'Custom Ringtone';
+        }
+        setRingtoneName(name);
+        console.log('✅ Ringtone set to:', name);
+      } else {
+        console.log('⚠️ No ringtone URI returned');
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to pick ringtone:', error);
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      if (errorMessage.includes('CANCELLED')) {
+        console.log('ℹ️ User cancelled ringtone picker');
+        // Don't show alert for cancellation
+      } else {
+        Alert.alert('Error', `Failed to pick ringtone: ${errorMessage}`);
+      }
+    }
+  };
+
   const handleCreateAlarm = async () => {
     if (!validateForm()) return;
 
@@ -574,6 +640,7 @@ export const AlarmCreateScreen: React.FC = () => {
         timezone,
         enabled: true,
         recurrenceRule: recurrence === 'none' ? undefined : recurrence,
+        toneUrl: ringtoneUri || undefined, // Store ringtone URI if selected
       };
 
       await createAlarm(alarmData);
@@ -740,6 +807,24 @@ export const AlarmCreateScreen: React.FC = () => {
                   <Text style={styles.errorText}>{errors.title}</Text>
                 )}
               </View>
+
+              {/* Ringtone Selection */}
+              {Platform.OS === 'android' && (
+                <View style={styles.section}>
+                  <Text variant="titleSmall" style={styles.sectionTitle}>
+                    {t('alarms.ringtone') || 'Alarm Sound'}
+                  </Text>
+                  <Button
+                    mode="outlined"
+                    onPress={handlePickRingtone}
+                    icon="music-note"
+                    style={styles.ringtoneButton}
+                    contentStyle={styles.ringtoneButtonContent}
+                  >
+                    {ringtoneName}
+                  </Button>
+                </View>
+              )}
 
               {/* Recurrence Selection */}
               <View style={styles.section}>
@@ -947,6 +1032,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   chip: {
     marginHorizontal: theme.spacing.xs,
     marginBottom: theme.spacing.sm,
+  },
+  ringtoneButton: {
+    marginTop: theme.spacing.sm,
+  },
+  ringtoneButtonContent: {
+    paddingVertical: theme.spacing.xs,
   },
   errorText: {
     color: theme.colors.error,

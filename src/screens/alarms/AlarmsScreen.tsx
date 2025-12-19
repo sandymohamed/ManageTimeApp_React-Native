@@ -22,6 +22,7 @@ import { Alarm, Timer } from '@/types/alarm';
 import { notificationService } from '@/services/notificationService';
 import { headlessTaskHandler } from '@/services/headlessTaskHandler';
 import { reliableAlarmService } from '@/services/ReliableAlarmService';
+import { nativeAlarmBridge } from '@/services/NativeAlarmBridge';
 import { validateAndCleanPendingState, clearTimerState, clearAlarmState } from '@/utils/alarmCleanup';
 
 // Navigation types
@@ -33,7 +34,7 @@ type NavigationProp = {
   navigate: (screen: keyof RootStackParamList) => void;
 };
 
-// Sound Manager
+// Sound Manager - Used for TIMERS only (alarms use native Android AlarmManager)
 class SoundManager {
   private sound: Sound | null = null;
   private isPlaying = false;
@@ -496,6 +497,38 @@ export const AlarmsScreen: React.FC = () => {
     fetchAlarms();
     fetchTimers();
 
+    // Listen for native alarm events (snooze/stop from notification buttons)
+    const { NativeEventEmitter } = require('react-native');
+    const { AlarmModule } = require('react-native').NativeModules;
+    const eventEmitter = AlarmModule ? new NativeEventEmitter(AlarmModule) : null;
+    
+    const snoozeSubscription = eventEmitter?.addListener('AlarmSnooze', async (event: { alarmId: string; action: string }) => {
+      console.log('🔔 AlarmSnooze event received in AlarmsScreen:', event.alarmId);
+      try {
+        // Stop the alarm immediately (should already be stopped by native, but ensure it)
+        await reliableAlarmService.stopAlarm();
+        
+        // Handle snooze via store
+        const { snoozeAlarm: snoozeAlarmFn } = useAlarmStore.getState();
+        await snoozeAlarmFn(event.alarmId, 5);
+        console.log('✅ Alarm snoozed via notification button');
+      } catch (error) {
+        console.error('❌ Failed to handle snooze event:', error);
+      }
+    });
+
+    const stopSubscription = eventEmitter?.addListener('AlarmStop', async (event: { alarmId: string; action: string }) => {
+      console.log('🔔 AlarmStop event received in AlarmsScreen:', event.alarmId);
+      try {
+        // Clear UI state
+        setActiveAlarmId(null);
+        setPendingAlarm(null);
+        console.log('✅ Alarm stop event handled - UI cleared');
+      } catch (error) {
+        console.error('❌ Failed to handle stop event:', error);
+      }
+    });
+
     // REMOVED: Alarm checking interval - now handled by GlobalAlarmEngine at app level
     // This ensures alarms ring regardless of which screen user is viewing
     
@@ -505,6 +538,10 @@ export const AlarmsScreen: React.FC = () => {
     }, 60000);
 
     return () => {
+      // Clean up event listeners
+      snoozeSubscription?.remove();
+      stopSubscription?.remove();
+      
       // REMOVED: clearInterval(alarmCheckInterval) - no longer needed, handled by GlobalAlarmEngine
       clearInterval(timeUpdateInterval);
       if (timerIntervalRef.current) {
@@ -515,6 +552,7 @@ export const AlarmsScreen: React.FC = () => {
         }
         timerIntervalRef.current = null;
       }
+      // Stop timer sounds on unmount (alarm sounds are handled by native service)
       soundManager.stopSound();
       alarmDeleteTimeoutsRef.current.forEach((timeout) => {
         clearTimeout(timeout);
@@ -562,8 +600,8 @@ export const AlarmsScreen: React.FC = () => {
       alarms.forEach(alarm => {
         if (alarm.enabled) {
           try {
-            // Schedule alarm with ReliableAlarmService (uses Notifee triggers for when app is closed)
-            // Note: This is a backup mechanism. Primary mechanism is backend push notifications
+            // Schedule alarm with native Android AlarmManager (works even when app is closed)
+            // This is the primary mechanism for reliable alarm ringing
             reliableAlarmService.scheduleAlarm(alarm).then(() => {
               console.log(`✅ Alarm scheduled via ReliableAlarmService: ${alarm.title}`, {
                 alarmId: alarm.id,
@@ -622,20 +660,26 @@ export const AlarmsScreen: React.FC = () => {
     setActiveAlarmId(null);
     setPendingAlarm(null);
     
-    // Stop sound/vibration IMMEDIATELY
-    soundManager.stopSound();
-    if (Platform.OS === 'android') {
-      Vibration.cancel();
+    // CRITICAL: Stop the native alarm service FIRST to stop sound/vibration
+    console.log('🛑 Stopping native alarm service...');
+    try {
+      await reliableAlarmService.stopAlarm();
+      console.log('✅ Native alarm service stopped');
+    } catch (error) {
+      console.error('❌ Error stopping native alarm service:', error);
+      // Continue with cleanup even if native stop fails
     }
-    
-    // Use ReliableAlarmService to stop alarm
-    await reliableAlarmService.stopAlarm();
     
     // Cancel the scheduled notification
     notificationService.cancelAlarm(alarmId);
     
-    // Also cancel via ReliableAlarmService
-    await reliableAlarmService.cancelAlarm(alarmId);
+    // Also cancel the scheduled alarm via ReliableAlarmService
+    try {
+      await reliableAlarmService.cancelAlarm(alarmId);
+      console.log('✅ Scheduled alarm cancelled');
+    } catch (error) {
+      console.error('❌ Error cancelling scheduled alarm:', error);
+    }
     
     // Clean up ALL AsyncStorage state for this alarm
     try {
@@ -705,31 +749,19 @@ export const AlarmsScreen: React.FC = () => {
     console.log('🎯 Alarm fired:', alarm.title, 'at', new Date().toISOString());
     setActiveAlarmId(alarm.id);
 
-    try {
-      // Use ReliableAlarmService to ring alarm (shows notification, plays sound, vibrates)
-      reliableAlarmService.ringAlarm(alarm.id, alarm.title);
-      console.log('✅ ReliableAlarmService.ringAlarm called for:', alarm.title);
-    } catch (error) {
-      console.error('❌ Error calling ReliableAlarmService.ringAlarm:', error);
-    }
-    
-    // Also play sound locally (ensures immediate ringing even if ReliableAlarmService is slow)
-    try {
-      soundManager.playAlarmSound();
-      console.log('✅ Local sound manager playing alarm');
-    } catch (error) {
-      console.error('❌ Error playing local sound:', error);
-    }
-    
-    // Start vibration if not already started by ReliableAlarmService
-    try {
-      if (Platform.OS === 'android') {
-        Vibration.vibrate([0, 1000, 500, 1000, 500, 1000], true);
-        console.log('✅ Vibration started');
-      }
-    } catch (error) {
-      console.error('❌ Error starting vibration:', error);
-    }
+    // Note: Alarm sound/vibration is now handled entirely by native Android AlarmManager
+    // The native AlarmPlayerService automatically plays sound/vibration when the alarm fires
+    // We just update the UI state here to show which alarm is active
+    // Store active alarm info for reference (native service handles the actual ringing)
+    AsyncStorage.setItem('active_alarm', JSON.stringify({
+      id: alarm.id,
+      title: alarm.title,
+      startedAt: Date.now(),
+    })).then(() => {
+      console.log('✅ Alarm state updated for UI:', alarm.title);
+    }).catch((error) => {
+      console.error('❌ Error storing active alarm state:', error);
+    });
 
     if (!isAlarmViewActive) {
       setPendingAlarm(alarm);

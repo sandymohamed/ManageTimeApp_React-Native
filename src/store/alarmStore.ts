@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Alarm, CreateAlarmData, UpdateAlarmData, Timer, CreateTimerData, UpdateTimerData } from '@/types/alarm';
 import { alarmService } from '@/services/alarmApiService';
 import { notificationService } from '@/services/notificationService';
+import { reliableAlarmService } from '@/services/ReliableAlarmService';
 import { useAuthStore } from '@/store/authStore';
 
 interface AlarmState {
@@ -82,8 +83,13 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         loading: false,
       });
 
-      // Schedule all enabled alarms
-      notificationService.scheduleAllAlarms(response.data);
+      // Schedule all enabled alarms using native Android AlarmManager
+      const enabledAlarms = response.data.filter(a => a.enabled);
+      enabledAlarms.forEach(alarm => {
+        reliableAlarmService.scheduleAlarm(alarm).catch((error) => {
+          console.error(`Failed to schedule native alarm ${alarm.id}:`, error);
+        });
+      });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fetch alarms',
@@ -151,9 +157,11 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         loading: false,
       }));
 
-      // Schedule the new alarm if enabled
+      // Schedule the new alarm using native Android AlarmManager if enabled
       if (alarm.enabled) {
-        notificationService.scheduleAlarm(alarm);
+        reliableAlarmService.scheduleAlarm(alarm).catch((error) => {
+          console.error('Failed to schedule native alarm:', error);
+        });
       }
 
       return alarm;
@@ -176,7 +184,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       }));
 
       // Reschedule the alarm if it was updated
-      notificationService.cancelAlarm(id);
+      reliableAlarmService.cancelAlarm(id).catch((error) => {
+        console.error('Failed to cancel native alarm:', error);
+      });
       if (alarm.enabled) {
         notificationService.scheduleAlarm(alarm);
       }
@@ -205,7 +215,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         alarms: state.alarms.filter((a) => a.id !== id),
         loading: false,
       }));
-      notificationService.cancelAlarm(id);
+      reliableAlarmService.cancelAlarm(id).catch((error) => {
+        console.error('Failed to cancel native alarm:', error);
+      });
       return;
     }
 
@@ -220,7 +232,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       }));
 
       // Cancel the scheduled alarm
-      notificationService.cancelAlarm(id);
+      reliableAlarmService.cancelAlarm(id).catch((error) => {
+        console.error('Failed to cancel native alarm:', error);
+      });
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to delete alarm',
@@ -245,10 +259,14 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         alarms: state.alarms.map((a) => (a.id === id ? updatedAlarm : a)),
       }));
 
-      // Reschedule or cancel alarm based on new enabled state
-      notificationService.cancelAlarm(id);
+      // Reschedule or cancel alarm using native Android AlarmManager based on new enabled state
+      reliableAlarmService.cancelAlarm(id).catch((error) => {
+        console.error('Failed to cancel native alarm:', error);
+      });
       if (updatedAlarm.enabled) {
-        notificationService.scheduleAlarm(updatedAlarm);
+        reliableAlarmService.scheduleAlarm(updatedAlarm).catch((error) => {
+          console.error('Failed to schedule native alarm:', error);
+        });
       }
     } catch (error) {
       set({
@@ -257,9 +275,37 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
     }
   },
 
-  snoozeAlarm: async (id, duration) => {
+  snoozeAlarm: async (id, duration = 5) => {
     try {
-      await alarmService.snoozeAlarm(id, duration);
+      const alarm = get().alarms.find((a) => a.id === id);
+      if (!alarm) return;
+
+      // Cancel current alarm
+      await reliableAlarmService.cancelAlarm(id);
+
+      // Calculate snooze time (default 5 minutes)
+      const snoozeTime = new Date(Date.now() + duration * 60 * 1000);
+      
+      // Create snooze alarm
+      const snoozeAlarm: Alarm = {
+        ...alarm,
+        id: `${id}_snooze_${Date.now()}`,
+        time: snoozeTime.toISOString(),
+        recurrenceRule: 'none', // Snooze is always one-time
+      };
+
+      // Schedule snooze alarm using native Android AlarmManager
+      await reliableAlarmService.scheduleAlarm(snoozeAlarm);
+
+      // If authenticated, also update backend
+      const { isAuthenticated } = useAuthStore.getState();
+      if (isAuthenticated) {
+        try {
+          await alarmService.snoozeAlarm(id, duration);
+        } catch (error) {
+          console.error('Failed to sync snooze to backend:', error);
+        }
+      }
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to snooze alarm',
@@ -271,7 +317,9 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
     const { isAuthenticated } = useAuthStore.getState();
 
     if (!isAuthenticated) {
-      notificationService.cancelAlarm(id);
+      reliableAlarmService.cancelAlarm(id).catch((error) => {
+        console.error('Failed to cancel native alarm:', error);
+      });
       return;
     }
 

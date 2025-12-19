@@ -392,9 +392,9 @@ class PushNotificationService {
                 userId: data.userId || '',
               };
               
-              // Schedule with Notifee triggers (works even when app is closed)
+              // Schedule with native Android AlarmManager (works even when app is closed)
               await reliableAlarmService.scheduleAlarm(alarmForScheduling);
-              logger.info(`✅ Alarm scheduled with Notifee triggers: ${alarmIdToUse}`);
+              logger.info(`✅ Alarm scheduled with native Android AlarmManager: ${alarmIdToUse}`);
             } catch (scheduleError) {
               logger.error(`❌ Failed to schedule alarm with Notifee:`, scheduleError);
               // Store as pending so it can be handled when app opens
@@ -462,13 +462,9 @@ class PushNotificationService {
                 },
               });
               
-              // Also trigger ReliableAlarmService if app is running
-              try {
-                const { reliableAlarmService } = await import('@/services/ReliableAlarmService');
-                await reliableAlarmService.ringAlarm(alarmIdToUse, alarmTitle);
-              } catch (ringError) {
-                logger.info('ℹ️ ReliableAlarmService not available (app may be closed)');
-              }
+              // Note: Native alarms automatically ring via AlarmPlayerService when AlarmManager fires
+              // No need to manually trigger - the native system handles ringing automatically
+              logger.info('✅ Alarm will ring automatically via native Android AlarmManager');
             } catch (notifeeError) {
               logger.error('❌ Failed to ring missed alarm:', notifeeError);
             }

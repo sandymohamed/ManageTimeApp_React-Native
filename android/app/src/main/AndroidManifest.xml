@@ -39,6 +39,42 @@
           </intent-filter>
       </receiver>
       
+      <!-- Native Alarm Receiver - handles alarm firing from AlarmManager -->
+      <receiver
+          android:name="com.mobile.alarm.AlarmReceiver"
+          android:exported="false"
+          android:enabled="true" />
+      
+      <!-- Alarm Action Receiver - handles Stop/Snooze from notifications -->
+      <receiver
+          android:name="com.mobile.alarm.AlarmActionReceiver"
+          android:exported="false"
+          android:enabled="true">
+          <intent-filter>
+              <action android:name="com.mobile.alarm.STOP" />
+              <action android:name="com.mobile.alarm.SNOOZE" />
+          </intent-filter>
+      </receiver>
+      
+      <!-- Boot Receiver - reschedules alarms after device reboot -->
+      <receiver
+          android:name="com.mobile.alarm.BootReceiver"
+          android:exported="true"
+          android:enabled="true">
+          <intent-filter>
+              <action android:name="android.intent.action.BOOT_COMPLETED" />
+              <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+              <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+          </intent-filter>
+      </receiver>
+      
+      <!-- Alarm Player Service - plays alarm sound/vibration -->
+      <service
+          android:name="com.mobile.alarm.AlarmPlayerService"
+          android:exported="false"
+          android:enabled="true"
+          android:foregroundServiceType="mediaPlayback" />
+      
       <!-- Alarm receiver for scheduled notifications -->
       <receiver
           android:name="com.dieam.reactnativepushnotification.modules.RNPushNotificationPublisher"

@@ -82,17 +82,14 @@ export class HeadlessTaskHandler {
           logger.info('Stored pending alarm ID:', alarmIdToUse);
         }
 
-        // IMPORTANT: Trigger ReliableAlarmService to ring the alarm immediately
-        // This plays sound, vibrates, and shows notification
+        // Note: Native alarms automatically ring via AlarmPlayerService when AlarmManager fires
+        // If the alarm should ring immediately (time has passed), the native system will handle it
+        // Otherwise, it's already scheduled to ring at the correct time
+        logger.info('✅ Alarm is scheduled with native Android AlarmManager - will ring automatically:', alarmIdToUse);
+        
+        // Fallback: If alarm time has passed and native system hasn't fired yet, show notification
+        // (This should rarely happen as native alarms are scheduled correctly)
         try {
-          const { reliableAlarmService } = await import('@/services/ReliableAlarmService');
-          const alarmTitle = payload.title || 'Alarm';
-          await reliableAlarmService.ringAlarm(alarmIdToUse, alarmTitle);
-          logger.info('✅ Headless alarm ringing triggered immediately:', alarmIdToUse);
-        } catch (ringError) {
-          logger.error('❌ Failed to ring alarm in headless task, falling back to notification:', ringError);
-          
-          // Fallback: Trigger immediate notification with sound/vibration
           PushNotification.localNotification({
             channelId: 'alarm-channel-v2',
             title: `⏰ ${payload.title || 'Alarm'}`,
@@ -114,6 +111,8 @@ export class HeadlessTaskHandler {
           });
 
           logger.info('Headless alarm notification triggered (fallback):', alarmIdToUse);
+        } catch (notifError) {
+          logger.error('❌ Failed to show fallback notification:', notifError);
         }
       } else if (notificationType === 'TIMER_COMPLETION' || notificationType === 'TIMER_IMMEDIATE') {
         // Store timer ID for when app opens
