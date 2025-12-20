@@ -234,6 +234,44 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: async () => {
         try {
+          // IMPORTANT: Cancel all alarms and stop any ringing alarms before logout
+          try {
+            const { reliableAlarmService } = await import('@/services/ReliableAlarmService');
+            const { nativeAlarmBridge } = await import('@/services/NativeAlarmBridge');
+            const PushNotification = require('react-native-push-notification').default;
+            
+            logger.info('🛑 Stopping all alarms before logout...');
+            
+            // Stop any currently playing alarm
+            await reliableAlarmService.stopAlarm().catch(err => {
+              logger.warn('Error stopping alarm:', err);
+            });
+            
+            // Cancel all scheduled alarms
+            await reliableAlarmService.cleanUp().catch(err => {
+              logger.warn('Error cleaning up alarms:', err);
+            });
+            
+            // Stop native alarm service
+            await nativeAlarmBridge.stopPlayingAlarm().catch(err => {
+              logger.warn('Error stopping native alarm:', err);
+            });
+            
+            // Cancel all local notifications
+            PushNotification.cancelAllLocalNotifications();
+            
+            // Clear all alarm/timer state
+            const { clearAllAlarmTimerState } = await import('@/utils/alarmCleanup');
+            await clearAllAlarmTimerState().catch(err => {
+              logger.warn('Error clearing alarm state:', err);
+            });
+            
+            logger.info('✅ All alarms stopped and canceled');
+          } catch (alarmError) {
+            // Don't fail logout if alarm cleanup fails
+            logger.error('Error during alarm cleanup on logout:', alarmError);
+          }
+
           // Clear tokens from Keychain
           await Keychain.resetGenericPassword();
 

@@ -112,16 +112,63 @@ export class ReliableAlarmService {
     }
   }
 
-  // Clean up everything
+  // Clean up everything - cancels all scheduled alarms and clears state
   async cleanUp(): Promise<void> {
     logger.info('🧹 Cleaning up alarms...');
 
-    // Clear all stored alarms from AsyncStorage
-    const keys = await AsyncStorage.getAllKeys();
-    const alarmKeys = keys.filter(key => key.startsWith('alarm_'));
-    await AsyncStorage.multiRemove(alarmKeys);
+    try {
+      // Stop any currently playing alarm first
+      await this.stopAlarm();
 
-    logger.info('✅ Cleanup complete');
+      // Get all alarm storage keys to extract alarm IDs
+      const keys = await AsyncStorage.getAllKeys();
+      const alarmStorageKeys = keys.filter(key => 
+        key.startsWith('alarm_') && 
+        !key.includes('_notif_') && 
+        !key.includes('_timer_')
+      );
+      
+      // Try to cancel each scheduled alarm by extracting ID from storage
+      const cancelPromises = alarmStorageKeys.map(async (key) => {
+        try {
+          const alarmData = await AsyncStorage.getItem(key);
+          if (alarmData) {
+            try {
+              const parsed = JSON.parse(alarmData);
+              if (parsed.id) {
+                await this.cancelAlarm(parsed.id);
+              }
+            } catch {
+              // If parsing fails, extract ID from key
+              const alarmId = key.replace('alarm_', '');
+              if (alarmId) {
+                await this.cancelAlarm(alarmId);
+              }
+            }
+          }
+        } catch (error) {
+          // Continue even if one alarm fails to cancel
+          logger.warn(`Failed to cancel alarm from key ${key}:`, error);
+        }
+      });
+
+      await Promise.allSettled(cancelPromises);
+
+      // Clear all alarm-related storage keys
+      const allAlarmKeys = keys.filter(key => 
+        key.startsWith('alarm_') || 
+        key.startsWith('pending_alarm') || 
+        key.startsWith('active_alarm')
+      );
+      if (allAlarmKeys.length > 0) {
+        await AsyncStorage.multiRemove(allAlarmKeys);
+      }
+
+      logger.info('✅ Alarm cleanup complete');
+    } catch (error) {
+      logger.error('Error during alarm cleanup:', error);
+      // Don't throw - cleanup should be best effort
+    }
   }
 }
 

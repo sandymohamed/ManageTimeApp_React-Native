@@ -43,7 +43,7 @@ export const ChangePasswordScreen: React.FC = () => {
 
     if (!newPassword) {
       newErrors.newPassword = t('validation.newPasswordRequired');
-    } else if (newPassword.length < 8) {
+    } else if (newPassword.length < 6) {
       newErrors.newPassword = t('validation.passwordTooShort');
     } else if (newPassword === currentPassword) {
       newErrors.newPassword = t('validation.newPasswordSameAsOld');
@@ -103,8 +103,8 @@ export const ChangePasswordScreen: React.FC = () => {
     if (!password) return { strength: 0, label: '', color: theme.colors.disabled };
 
     let strength = 0;
-    if (password.length >= 8) strength++;
-    if (password.length >= 12) strength++;
+    if (password.length >= 6) strength++;
+    if (password.length >= 10) strength++;
     if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
     if (/\d/.test(password)) strength++;
     if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++;
@@ -253,9 +253,9 @@ export const ChangePasswordScreen: React.FC = () => {
             </Text>
             <View style={styles.requirementRow}>
               <Icon
-                name={newPassword.length >= 8 ? 'check-circle' : 'circle-outline'}
+                name={newPassword.length >= 6 ? 'check-circle' : 'circle-outline'}
                 size={20}
-                color={newPassword.length >= 8 ? theme.colors.success : theme.colors.textSecondary}
+                color={newPassword.length >= 6 ? theme.colors.success : theme.colors.textSecondary}
               />
               <Text variant="bodyMedium" style={[styles.requirementText, { color: theme.colors.textSecondary }]}>
                 {t('profile.passwordLength')}

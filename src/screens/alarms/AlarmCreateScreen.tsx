@@ -603,7 +603,7 @@ export const AlarmCreateScreen: React.FC = () => {
     // Validate time is in the future
     const now = new Date();
     if (selectedTime <= now) {
-      newErrors.time = t('alarms.futureTimeRequired') || 'Please select a future time';
+      newErrors.time = t('tasks.futureTimeRequired') || 'Please select a future time';
     }
 
     setErrors(newErrors);

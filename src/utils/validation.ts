@@ -89,7 +89,7 @@ export const commonRules = {
   },
   password: { 
     required: true, 
-    minLength: 8 
+    minLength: 6 
   },
   phone: { 
     pattern: /^[+]?[1-9][\d]{0,15}$/ 

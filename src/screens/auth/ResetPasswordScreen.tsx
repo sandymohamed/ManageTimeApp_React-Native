@@ -22,8 +22,8 @@ export const ResetPasswordScreen: React.FC = () => {
     if (!password) {
       return 'Password is required';
     }
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters long';
+    if (password.length < 6) {
+      return 'Password must be at least 6 characters long';
     }
     return null;
   };
@@ -130,7 +130,7 @@ export const ResetPasswordScreen: React.FC = () => {
                 error={!!passwordError}
                 disabled={isLoading}
                 style={styles.input}
-                placeholder="At least 8 characters"
+                placeholder="At least 6 characters"
               />
               {passwordError && (
                 <Text variant="bodySmall" style={styles.errorText}>
