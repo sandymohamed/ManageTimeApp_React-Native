@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { ApiResponse } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { navigate } from '@/utils/deepLinking';
+import type { Alarm } from '@/types/alarm';
 
 export interface PushTokenResponse {
   token: string;
@@ -380,7 +381,6 @@ class PushNotificationService {
             
             try {
               const { reliableAlarmService } = await import('@/services/ReliableAlarmService');
-              const { Alarm } = await import('@/types/alarm');
               
               // Create alarm object for scheduling
               const alarmForScheduling: Alarm = {
@@ -390,6 +390,9 @@ class PushNotificationService {
                 recurrenceRule: data.recurrenceRule || 'none',
                 enabled: true,
                 userId: data.userId || '',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                timezone: data.timezone || 'UTC',
               };
               
               // Schedule with native Android AlarmManager (works even when app is closed)
@@ -414,7 +417,14 @@ class PushNotificationService {
             }
           } else {
             // Alarm time has passed - ring immediately (missed alarm recovery)
-            logger.info(`🔔 Missed alarm - ringing immediately: ${alarmIdToUse}`);
+            logger.info(`🔔 Alarm time passed - ringing immediately: ${alarmIdToUse}`);
+            
+            // For routine/task reminders without native alarms, ring with notification
+            if (notificationType === 'ROUTINE_REMINDER' || notificationType === 'TASK_REMINDER' || notificationType === 'DUE_DATE_REMINDER') {
+              // Ring immediately with alarm notification (these don't have native alarms scheduled)
+              this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data);
+              logger.info(`✅ ${notificationType} ringing immediately with notification`);
+            }
             
             // Store as pending alarm
             AsyncStorage.setItem('pending_alarm_id', alarmIdToUse).catch(() => {});
@@ -432,46 +442,22 @@ class PushNotificationService {
               AsyncStorage.setItem('pending_task_routine_alarm', JSON.stringify(taskRoutineInfo)).catch(() => {});
             }
             
-            // Ring immediately using Notifee
-            try {
-              const notifee = await import('@notifee/react-native');
-              const { AndroidImportance, AndroidVisibility } = await import('@notifee/react-native');
-              
-              await notifee.default.displayNotification({
-          title: `⏰ ${alarmTitle}`,
-                body: alarmMessage,
-                android: {
-                  channelId: 'alarm-channel-v2',
-                  importance: AndroidImportance.HIGH,
-                  sound: 'alarm',
-                  vibrationPattern: [0, 1000, 500, 1000, 500, 1000],
-                  lights: ['#FF0000', 1000, 1000],
-                  pressAction: { id: 'default', launchActivity: 'default' },
-                  actions: [{ title: 'Stop', pressAction: { id: 'stop' } }],
-          autoCancel: false,
-                  ongoing: true,
-                  visibility: AndroidVisibility.PUBLIC,
-                },
-          data: {
-            type: 'alarm',
-                  alarmId: alarmIdToUse,
-            fromPush: true,
-                  notificationType: notificationType,
-                  ...(data.targetId && { targetId: data.targetId }),
-                  ...(data.targetType && { targetType: data.targetType }),
-          },
-        });
-        
-              // Note: Native alarms automatically ring via AlarmPlayerService when AlarmManager fires
-              // No need to manually trigger - the native system handles ringing automatically
-              logger.info('✅ Alarm will ring automatically via native Android AlarmManager');
-            } catch (notifeeError) {
-              logger.error('❌ Failed to ring missed alarm:', notifeeError);
+            // NOTE: For ALARM_TRIGGER notifications, we should NOT ring here
+            // Native Android AlarmManager handles all alarm ringing via AlarmPlayerService
+            // This prevents double-ringing (server push notification + native alarm)
+            if (notificationType === 'ALARM_TRIGGER') {
+              logger.info('✅ ALARM_TRIGGER notification received - native alarm will handle ringing, skipping manual ring');
             }
           }
         } else {
-          // No alarm time - store as pending for handling when app opens
-          logger.info(`📝 No alarm time provided, storing as pending: ${alarmIdToUse}`);
+          // No alarm time - For routine/task reminders, ring immediately since they're sent when it's time
+          if (notificationType === 'ROUTINE_REMINDER' || notificationType === 'TASK_REMINDER' || notificationType === 'DUE_DATE_REMINDER') {
+            logger.info(`🔔 ${notificationType} received without alarm time - ringing immediately`);
+            // Ring immediately with alarm notification
+            this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data);
+          } else {
+            logger.info(`📝 No alarm time provided, storing as pending: ${alarmIdToUse}`);
+          }
           AsyncStorage.setItem('pending_alarm_id', alarmIdToUse).catch(() => {});
           
           // Store task/routine info
@@ -494,6 +480,61 @@ class PushNotificationService {
       }
     } catch (error) {
       logger.error('Failed to handle alarm notification:', error);
+    }
+  }
+
+  /**
+   * Ring alarm notification with sound for routine/task reminders
+   */
+  private ringAlarmNotification(alarmId: string, alarmTitle: string, alarmTimeStr?: string, notificationType?: string, data?: any): void {
+    try {
+      // Format alarm time for display
+      let alarmTimeDisplay = '';
+      if (alarmTimeStr) {
+        try {
+          const time = new Date(alarmTimeStr);
+          alarmTimeDisplay = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+          // Invalid time, skip
+        }
+      }
+
+      const alarmMessage = data?.body || data?.message || 'It\'s time!';
+      
+      PushNotification.localNotification({
+        id: `alarm-${alarmId}-${Date.now()}`,
+        title: `⏰ ${alarmTitle}${alarmTimeDisplay ? ` (${alarmTimeDisplay})` : ''}`,
+        message: alarmMessage,
+        playSound: true,
+        soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
+        vibrate: true,
+        vibration: [100, 1000, 500, 1000, 500, 1000] as any, // Pattern vibration
+        priority: 'max',
+        importance: 5 as any, // MAX importance (5) for alarms - ensures sound and vibration
+        allowWhileIdle: true, // Critical: allows notification even in doze mode
+        channelId: Platform.OS === 'android' ? 'alarm-channel-v2' : undefined,
+        ongoing: true, // Keep ringing until dismissed
+        autoCancel: false,
+        visibility: 'public',
+        userInfo: {
+          type: 'alarm',
+          alarmId: alarmId,
+          fromPush: true,
+          notificationType: notificationType || 'ALARM_TRIGGER',
+          alarmTime: alarmTimeStr,
+          targetId: data?.targetId || data?.taskId || data?.routineId,
+          targetType: data?.targetType,
+        },
+      } as any);
+      
+      logger.info('Alarm notification triggered:', { 
+        alarmId, 
+        title: alarmTitle,
+        alarmTime: alarmTimeStr,
+        notificationType,
+      });
+    } catch (error) {
+      logger.error('Failed to ring alarm notification:', error);
     }
   }
 
@@ -526,17 +567,12 @@ class PushNotificationService {
         channelId: Platform.OS === 'android' ? 'timer-channel-v2' : undefined,
         ongoing: true, // Keep ringing until dismissed
         autoCancel: false,
-        data: {
-          type: 'timer',
-          timerId: timerId,
-          fromPush: true,
-        },
         userInfo: {
           type: 'timer',
           timerId: timerId,
           fromPush: true,
         },
-      });
+      } as any);
     } catch (error) {
       logger.error('Failed to handle timer notification:', error);
     }

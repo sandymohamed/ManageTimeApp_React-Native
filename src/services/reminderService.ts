@@ -53,8 +53,7 @@ class ReminderServiceClass {
       const now = new Date();
       const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-      console.log('All reminders from API:', response.data.length, response.data);
-
+   
       // Filter reminders that have a schedule with time information
       const upcoming = response.data.filter(reminder => {
         if (reminder.triggerType !== 'TIME') {
@@ -67,21 +66,14 @@ class ReminderServiceClass {
           // Calculate reminder time (which is before the routine occurrence)
           const reminderTime = this.calculateReminderTime(reminder);
           const isInRange = reminderTime >= now && reminderTime <= sevenDaysFromNow;
-          console.log('Routine reminder check:', {
-            title: reminder.title,
-            reminderTime: reminderTime.toISOString(),
-            now: now.toISOString(),
-            sevenDaysFromNow: sevenDaysFromNow.toISOString(),
-            isInRange
-          });
+      
           return isInRange;
         }
         
         return false;
       });
 
-      console.log('Filtered upcoming reminders:', upcoming.length);
-      return upcoming.sort((a, b) => {
+       return upcoming.sort((a, b) => {
         const aTime = this.calculateReminderTime(a);
         const bTime = this.calculateReminderTime(b);
         return aTime.getTime() - bTime.getTime();
