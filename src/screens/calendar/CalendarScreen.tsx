@@ -786,7 +786,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                       const totalCount = dayTasks.length;
                       
                       return (
-                        <View style={styles.taskIndicators}>
+                    <View style={styles.taskIndicators}>
                           {shouldShowOnePerColor ? (
                             // Show one dot per color/type
                             uniqueColors.map((color) => {
@@ -806,20 +806,20 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) =>
                             // Show individual dots (up to 4)
                             dayTasks.slice(0, 4).map((task) => (
                               <View
-                                key={task.id}
-                                style={[
+                          key={task.id}
+                          style={[
                                   styles.taskDot,
-                                  { backgroundColor: getPriorityColor(task.priority) }
-                                ]}
+                            { backgroundColor: getPriorityColor(task.priority) }
+                          ]}
                               />
                             ))
                           )}
                           {totalCount > (shouldShowOnePerColor ? uniqueColors.length : 4) && (
                             <Text variant="bodySmall" style={[styles.moreTasksText, { color: theme.colors.text, fontSize: 9 }]}>
                               +{totalCount - (shouldShowOnePerColor ? uniqueColors.length : 4)}
-                            </Text>
-                          )}
-                        </View>
+                          </Text>
+                      )}
+                    </View>
                       );
                     })()}
                     

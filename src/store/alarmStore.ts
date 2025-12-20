@@ -300,8 +300,8 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       // If authenticated, also update backend
       const { isAuthenticated } = useAuthStore.getState();
       if (isAuthenticated) {
-        try {
-          await alarmService.snoozeAlarm(id, duration);
+    try {
+      await alarmService.snoozeAlarm(id, duration);
         } catch (error) {
           console.error('Failed to sync snooze to backend:', error);
         }

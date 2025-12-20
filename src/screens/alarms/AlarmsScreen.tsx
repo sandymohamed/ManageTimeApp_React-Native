@@ -497,38 +497,6 @@ export const AlarmsScreen: React.FC = () => {
     fetchAlarms();
     fetchTimers();
 
-    // Listen for native alarm events (snooze/stop from notification buttons)
-    const { NativeEventEmitter } = require('react-native');
-    const { AlarmModule } = require('react-native').NativeModules;
-    const eventEmitter = AlarmModule ? new NativeEventEmitter(AlarmModule) : null;
-    
-    const snoozeSubscription = eventEmitter?.addListener('AlarmSnooze', async (event: { alarmId: string; action: string }) => {
-      console.log('🔔 AlarmSnooze event received in AlarmsScreen:', event.alarmId);
-      try {
-        // Stop the alarm immediately (should already be stopped by native, but ensure it)
-        await reliableAlarmService.stopAlarm();
-        
-        // Handle snooze via store
-        const { snoozeAlarm: snoozeAlarmFn } = useAlarmStore.getState();
-        await snoozeAlarmFn(event.alarmId, 5);
-        console.log('✅ Alarm snoozed via notification button');
-      } catch (error) {
-        console.error('❌ Failed to handle snooze event:', error);
-      }
-    });
-
-    const stopSubscription = eventEmitter?.addListener('AlarmStop', async (event: { alarmId: string; action: string }) => {
-      console.log('🔔 AlarmStop event received in AlarmsScreen:', event.alarmId);
-      try {
-        // Clear UI state
-        setActiveAlarmId(null);
-        setPendingAlarm(null);
-        console.log('✅ Alarm stop event handled - UI cleared');
-      } catch (error) {
-        console.error('❌ Failed to handle stop event:', error);
-      }
-    });
-
     // REMOVED: Alarm checking interval - now handled by GlobalAlarmEngine at app level
     // This ensures alarms ring regardless of which screen user is viewing
     
@@ -538,10 +506,6 @@ export const AlarmsScreen: React.FC = () => {
     }, 60000);
 
     return () => {
-      // Clean up event listeners
-      snoozeSubscription?.remove();
-      stopSubscription?.remove();
-      
       // REMOVED: clearInterval(alarmCheckInterval) - no longer needed, handled by GlobalAlarmEngine
       clearInterval(timeUpdateInterval);
       if (timerIntervalRef.current) {
@@ -560,7 +524,7 @@ export const AlarmsScreen: React.FC = () => {
       alarmDeleteTimeoutsRef.current.clear();
     };
   }, [fetchAlarms, fetchTimers]);
-
+  
   // Watch for timer changes and recover timers from background
   useEffect(() => {
     const runningTimer = timers.find(t => t.isRunning && !t.isPaused);
@@ -736,6 +700,70 @@ export const AlarmsScreen: React.FC = () => {
 
     setIsStopping(false);
   }, [alarms, deleteAlarm]);
+
+  // Listen for native alarm events (snooze/stop from notification buttons)
+  // This must be in a separate useEffect that runs after handleStopAlarm is defined
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    
+    const { NativeEventEmitter } = require('react-native');
+    const { AlarmModule } = require('react-native').NativeModules;
+    const eventEmitter = AlarmModule ? new NativeEventEmitter(AlarmModule) : null;
+    
+    if (!eventEmitter) {
+      console.warn('⚠️ AlarmModule not available for event listeners');
+      return;
+    }
+    
+    const snoozeSubscription = eventEmitter.addListener('AlarmSnooze', async (event: { alarmId: string; action: string }) => {
+      console.log('🔔 AlarmSnooze event received in AlarmsScreen:', event.alarmId);
+      try {
+        // Stop the alarm immediately (should already be stopped by native, but ensure it)
+        await reliableAlarmService.stopAlarm();
+        
+        // Handle snooze via store
+        const { snoozeAlarm: snoozeAlarmFn } = useAlarmStore.getState();
+        await snoozeAlarmFn(event.alarmId, 5);
+        console.log('✅ Alarm snoozed via notification button');
+      } catch (error) {
+        console.error('❌ Failed to handle snooze event:', error);
+      }
+    });
+
+    const stopSubscription = eventEmitter.addListener('AlarmStop', async (event: { alarmId: string; action: string }) => {
+      console.log('🔔 AlarmStop event received in AlarmsScreen:', event.alarmId);
+      try {
+        // Stop alarm using the same handler as in-app stop
+        // This ensures all cleanup happens properly
+        if (event.alarmId) {
+          await handleStopAlarm(event.alarmId);
+        } else {
+          // Fallback: just clear UI state if no alarmId
+          setActiveAlarmId(null);
+          setPendingAlarm(null);
+          setIsStopping(false);
+        }
+        
+        // Also clear any AsyncStorage state
+        await AsyncStorage.removeItem('active_alarm').catch(() => {});
+        await AsyncStorage.removeItem('pending_alarm_id').catch(() => {});
+        
+        console.log('✅ Alarm stop event handled - UI and state cleared');
+      } catch (error) {
+        console.error('❌ Failed to handle stop event:', error);
+        // Force clear UI state even if error occurs
+        setActiveAlarmId(null);
+        setPendingAlarm(null);
+        setIsStopping(false);
+      }
+    });
+
+    return () => {
+      // Clean up event listeners
+      snoozeSubscription?.remove();
+      stopSubscription?.remove();
+    };
+  }, [handleStopAlarm]);
 
   // Handle alarm fired
   const handleAlarmFired = React.useCallback((alarm: Alarm) => {

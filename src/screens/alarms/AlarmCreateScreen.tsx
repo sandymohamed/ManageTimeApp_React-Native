@@ -542,18 +542,48 @@ export const AlarmCreateScreen: React.FC = () => {
   const [ringtoneName, setRingtoneName] = useState<string>('Default Alarm');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Initialize default ringtone on mount
+  // Initialize default ringtone on mount if not set
   useEffect(() => {
-    if (Platform.OS === 'android') {
+    if (Platform.OS === 'android' && !ringtoneUri) {
       nativeAlarmBridge.getDefaultRingtoneUri().then((uri) => {
         if (uri) {
           setRingtoneUri(uri);
+          // Get the actual name for default ringtone
+          nativeAlarmBridge.getRingtoneTitle(uri).then((title) => {
+            if (title) {
+              setRingtoneName(title);
+            }
+          }).catch(() => {
+            // Keep default name if title fetch fails
+          });
         }
       }).catch((error) => {
         console.error('Failed to get default ringtone:', error);
       });
     }
   }, []);
+
+  // Update ringtone name whenever ringtoneUri changes
+  useEffect(() => {
+    if (Platform.OS === 'android' && ringtoneUri) {
+      nativeAlarmBridge.getRingtoneTitle(ringtoneUri)
+        .then((title) => {
+          if (title) {
+            setRingtoneName(title);
+            console.log('✅ Ringtone name updated:', title);
+          }
+        })
+        .catch((error) => {
+          console.warn('Could not get ringtone title for URI:', ringtoneUri, error);
+          // Fallback name based on URI
+          if (ringtoneUri.includes('default')) {
+            setRingtoneName('Default Alarm');
+          } else {
+            setRingtoneName('Custom Ringtone');
+          }
+        });
+    }
+  }, [ringtoneUri]);
 
   const recurrenceOptions = [
     { value: 'none', label: t('alarms.recurrence.none') || 'None', icon: 'calendar-remove' },
@@ -592,29 +622,27 @@ export const AlarmCreateScreen: React.FC = () => {
       console.log('🔔 Ringtone picked, URI:', uri);
       if (uri) {
         setRingtoneUri(uri);
-        // Try to extract a better name from URI
-        let name = 'Custom Ringtone';
+        
+        // Get the actual ringtone name from native module
         try {
-          if (uri.includes('content://')) {
-            // System ringtone - try to get name from URI
-            const uriParts = uri.split('/');
-            const lastPart = uriParts[uriParts.length - 1];
-            if (lastPart && lastPart !== 'default') {
-              name = lastPart.replace(/[_-]/g, ' ').replace(/\.(mp3|ogg|wav|m4a)$/i, '');
-              // Capitalize first letter
-              name = name.charAt(0).toUpperCase() + name.slice(1);
-            } else {
-              name = 'Default Alarm';
-            }
+          const title = await nativeAlarmBridge.getRingtoneTitle(uri);
+          if (title) {
+            setRingtoneName(title);
+            console.log('✅ Ringtone name retrieved:', title);
           } else {
-            name = 'Custom Ringtone';
+            // Fallback if title not available
+            setRingtoneName(uri.includes('default') ? 'Default Alarm' : 'Custom Ringtone');
           }
-        } catch (e) {
-          console.warn('Could not parse ringtone name:', e);
-          name = uri.includes('default') ? 'Default Alarm' : 'Custom Ringtone';
+        } catch (titleError) {
+          console.warn('Could not get ringtone title, using fallback:', titleError);
+          // Fallback to parsing URI
+          const uriParts = uri.split('/');
+          const lastPart = uriParts[uriParts.length - 1];
+          const fallbackName = uri.includes('default') || lastPart === 'default' 
+            ? 'Default Alarm' 
+            : 'Custom Ringtone';
+          setRingtoneName(fallbackName);
         }
-        setRingtoneName(name);
-        console.log('✅ Ringtone set to:', name);
       } else {
         console.log('⚠️ No ringtone URI returned');
       }

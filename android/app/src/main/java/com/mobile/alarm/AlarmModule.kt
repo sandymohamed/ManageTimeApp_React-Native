@@ -225,6 +225,26 @@ class AlarmModule(reactContext: ReactApplicationContext) :
   }
 
   /**
+   * Get ringtone title/name from URI
+   */
+  @ReactMethod
+  fun getRingtoneTitle(uriString: String, promise: Promise) {
+    try {
+      val uri = Uri.parse(uriString)
+      val ringtone = RingtoneManager.getRingtone(reactApplicationContext, uri)
+      val title = if (ringtone != null) {
+        ringtone.getTitle(reactApplicationContext)
+      } else {
+        "Unknown Ringtone"
+      }
+      promise.resolve(title)
+    } catch (e: Exception) {
+      android.util.Log.e("AlarmModule", "❌ Failed to get ringtone title: ${e.message}", e)
+      promise.reject("RINGTONE_ERROR", "Failed to get ringtone title: ${e.message}", e)
+    }
+  }
+
+  /**
    * Stop currently playing alarm (if any)
    * This stops the AlarmPlayerService sound and vibration
    */

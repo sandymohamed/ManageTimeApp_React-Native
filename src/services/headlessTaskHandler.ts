@@ -90,25 +90,25 @@ export class HeadlessTaskHandler {
         // Fallback: If alarm time has passed and native system hasn't fired yet, show notification
         // (This should rarely happen as native alarms are scheduled correctly)
         try {
-          PushNotification.localNotification({
-            channelId: 'alarm-channel-v2',
-            title: `⏰ ${payload.title || 'Alarm'}`,
-            message: payload.body || payload.message || 'Time to wake up!',
-            playSound: true,
-            soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
-            vibrate: true,
-            vibration: [0, 1000, 500, 1000, 500, 1000] as any, // TypeScript types don't support arrays, but Android does
-            priority: 'max',
-            importance: 'max' as any, // MAX importance
-            allowWhileIdle: true,
-            ongoing: true,
-            autoCancel: false,
-            userInfo: {
+        PushNotification.localNotification({
+          channelId: 'alarm-channel-v2',
+          title: `⏰ ${payload.title || 'Alarm'}`,
+          message: payload.body || payload.message || 'Time to wake up!',
+          playSound: true,
+          soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3
+          vibrate: true,
+          vibration: [0, 1000, 500, 1000, 500, 1000] as any, // TypeScript types don't support arrays, but Android does
+          priority: 'max',
+          importance: 'max' as any, // MAX importance
+          allowWhileIdle: true,
+          ongoing: true,
+          autoCancel: false,
+          userInfo: {
               alarmId: alarmIdToUse,
               type: notificationType || 'ALARM_HEADLESS',
-              title: payload.title,
-            },
-          });
+            title: payload.title,
+          },
+        });
 
           logger.info('Headless alarm notification triggered (fallback):', alarmIdToUse);
         } catch (notifError) {

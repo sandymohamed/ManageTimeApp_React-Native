@@ -213,20 +213,20 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
         previousFilterRef.current = currentFilterKey;
         
         if (currentFilter === 'urgent') {
-          setFilter({ priority: [TaskPriority.URGENT] });
+        setFilter({ priority: [TaskPriority.URGENT] });
         } else if (currentFilter === 'day' && currentDate) {
           const filterDate = new Date(currentDate);
-          const startOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate());
-          const endOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate(), 23, 59, 59);
-          
-          setFilter({ 
-            dueDate: {
-              from: startOfDay,
-              to: endOfDay
-            }
-          });
-        }
+        const startOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate());
+        const endOfDay = new Date(filterDate.getFullYear(), filterDate.getMonth(), filterDate.getDate(), 23, 59, 59);
+        
+        setFilter({ 
+          dueDate: {
+            from: startOfDay,
+            to: endOfDay
+          }
+        });
       }
+    }
     }, [route?.params?.filter, route?.params?.date, setFilter, clearFilters, navigation])
   );
 
@@ -234,7 +234,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
     if (isFetchingRef.current) return; // Prevent concurrent refreshes
     isFetchingRef.current = true;
     try {
-      await refreshTasks();
+    await refreshTasks();
       checkPendingAlarm();
       isFetchingRef.current = false;
     } catch (error) {

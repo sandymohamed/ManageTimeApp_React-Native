@@ -8,6 +8,7 @@ import { theme } from '@/utils/theme';
 import { useAlarmStore } from '@/store/alarmStore';
 import { UpdateAlarmData, Alarm } from '@/types/alarm';
 import { nativeAlarmBridge } from '@/services/NativeAlarmBridge';
+import { Platform } from 'react-native';
 
 export const AlarmEditScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -64,8 +65,44 @@ export const AlarmEditScreen: React.FC = () => {
       timeRef.current = alarmTime;
       setSelectedTime(new Date(alarmTime));
       setRecurrence(alarm.recurrenceRule || 'none');
-      setRingtoneUri(alarm.toneUrl || null);
-      setRingtoneName(alarm.toneUrl ? 'Custom Ringtone' : 'Default Alarm');
+      const toneUrl = alarm.toneUrl || null;
+      setRingtoneUri(toneUrl);
+      
+      // Get ringtone name if URI exists
+      if (toneUrl && Platform.OS === 'android') {
+        nativeAlarmBridge.getRingtoneTitle(toneUrl)
+          .then((title) => {
+            if (title) {
+              setRingtoneName(title);
+              console.log('✅ Loaded ringtone name:', title);
+            } else {
+              setRingtoneName(toneUrl.includes('default') ? 'Default Alarm' : 'Custom Ringtone');
+            }
+          })
+          .catch((error) => {
+            console.warn('Could not get ringtone title:', error);
+            setRingtoneName(toneUrl.includes('default') ? 'Default Alarm' : 'Custom Ringtone');
+          });
+      } else {
+        // No ringtone URI - get default
+        if (Platform.OS === 'android') {
+          nativeAlarmBridge.getDefaultRingtoneUri().then((uri) => {
+            if (uri) {
+              nativeAlarmBridge.getRingtoneTitle(uri).then((title) => {
+                if (title) {
+                  setRingtoneName(title);
+                }
+              }).catch(() => {
+                setRingtoneName('Default Alarm');
+              });
+            }
+          }).catch(() => {
+            setRingtoneName('Default Alarm');
+          });
+        } else {
+          setRingtoneName('Default Alarm');
+        }
+      }
     }
   }, [alarm]);
 
@@ -98,14 +135,37 @@ export const AlarmEditScreen: React.FC = () => {
       const uri = await nativeAlarmBridge.pickRingtone();
       if (uri) {
         setRingtoneUri(uri);
-        // Extract ringtone name from URI (simplified)
-        const uriParts = uri.split('/');
-        const name = uriParts[uriParts.length - 1] || 'Custom Ringtone';
-        setRingtoneName(name.replace(/\.(mp3|ogg|wav)$/i, '').replace(/_/g, ' '));
+        
+        // Get the actual ringtone name from native module
+        try {
+          const title = await nativeAlarmBridge.getRingtoneTitle(uri);
+          if (title) {
+            setRingtoneName(title);
+            console.log('✅ Ringtone name retrieved:', title);
+          } else {
+            // Fallback if title not available
+            setRingtoneName(uri.includes('default') ? 'Default Alarm' : 'Custom Ringtone');
+          }
+        } catch (titleError) {
+          console.warn('Could not get ringtone title, using fallback:', titleError);
+          // Fallback to parsing URI
+          const uriParts = uri.split('/');
+          const lastPart = uriParts[uriParts.length - 1];
+          const fallbackName = uri.includes('default') || lastPart === 'default' 
+            ? 'Default Alarm' 
+            : 'Custom Ringtone';
+          setRingtoneName(fallbackName);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to pick ringtone:', error);
-      Alert.alert('Error', 'Failed to pick ringtone');
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      if (errorMessage.includes('CANCELLED')) {
+        console.log('ℹ️ User cancelled ringtone picker');
+        // Don't show alert for cancellation
+      } else {
+        Alert.alert('Error', `Failed to pick ringtone: ${errorMessage}`);
+      }
     }
   };
 

@@ -438,7 +438,7 @@ class PushNotificationService {
               const { AndroidImportance, AndroidVisibility } = await import('@notifee/react-native');
               
               await notifee.default.displayNotification({
-                title: `⏰ ${alarmTitle}`,
+          title: `⏰ ${alarmTitle}`,
                 body: alarmMessage,
                 android: {
                   channelId: 'alarm-channel-v2',
@@ -448,20 +448,20 @@ class PushNotificationService {
                   lights: ['#FF0000', 1000, 1000],
                   pressAction: { id: 'default', launchActivity: 'default' },
                   actions: [{ title: 'Stop', pressAction: { id: 'stop' } }],
-                  autoCancel: false,
+          autoCancel: false,
                   ongoing: true,
                   visibility: AndroidVisibility.PUBLIC,
                 },
-                data: {
-                  type: 'alarm',
+          data: {
+            type: 'alarm',
                   alarmId: alarmIdToUse,
-                  fromPush: true,
+            fromPush: true,
                   notificationType: notificationType,
                   ...(data.targetId && { targetId: data.targetId }),
                   ...(data.targetType && { targetType: data.targetType }),
-                },
-              });
-              
+          },
+        });
+        
               // Note: Native alarms automatically ring via AlarmPlayerService when AlarmManager fires
               // No need to manually trigger - the native system handles ringing automatically
               logger.info('✅ Alarm will ring automatically via native Android AlarmManager');

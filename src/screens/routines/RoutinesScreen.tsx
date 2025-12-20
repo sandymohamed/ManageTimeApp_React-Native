@@ -241,7 +241,7 @@ const RoutinesScreen: React.FC = () => {
       // Only show alert for non-network/database errors (to avoid spam when DB is down)
       // For network/database errors, silently fail and keep existing routines
       if (!isNetworkError && !isDatabaseError) {
-        Alert.alert(t('common.error'), t('routines.loadError'));
+      Alert.alert(t('common.error'), t('routines.loadError'));
       } else {
         // Silently handle network/database errors - keep existing routines and show in console only
         console.warn('⚠️ Could not load routines (network/database issue). Using cached data.');

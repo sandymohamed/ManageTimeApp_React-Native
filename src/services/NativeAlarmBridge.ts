@@ -157,6 +157,24 @@ class NativeAlarmBridge {
   }
 
   /**
+   * Get ringtone title/name from URI
+   */
+  async getRingtoneTitle(uri: string): Promise<string | null> {
+    if (Platform.OS !== 'android' || !AlarmModule) {
+      logger.warn('⚠️ Native AlarmModule not available');
+      return null;
+    }
+
+    try {
+      const title = await AlarmModule.getRingtoneTitle(uri);
+      return title;
+    } catch (error) {
+      logger.error('❌ Failed to get ringtone title:', error);
+      return null;
+    }
+  }
+
+  /**
    * Stop currently playing alarm
    */
   async stopPlayingAlarm(): Promise<void> {

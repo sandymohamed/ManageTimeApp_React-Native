@@ -106,9 +106,9 @@ android {
                 def keystoreFile = file(MYAPP_UPLOAD_STORE_FILE)
                 if (keystoreFile.exists()) {
                     storeFile keystoreFile
-                    storePassword MYAPP_UPLOAD_STORE_PASSWORD
-                    keyAlias MYAPP_UPLOAD_KEY_ALIAS
-                    keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+                storePassword MYAPP_UPLOAD_STORE_PASSWORD
+                keyAlias MYAPP_UPLOAD_KEY_ALIAS
+                keyPassword MYAPP_UPLOAD_KEY_PASSWORD
                 }
             }
         }
@@ -120,7 +120,7 @@ android {
             if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
                 def keystoreFile = file(MYAPP_UPLOAD_STORE_FILE)
                 if (keystoreFile.exists()) {
-                    signingConfig signingConfigs.release
+            signingConfig signingConfigs.release
                 }
             }
             // If no keystore, build will use debug signing (for testing)
