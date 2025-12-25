@@ -428,7 +428,7 @@ export const MilestoneManagementScreen: React.FC<MilestoneManagementScreenProps>
       }]}>
         <View style={styles.headerContent}>
           <Text variant="headlineSmall" style={[styles.headerTitle, { color: theme.colors.primary }]}>
-            {t('goals.milestones')}
+           {t('goals.milestones')} 
           </Text>
           <Text variant="bodyMedium" style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
             {currentGoal.title}
@@ -623,12 +623,13 @@ const createStyles = (theme: any) => StyleSheet.create({
     gap: 8,
   },
   statusChip: {
-    height: 32,
+    height: 24,
     borderRadius: 6,
     lineHeight: 10,
   },
   statusChipText: {
     fontSize: 10,
+    lineHeight: 8,
     fontWeight: '600',
   },
   timeChip: {
@@ -637,6 +638,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   timeChipText: {
     fontSize: 10,
+    lineHeight: 8,
     fontWeight: '600',
   },
   milestoneActions: {

@@ -19,6 +19,10 @@ import { useTheme as useCustomTheme } from '@/contexts/ThemeContext';
 import { useNotification } from '@/contexts/NotificationContext';
 import { Task, TaskStatus, TaskPriority, TaskFilter } from '@/types/task';
 import { useTaskStore } from '@/store/taskStore';
+import { useGoalStore } from '@/store/goalStore';
+import { useProjectStore } from '@/store/projectStore';
+import { MilestoneStatus } from '@/types/project';
+import { format, addDays } from 'date-fns';
 import { showDeleteConfirmation } from '@/components/ConfirmationDialog';
 
 interface TasksScreenProps {
@@ -60,6 +64,9 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
     updateTaskOrder,
     setCurrentTask,
   } = useTaskStore();
+
+  const { goals, fetchGoals } = useGoalStore();
+  const { projects, fetchProjects } = useProjectStore();
   
   // Track if we've already applied the route filter to prevent loops
   const routeFilterAppliedRef = React.useRef<string | null>(null);
@@ -137,13 +144,17 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
 
   // Track if we're currently fetching to prevent infinite loops
   const isFetchingRef = useRef(false);
-  
+
   // Fetch tasks when screen comes into focus (but prevent concurrent fetches)
   useFocusEffect(
     useCallback(() => {
       if (!isFetchingRef.current) {
         isFetchingRef.current = true;
-        fetchTasks()
+        Promise.all([
+          fetchTasks(),
+          fetchGoals(),
+          fetchProjects(),
+        ])
           .then(() => {
             // Check pending alarm after tasks are loaded
             checkPendingAlarm();
@@ -157,7 +168,7 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
       return () => {
         isFetchingRef.current = false;
       };
-    }, [fetchTasks])
+    }, [fetchTasks, fetchGoals, fetchProjects])
   );
   
   // Check pending alarm when filteredTasks change (but don't trigger fetch)
@@ -190,19 +201,17 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
       const hasFilterParams = currentFilter || currentDate;
       const currentFilterKey = currentFilter === 'urgent' ? `urgent` : currentFilter === 'day' && currentDate ? `day-${currentDate}` : null;
       
-      // If no filter params exist, clear filters and route params
+      // If no filter params exist, always clear filters (when navigating via navbar)
       if (!hasFilterParams) {
-        // Clear filters if they were previously applied
-        if (routeFilterAppliedRef.current !== null) {
-          clearFilters();
-          routeFilterAppliedRef.current = null;
-          previousFilterRef.current = null;
-          // Clear route params explicitly to prevent them from persisting
-          try {
-            navigation.setParams({ filter: undefined, date: undefined });
-          } catch (e) {
-            // Navigation params might not be available, ignore error
-          }
+        // Always clear filters when no params are present (navbar navigation)
+        clearFilters();
+        routeFilterAppliedRef.current = null;
+        previousFilterRef.current = null;
+        // Clear route params explicitly to prevent them from persisting
+        try {
+          navigation.setParams({ filter: undefined, date: undefined });
+        } catch (e) {
+          // Navigation params might not be available, ignore error
         }
         return;
       }
@@ -248,16 +257,66 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
   };
 
   const handleTaskPress = (task: Task) => {
+    // Handle virtual tasks - navigate to their source screens
+    if (isVirtualTask(task)) {
+      if (task.metadata?.isGoalMilestone || task.id?.startsWith('goal_milestone_')) {
+        const goalId = task.goalId;
+        if (goalId) {
+          navigation.navigate('GoalDetail', { goalId });
+        }
+        return;
+      } else if (task.metadata?.isProjectMilestone || task.id?.startsWith('project_')) {
+        const projectId = task.projectId;
+        if (projectId) {
+          navigation.navigate('ProjectDetail', { projectId });
+        }
+        return;
+      }
+    }
+
+    // Handle normal tasks
     setCurrentTask(task);
     navigation.navigate('TaskDetail', { taskId: task.id });
   };
 
   const handleEditTask = (task: Task) => {
+    // Virtual tasks cannot be edited from tasks screen
+    if (isVirtualTask(task)) {
+      if (task.metadata?.isGoalMilestone || task.id?.startsWith('goal_milestone_')) {
+        const goalId = task.goalId;
+        if (goalId) {
+          navigation.navigate('GoalDetail', { goalId });
+        } else {
+          showError('Please edit this goal milestone from the Goals screen');
+        }
+      } else if (task.metadata?.isProjectMilestone || task.id?.startsWith('project_')) {
+        const projectId = task.projectId;
+        if (projectId) {
+          navigation.navigate('ProjectDetail', { projectId });
+        } else {
+          showError('Please edit this project milestone from the Projects screen');
+        }
+      }
+      return;
+    }
+
+    // Handle normal tasks
     setCurrentTask(task);
     navigation.navigate('TaskEdit', { taskId: task.id });
   };
 
   const handleDeleteTask = async (task: Task) => {
+    // Virtual tasks cannot be deleted from tasks screen
+    if (isVirtualTask(task)) {
+      if (task.metadata?.isGoalMilestone || task.id?.startsWith('goal_milestone_')) {
+        showError('Please delete this goal milestone from the Goals screen');
+      } else if (task.metadata?.isProjectMilestone || task.id?.startsWith('project_')) {
+        showError('Please delete this project milestone from the Projects screen');
+      }
+      return;
+    }
+
+    // Handle normal tasks
     showDeleteConfirmation(
       task.title,
       async () => {
@@ -273,6 +332,28 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
 
 
   const handleToggleComplete = async (task: Task) => {
+    // Handle goal milestones and project milestones - navigate to their screens
+    if (task.metadata?.isGoalMilestone || task.id?.startsWith('goal_milestone_')) {
+      const goalId = task.goalId;
+      if (goalId) {
+        navigation.navigate('GoalDetail', { goalId });
+      } else {
+        showError('Please manage this goal milestone from the Goals screen');
+      }
+      return;
+    }
+
+    if (task.metadata?.isProjectMilestone || task.id?.startsWith('project_')) {
+      const projectId = task.projectId;
+      if (projectId) {
+        navigation.navigate('ProjectDetail', { projectId });
+      } else {
+        showError('Please manage this project milestone from the Projects screen');
+      }
+      return;
+    }
+
+    // Handle normal tasks
     try {
       if (task?.status === TaskStatus?.DONE) {
         await uncompleteTask(task.id);
@@ -382,6 +463,26 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
     }
   };
 
+  // Get task source type for badge display
+  const getTaskSource = (task: Task): { type: 'goal' | 'task'; label: string; color: string } | null => {
+    if (task.metadata?.isGoalMilestone || task.goalId) {
+      return { type: 'goal', label: 'Goal', color: theme.colors.primary || '#6366f1' };
+    }
+    if (task.metadata?.isProjectMilestone || (task.projectId && task.id?.startsWith('project_'))) {
+      return null; // Project milestones don't need a special badge, or we can add one if needed
+    }
+    return null; // Normal task - no badge needed
+  };
+
+  // Check if task is a virtual task (goal milestone, project milestone)
+  const isVirtualTask = (task: Task): boolean => {
+    return !!(task.metadata?.isGoalMilestone || 
+              task.metadata?.isProjectMilestone ||
+              task.id?.startsWith('goal_milestone_') ||
+              task.id?.startsWith('project_milestone_') ||
+              task.id?.startsWith('project_deadline_'));
+  };
+
   // SIMPLIFIED TASK RENDER - More reliable
   const renderTask = ({ item: task, drag, isActive }: { item: Task; drag?: () => void; isActive?: boolean }) => {
     const isAlarmTask = task.id === pendingAlarmTaskId; // Highlight if this is the alarm task
@@ -432,23 +533,25 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
                 )}
               </TouchableOpacity>
 
-              {/* Actions */}
-              <View style={styles.compactActions}>
-                <IconButton
-                  icon="pencil"
-                  size={18}
-                  iconColor={theme.colors.primary}
-                  onPress={() => handleEditTask(task)}
-                  style={styles.actionButton}
-                />
-                <IconButton
-                  icon="delete"
-                  size={18}
-                  iconColor={theme.colors.error}
-                  onPress={() => handleDeleteTask(task)}
-                  style={styles.actionButton}
-                />
-              </View>
+              {/* Actions - Hide for virtual tasks */}
+              {!isVirtualTask(task) && (
+                <View style={styles.compactActions}>
+                  <IconButton
+                    icon="pencil"
+                    size={18}
+                    iconColor={theme.colors.primary}
+                    onPress={() => handleEditTask(task)}
+                    style={styles.actionButton}
+                  />
+                  <IconButton
+                    icon="delete"
+                    size={18}
+                    iconColor={theme.colors.error}
+                    onPress={() => handleDeleteTask(task)}
+                    style={styles.actionButton}
+                  />
+                </View>
+              )}
 
               {/* Drag Handle - Only show if drag & drop is enabled */}
               {!useFallback && drag && (
@@ -504,6 +607,26 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
                   {getDueDateText(task.dueDate)}
                 </Chip>
               )}
+
+              {/* Task source badge */}
+              {(() => {
+                const taskSource = getTaskSource(task);
+                if (taskSource) {
+                  return (
+                    <Chip
+                      mode="outlined"
+                      style={[styles.sourceChip, {
+                        borderColor: taskSource.color,
+                        backgroundColor: `${taskSource.color}15`
+                      }]}
+                      textStyle={[styles.chipText, { color: taskSource.color, fontSize: 10 }]}
+                    >
+                      {taskSource.label}
+                    </Chip>
+                  );
+                }
+                return null;
+              })()}
             </View>
           </Card.Content>
         </Card>
@@ -516,13 +639,125 @@ export const TasksScreen: React.FC<TasksScreenProps> = ({ navigation, route }) =
     return renderTask({ item });
   };
 
+  // Generate goal milestones and project milestones for a specific day
+  const getAdditionalTasksForDay = (day: Date): Task[] => {
+    // Normalize the day to start of day for consistent comparison
+    const dayStart = new Date(day);
+    dayStart.setHours(0, 0, 0, 0);
+    const additionalTasks: Task[] = [];
+
+    // 1. Generate goal milestones for this day
+    goals.forEach(goal => {
+      if (!goal.milestones) return;
+      
+      goal.milestones.forEach(milestone => {
+        if (!milestone.targetDate || milestone.status === MilestoneStatus.DONE) return;
+        
+        const milestoneDate = new Date(milestone.targetDate);
+        milestoneDate.setHours(0, 0, 0, 0);
+        if (milestoneDate.toDateString() === dayStart.toDateString()) {
+          additionalTasks.push({
+            id: `goal_milestone_${milestone.id}`,
+            title: milestone.title,
+            description: milestone.description,
+            dueDate: milestoneDate.toISOString(),
+            status: TaskStatus.TODO, // Already filtered out DONE milestones above
+            priority: TaskPriority.MEDIUM,
+            goalId: goal.id,
+            createdBy: '',
+            tags: ['goal'],
+            order: 0,
+            metadata: {
+              isGoalMilestone: true,
+              goalTitle: goal.title,
+              milestoneId: milestone.id,
+            },
+            createdAt: milestone.createdAt || new Date().toISOString(),
+            updatedAt: milestone.updatedAt || new Date().toISOString(),
+            isDeleted: false,
+          });
+        }
+      });
+    });
+
+    // 2. Generate project milestones for this day
+    projects.forEach(project => {
+      if (!project.milestones) return;
+      
+      project.milestones.forEach(milestone => {
+        if (!milestone.dueDate || milestone.status === MilestoneStatus.DONE) return;
+        
+        const milestoneDate = new Date(milestone.dueDate);
+        milestoneDate.setHours(0, 0, 0, 0);
+        if (milestoneDate.toDateString() === dayStart.toDateString()) {
+          additionalTasks.push({
+            id: `project_milestone_${milestone.id}`,
+            title: milestone.title,
+            description: milestone.description,
+            dueDate: milestoneDate.toISOString(),
+            status: TaskStatus.TODO, // Already filtered out DONE milestones above
+            priority: TaskPriority.MEDIUM,
+            projectId: project.id,
+            createdBy: '',
+            tags: ['project'],
+            order: 0,
+            metadata: {
+              isProjectMilestone: true,
+              projectName: project.name,
+            },
+            createdAt: milestone.createdAt || new Date().toISOString(),
+            updatedAt: milestone.updatedAt || new Date().toISOString(),
+            isDeleted: false,
+          });
+        }
+      });
+
+      // Also include project deadline if it matches
+      if (project.endDate) {
+        const deadlineDate = new Date(project.endDate);
+        deadlineDate.setHours(0, 0, 0, 0);
+        if (deadlineDate.toDateString() === dayStart.toDateString()) {
+          additionalTasks.push({
+            id: `project_deadline_${project.id}`,
+            title: `${project.name} (Deadline)`,
+            description: undefined,
+            dueDate: deadlineDate.toISOString(),
+            status: TaskStatus.TODO,
+            priority: TaskPriority.HIGH,
+            projectId: project.id,
+            createdBy: '',
+            tags: ['project'],
+            order: 0,
+            metadata: {
+              isProjectMilestone: true,
+              projectName: project.name,
+            },
+            createdAt: project.createdAt || new Date().toISOString(),
+            updatedAt: project.updatedAt || new Date().toISOString(),
+            isDeleted: false,
+          });
+        }
+      }
+    });
+
+    return additionalTasks;
+  };
+
   // Separate and sort tasks: incomplete first (sorted by time), completed at bottom
   const getOrganizedTasks = () => {
     const now = new Date();
     
+    // Check if we're filtering by day - if so, include goal and project milestones
+    let tasksToUse = [...filteredTasks];
+    if (filter.dueDate?.from && filter.dueDate?.to) {
+      const filterDate = filter.dueDate.from;
+      const additionalTasks = getAdditionalTasksForDay(filterDate);
+      tasksToUse = [...tasksToUse, ...additionalTasks];
+    }
+    
     // Deduplicate tasks by ID first to ensure uniqueness
     const uniqueTasksMap = new Map<string, Task>();
-    filteredTasks.forEach(task => {
+    tasksToUse.forEach(task => {
       if (task.id) {
         uniqueTasksMap.set(task.id, task);
       }
@@ -1054,7 +1289,10 @@ const createStyles = (theme: any) => StyleSheet.create({
   dateChip: {
     height: 35,
     lineHeight: 10,
-
+  },
+  sourceChip: {
+    height: 35,
+    lineHeight: 10,
   },
   chipText: {
     fontSize: 11,

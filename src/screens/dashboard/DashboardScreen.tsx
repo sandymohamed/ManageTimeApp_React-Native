@@ -161,7 +161,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     return Array.from(uniqueTasksMap.values()).slice(0, 5);
   };
 
-  // Get this week's tasks (includes regular tasks, routine tasks, and project milestones)
+  // Get this week's tasks (includes regular tasks and project milestones)
   const getWeeklyTasks = () => {
     const now = new Date();
     const weekStart = startOfWeek(now);
@@ -174,46 +174,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
       return taskDate >= weekStart && taskDate <= weekEnd;
     });
 
-    // 2. Routine tasks - convert routine occurrences to task-like objects
-    const routineTasks: any[] = [];
-    routines.forEach(routine => {
-      if (!routine.enabled || !routine.schedule?.time) return;
-      
-      const [hours, minutes] = routine.schedule.time.split(':').map(Number);
-      
-      // Check each day of the week
-      for (let i = 0; i < 7; i++) {
-        const day = addDays(weekStart, i);
-        const dayKey = format(day, 'yyyy-MM-dd');
-        let shouldInclude = false;
-        
-        if (routine.frequency === 'DAILY') {
-          shouldInclude = true;
-        } else if (routine.frequency === 'WEEKLY' && routine.schedule.days) {
-          shouldInclude = routine.schedule.days.includes(day.getDay());
-        } else if (routine.frequency === 'MONTHLY' && routine.schedule.day) {
-          shouldInclude = day.getDate() === routine.schedule.day;
-        }
-        
-        if (shouldInclude) {
-          const routineDate = new Date(day);
-          routineDate.setHours(hours, minutes, 0, 0);
-          
-          // Add routine as a task-like object
-          routineTasks.push({
-            id: `routine_${routine.id}_${dayKey}`,
-            title: `🔄 ${routine.title}`,
-            dueDate: routineDate.toISOString(),
-            status: TaskStatus.TODO,
-            priority: TaskPriority.MEDIUM,
-            isRoutine: true,
-            routineId: routine.id,
-          });
-        }
-      }
-    });
-
-    // 3. Project milestones/deadlines
+    // 2. Project milestones/deadlines
     const projectMilestones: any[] = [];
     projects.forEach(project => {
       if (!project.milestones) return;
@@ -254,7 +215,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) 
     });
 
     // Combine all tasks
-    const allWeekTasks = [...weekTasks, ...routineTasks, ...projectMilestones];
+    const allWeekTasks = [...weekTasks, ...projectMilestones];
 
     // Group by day
     const tasksByDay: { [key: string]: any[] } = {};
