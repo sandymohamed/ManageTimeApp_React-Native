@@ -420,10 +420,62 @@ class PushNotificationService {
             logger.info(`🔔 Alarm time passed - ringing immediately: ${alarmIdToUse}`);
             
             // For routine/task reminders without native alarms, ring with notification
+            // BUT: Check if an alarm with linkedTaskId already exists - if so, don't ring reminder
+            // (The native alarm will handle ringing, preventing double-ringing)
             if (notificationType === 'ROUTINE_REMINDER' || notificationType === 'TASK_REMINDER' || notificationType === 'DUE_DATE_REMINDER') {
-              // Ring immediately with alarm notification (these don't have native alarms scheduled)
-              this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data);
-              logger.info(`✅ ${notificationType} ringing immediately with notification`);
+              // Check if an alarm with linkedTaskId exists for this task
+              const taskId = data.targetId || data.taskId;
+              if (taskId && notificationType === 'DUE_DATE_REMINDER') {
+                try {
+                  const { useAlarmStore } = await import('@/store/alarmStore');
+                  const alarms = useAlarmStore.getState().alarms;
+                  const existingAlarm = alarms.find(a => a.linkedTaskId === taskId);
+                  if (existingAlarm) {
+                    // Check if alarm is enabled before deciding to ring or skip
+                    if (!existingAlarm.enabled) {
+                      logger.info(`⏭️ Skipping reminder ring - alarm exists but is disabled: ${existingAlarm.title}`, {
+                        alarmId: existingAlarm.id,
+                        alarmTitle: existingAlarm.title,
+                      });
+                      return; // Don't ring or store as pending
+                    }
+                    logger.info(`⏭️ Skipping reminder ring - alarm with linkedTaskId already exists for task ${taskId}`, {
+                      alarmId: existingAlarm.id,
+                      alarmTitle: existingAlarm.title,
+                    });
+                    // Still store as pending for UI purposes, but don't ring
+                    AsyncStorage.setItem('pending_alarm_id', existingAlarm.id).catch(() => {});
+                  } else {
+                    // No existing alarm - ring reminder notification
+                    this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data);
+                    logger.info(`✅ ${notificationType} ringing immediately with notification`);
+                  }
+                } catch (checkError) {
+                  logger.error('Failed to check for existing alarm, ringing reminder anyway:', checkError);
+                  this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data);
+                }
+              } else {
+                // Not a DUE_DATE_REMINDER with taskId, or couldn't determine taskId
+                // But still check if the alarm itself is disabled before ringing
+                try {
+                  const { useAlarmStore } = await import('@/store/alarmStore');
+                  const alarms = useAlarmStore.getState().alarms;
+                  const alarm = alarms.find(a => a.id === alarmIdToUse);
+                  if (alarm && !alarm.enabled) {
+                    logger.info(`⏭️ Skipping reminder ring - alarm is disabled: ${alarm.title}`, {
+                      alarmId: alarm.id,
+                      alarmTitle: alarm.title,
+                    });
+                    return; // Don't ring disabled alarms
+                  }
+                } catch (checkError) {
+                  // If check fails, proceed with ringing (safer than blocking)
+                  logger.warn('Failed to check alarm enabled state, proceeding to ring:', checkError);
+                }
+                // Ring normally
+                this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data);
+                logger.info(`✅ ${notificationType} ringing immediately with notification`);
+              }
             }
             
             // Store as pending alarm
@@ -451,10 +503,58 @@ class PushNotificationService {
           }
         } else {
           // No alarm time - For routine/task reminders, ring immediately since they're sent when it's time
+          // BUT: Check if an alarm with linkedTaskId already exists - if so, don't ring reminder
           if (notificationType === 'ROUTINE_REMINDER' || notificationType === 'TASK_REMINDER' || notificationType === 'DUE_DATE_REMINDER') {
-            logger.info(`🔔 ${notificationType} received without alarm time - ringing immediately`);
-            // Ring immediately with alarm notification
-            this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data);
+            const taskId = data.targetId || data.taskId;
+            if (taskId && notificationType === 'DUE_DATE_REMINDER') {
+              try {
+                const { useAlarmStore } = await import('@/store/alarmStore');
+                const alarms = useAlarmStore.getState().alarms;
+                const existingAlarm = alarms.find(a => a.linkedTaskId === taskId);
+                if (existingAlarm) {
+                  // Check if alarm is enabled before deciding to ring or skip
+                  if (!existingAlarm.enabled) {
+                    logger.info(`⏭️ Skipping reminder ring - alarm exists but is disabled: ${existingAlarm.title}`, {
+                      alarmId: existingAlarm.id,
+                      alarmTitle: existingAlarm.title,
+                    });
+                    return; // Don't ring disabled alarms
+                  }
+                  logger.info(`⏭️ Skipping reminder ring - alarm with linkedTaskId already exists for task ${taskId}`, {
+                    alarmId: existingAlarm.id,
+                    alarmTitle: existingAlarm.title,
+                  });
+                  AsyncStorage.setItem('pending_alarm_id', existingAlarm.id).catch(() => {});
+                } else {
+                  logger.info(`🔔 ${notificationType} received without alarm time - ringing immediately`);
+                  this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data);
+                }
+              } catch (checkError) {
+                logger.error('Failed to check for existing alarm, ringing reminder anyway:', checkError);
+                logger.info(`🔔 ${notificationType} received without alarm time - ringing immediately`);
+                this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data);
+              }
+            } else {
+              // Check if the alarm itself is disabled before ringing
+              try {
+                const { useAlarmStore } = await import('@/store/alarmStore');
+                const alarms = useAlarmStore.getState().alarms;
+                const alarm = alarms.find(a => a.id === alarmIdToUse);
+                if (alarm && !alarm.enabled) {
+                  logger.info(`⏭️ Skipping reminder ring - alarm is disabled: ${alarm.title}`, {
+                    alarmId: alarm.id,
+                    alarmTitle: alarm.title,
+                  });
+                  return; // Don't ring disabled alarms
+                }
+              } catch (checkError) {
+                // If check fails, proceed with ringing (safer than blocking)
+                logger.warn('Failed to check alarm enabled state, proceeding to ring:', checkError);
+              }
+              logger.info(`🔔 ${notificationType} received without alarm time - ringing immediately`);
+              // Ring immediately with alarm notification
+              this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data);
+            }
           } else {
             logger.info(`📝 No alarm time provided, storing as pending: ${alarmIdToUse}`);
           }

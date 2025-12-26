@@ -409,7 +409,25 @@ export const AlarmsScreen: React.FC = () => {
         // It will be cleared when user dismisses the banner or stops the alarm
         const pendingAlarmId = await AsyncStorage.getItem('pending_alarm_id');
         if (pendingAlarmId) {
-          const alarm = alarms.find(a => a.id === pendingAlarmId);
+          // Try to find the alarm - check both exact match and snooze alarm patterns
+          let alarm = alarms.find(a => a.id === pendingAlarmId);
+          
+          // If not found and it's a snooze alarm, try to find the original alarm
+          // Snooze alarms have IDs like: ${originalId}_snooze_${timestamp}
+          if (!alarm && pendingAlarmId.includes('_snooze_')) {
+            const originalAlarmId = pendingAlarmId.replace(/_snooze_\d+$/, '').replace(/_snooze$/, '');
+            alarm = alarms.find(a => a.id === originalAlarmId);
+            if (alarm) {
+              console.log(`🔍 Found original alarm for snooze: ${originalAlarmId} -> ${alarm.title}`);
+              // Create a temporary alarm object for the snooze alarm
+              alarm = {
+                ...alarm,
+                id: pendingAlarmId,
+                title: `${alarm.title} (Snooze)`,
+              };
+            }
+          }
+          
           // ONLY trigger if alarm exists AND is enabled
           if (alarm && alarm.enabled) {
             console.log('🎯 Triggering alarm from push notification:', alarm.title);
@@ -698,7 +716,10 @@ export const AlarmsScreen: React.FC = () => {
     // This prevents it from being re-scheduled when fetchAlarms is called again
     const alarm = alarms.find(a => a.id === alarmId);
     if (alarm) {
-      const isTaskAlarm = alarm.title?.includes('Task:') || alarm.linkedTaskId;
+      // Check for task alarms: "Task:", "Task Due:", or has linkedTaskId
+      const isTaskAlarm = alarm.title?.includes('Task:') || 
+                         alarm.title?.includes('Task Due:') || 
+                         alarm.linkedTaskId;
       const isOneTimeAlarm = !alarm.recurrenceRule || alarm.recurrenceRule === 'none';
       
       // For one-time task alarms, disable them immediately when stopped
@@ -706,11 +727,45 @@ export const AlarmsScreen: React.FC = () => {
       if (isTaskAlarm && isOneTimeAlarm) {
         console.log('🛑 Disabling one-time task alarm to prevent re-scheduling:', alarm.title);
         try {
-          await updateAlarm(alarmId, { enabled: false });
-          console.log('✅ One-time task alarm disabled successfully');
+          // Cancel the native alarm first
+          await reliableAlarmService.cancelAlarm(alarmId);
+          
+          // CRITICAL: Update local state IMMEDIATELY to prevent re-scheduling
+          // Even if backend update fails, we mark it as disabled locally
+          const { useAlarmStore } = await import('@/store/alarmStore');
+          const currentAlarms = useAlarmStore.getState().alarms;
+          const alarmIndex = currentAlarms.findIndex(a => a.id === alarmId);
+          if (alarmIndex !== -1) {
+            // Update local state immediately
+            useAlarmStore.setState((state) => ({
+              alarms: state.alarms.map((a) => 
+                a.id === alarmId ? { ...a, enabled: false } : a
+              ),
+            }));
+            console.log('✅ Alarm disabled locally (before backend sync)');
+          }
+          
+          // Then try to disable it on the backend (non-blocking)
+          updateAlarm(alarmId, { enabled: false }).then(() => {
+            console.log('✅ One-time task alarm disabled on backend successfully');
+          }).catch((error) => {
+            console.error('❌ Failed to disable task alarm on backend (non-critical, already disabled locally):', error);
+            // Alarm is already disabled locally, so it won't be re-scheduled
+          });
         } catch (error) {
-          console.error('❌ Failed to disable task alarm (non-critical):', error);
-          // Continue - alarm is already stopped locally
+          console.error('❌ Error during alarm disable (non-critical):', error);
+          // Try to update local state anyway as a fallback
+          try {
+            const { useAlarmStore } = await import('@/store/alarmStore');
+            useAlarmStore.setState((state) => ({
+              alarms: state.alarms.map((a) => 
+                a.id === alarmId ? { ...a, enabled: false } : a
+              ),
+            }));
+            console.log('✅ Alarm disabled locally (fallback)');
+          } catch (fallbackError) {
+            console.error('❌ Failed to disable alarm locally (fallback):', fallbackError);
+          }
         }
         // Don't schedule auto-delete for task alarms - they're managed by tasks
         return;
