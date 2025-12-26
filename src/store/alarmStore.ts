@@ -345,22 +345,35 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       const alarm = get().alarms.find((a) => a.id === id);
       if (!alarm) return;
 
-      const updatedAlarm = await alarmService.updateAlarm(id, {
-        enabled: !alarm.enabled,
-      });
-
+      // Update local state immediately for better UX
+      const newEnabledState = !alarm.enabled;
       set((state) => ({
-        alarms: state.alarms.map((a) => (a.id === id ? updatedAlarm : a)),
+        alarms: state.alarms.map((a) => (a.id === id ? { ...a, enabled: newEnabledState } : a)),
       }));
 
-      // Reschedule or cancel alarm using native Android AlarmManager based on new enabled state
+      // Cancel or schedule alarm immediately based on new state
       reliableAlarmService.cancelAlarm(id).catch((error) => {
         console.error('Failed to cancel native alarm:', error);
       });
-      if (updatedAlarm.enabled) {
-        reliableAlarmService.scheduleAlarm(updatedAlarm).catch((error) => {
+      
+      if (newEnabledState) {
+        reliableAlarmService.scheduleAlarm({ ...alarm, enabled: newEnabledState }).catch((error) => {
           console.error('Failed to schedule native alarm:', error);
         });
+      }
+
+      // Update backend (non-blocking - local state already updated)
+      try {
+        const updatedAlarm = await alarmService.updateAlarm(id, {
+          enabled: newEnabledState,
+        });
+        // Sync with backend response (in case backend has different state)
+        set((state) => ({
+          alarms: state.alarms.map((a) => (a.id === id ? updatedAlarm : a)),
+        }));
+      } catch (error) {
+        console.error('Failed to sync toggle with backend:', error);
+        // Keep local state - user's action should be respected even if backend fails
       }
     } catch (error) {
       set({
@@ -406,16 +419,15 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         id: `${id}_snooze_${Date.now()}`,
         title: `${alarm.title} (Snooze)`,
         time: snoozeTime.toISOString(),
-        recurrenceRule: null, // Snooze is ALWAYS one-time (null, not 'none')
+        recurrenceRule: undefined, // Snooze is ALWAYS one-time (undefined, not 'none')
         enabled: true, // Ensure enabled
         // Ensure all required fields are present
         userId: alarm.userId || '',
         createdAt: alarm.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         timezone: alarm.timezone || 'UTC',
-        // Clear any linked task/routine IDs - snooze is a standalone alarm
+        // Clear any linked task IDs - snooze is a standalone alarm
         linkedTaskId: undefined,
-        linkedRoutineId: undefined,
       };
 
       // Verify snooze time is in the future
@@ -464,14 +476,25 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         duration: `${duration} minutes`,
       });
 
-      // If authenticated, also update backend
+      // If authenticated, sync snooze to backend (non-blocking)
+      // IMPORTANT: Only sync if the original alarm exists in backend (not a snooze alarm)
+      // Snooze alarms are local-only and shouldn't be synced to backend
       const { isAuthenticated } = useAuthStore.getState();
       if (isAuthenticated) {
-        try {
-          await alarmService.snoozeAlarm(id, duration);
-        } catch (error) {
-          console.error('Failed to sync snooze to backend:', error);
-          // Don't fail snooze if backend sync fails
+        // Check if this is a snooze alarm being snoozed (shouldn't happen, but handle gracefully)
+        const isSnoozeAlarm = id.includes('_snooze_') || id.endsWith('_snooze');
+        if (!isSnoozeAlarm) {
+          // Only sync if it's the original alarm (not a snooze alarm)
+          alarmService.snoozeAlarm(id, duration).catch((error) => {
+            // Non-blocking: Don't fail snooze if backend sync fails
+            // This can happen if:
+            // 1. Alarm was deleted from backend but exists locally
+            // 2. Network issues
+            // 3. Backend temporarily unavailable
+            console.warn('⚠️ Failed to sync snooze to backend (non-critical):', error);
+          });
+        } else {
+          console.log('ℹ️ Skipping backend sync for snooze alarm (local-only)');
         }
       }
     } catch (error) {

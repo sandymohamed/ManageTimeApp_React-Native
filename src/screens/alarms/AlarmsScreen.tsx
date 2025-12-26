@@ -13,6 +13,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Sound from 'react-native-sound';
 import BackgroundTimer from 'react-native-background-timer';
+import PushNotification from 'react-native-push-notification';
 import { Text, FAB, Card, Button, Chip, SegmentedButtons, Portal, Modal, TextInput, IconButton, Dialog } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
@@ -202,9 +203,17 @@ export const AlarmsScreen: React.FC = () => {
           console.log(`🔍 Checking routine alarm "${alarm.title}": current=${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}, alarm=${alarmTime.getHours()}:${alarmTime.getMinutes()}, shouldFire=${shouldFire}`);
         }
       } else {
-        // For one-time alarms, check if time has passed (within 1 minute window)
+        // For one-time alarms (including snooze alarms), check if time has passed
+        // Use a wider window for snooze alarms (5 minutes) since they're more precise
+        const isSnoozeAlarm = alarm.id.includes('_snooze_') || alarm.id.endsWith('_snooze');
         const timeDiff = now.getTime() - alarmTime.getTime();
-        shouldFire = timeDiff >= 0 && timeDiff <= 60000; // 1 minute window
+        const windowMs = isSnoozeAlarm ? 5 * 60 * 1000 : 60000; // 5 min for snooze, 1 min for regular
+        shouldFire = timeDiff >= 0 && timeDiff <= windowMs;
+        
+        // Log snooze alarm detection for debugging
+        if (isSnoozeAlarm && shouldFire) {
+          console.log(`🔔 Snooze alarm detected: ${alarm.title}, timeDiff: ${Math.floor(timeDiff/1000)}s`);
+        }
       }
 
       if (shouldFire) {
@@ -921,14 +930,12 @@ export const AlarmsScreen: React.FC = () => {
     }
 
     const isAlarmViewActive = isFocused && activeTab === 'alarms';
+    const isSnoozeAlarm = alarm.id.includes('_snooze_') || alarm.id.endsWith('_snooze');
 
-    console.log('🎯 Alarm fired:', alarm.title, 'at', new Date().toISOString());
+    console.log('🎯 Alarm fired:', alarm.title, isSnoozeAlarm ? '(SNOOZE)' : '', 'at', new Date().toISOString());
     setActiveAlarmId(alarm.id);
 
-    // Note: Alarm sound/vibration is now handled entirely by native Android AlarmManager
-    // The native AlarmPlayerService automatically plays sound/vibration when the alarm fires
-    // We just update the UI state here to show which alarm is active
-    // Store active alarm info for reference (native service handles the actual ringing)
+    // Store active alarm info
     AsyncStorage.setItem('active_alarm', JSON.stringify({
       id: alarm.id,
       title: alarm.title,
@@ -938,6 +945,38 @@ export const AlarmsScreen: React.FC = () => {
     }).catch((error) => {
       console.error('❌ Error storing active alarm state:', error);
     });
+
+    // CRITICAL: For snooze alarms detected via JavaScript polling, manually trigger ringing
+    // Native alarm system may not fire snooze alarms reliably since they're created locally
+    if (isSnoozeAlarm) {
+      console.log('🔔 Snooze alarm detected - manually triggering ringing...');
+      try {
+        PushNotification.localNotification({
+          channelId: Platform.OS === 'android' ? 'alarm-channel-v2' : undefined,
+          title: `⏰ ${alarm.title}`,
+          message: 'Time to wake up!',
+          playSound: true,
+          soundName: 'alarm',
+          vibrate: true,
+          vibration: 1000,
+          priority: 'max',
+          importance: 5 as any,
+          allowWhileIdle: true,
+          ongoing: true,
+          autoCancel: false,
+          userInfo: {
+            alarmId: alarm.id,
+            type: 'ALARM_TRIGGER',
+            title: alarm.title,
+            time: alarm.time,
+            notificationType: 'ALARM_TRIGGER',
+          },
+        });
+        console.log('✅ Snooze alarm ringing triggered manually');
+      } catch (error) {
+        console.error('❌ Failed to trigger snooze alarm ring:', error);
+      }
+    }
 
     if (!isAlarmViewActive) {
       setPendingAlarm(alarm);
