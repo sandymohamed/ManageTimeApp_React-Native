@@ -124,6 +124,7 @@ export const AlarmsScreen: React.FC = () => {
     updateTimerRemainingTime,
     clearError,
     toggleAlarm,
+    updateAlarm,
     deleteAlarm,
     dismissAlarm,
   } = useAlarmStore();
@@ -645,6 +646,27 @@ export const AlarmsScreen: React.FC = () => {
       console.error('❌ Error cancelling scheduled alarm:', error);
     }
     
+    // CRITICAL: Cancel ALL snooze alarms for this alarm
+    // Snooze alarms have IDs like: ${alarmId}_snooze_${timestamp}
+    try {
+      const allAlarms = alarms.filter(a => a.id.startsWith(`${alarmId}_snooze_`));
+      console.log(`🛑 Found ${allAlarms.length} snooze alarms to cancel for ${alarmId}`);
+      
+      for (const snoozeAlarm of allAlarms) {
+        try {
+          await reliableAlarmService.cancelAlarm(snoozeAlarm.id);
+          notificationService.cancelAlarm(snoozeAlarm.id);
+          console.log(`✅ Cancelled snooze alarm: ${snoozeAlarm.id}`);
+        } catch (error) {
+          console.error(`❌ Error cancelling snooze alarm ${snoozeAlarm.id}:`, error);
+        }
+      }
+      
+      // ReliableAlarmService.cancelAlarm already handles snooze alarm cleanup from storage
+    } catch (error) {
+      console.error('❌ Error cancelling snooze alarms:', error);
+    }
+    
     // Clean up ALL AsyncStorage state for this alarm
     try {
       await clearAlarmState(alarmId);
@@ -670,36 +692,59 @@ export const AlarmsScreen: React.FC = () => {
       alarmDeleteTimeoutsRef.current.delete(alarmId);
     }
     
-    // Check if alarm is one-time and schedule deletion after 30 seconds
+    // Check if alarm is one-time task alarm - disable it immediately when stopped
+    // This prevents it from being re-scheduled when fetchAlarms is called again
     const alarm = alarms.find(a => a.id === alarmId);
-    const hasPreviousFailure = autoDeleteFailuresRef.current.has(alarmId);
-    const shouldAttemptAutoDelete = !!alarm && !skipAutoDelete && !hasPreviousFailure;
-
-    if (shouldAttemptAutoDelete) {
-      // Don't auto-delete routine or task alarms (they're tied to routines/tasks)
-      const isRoutineOrTaskAlarm = alarm.title?.includes('Routine:') || alarm.title?.includes('Task:');
+    if (alarm) {
+      const isTaskAlarm = alarm.title?.includes('Task:') || alarm.linkedTaskId;
       const isOneTimeAlarm = !alarm.recurrenceRule || alarm.recurrenceRule === 'none';
       
-      // Only auto-delete one-time alarms that are NOT routine/task alarms
-      if (isOneTimeAlarm && !isRoutineOrTaskAlarm) {
-        const timeout = setTimeout(async () => {
-          try {
-            await deleteAlarm(alarmId);
-            console.log('✅ Auto-deleted one-time alarm after ringing:', alarmId);
-          } catch (error) {
-            // Silently handle errors - alarm might already be deleted or backend validation failed
-            console.error('❌ Auto-delete failed (non-critical):', error);
-            autoDeleteFailuresRef.current.add(alarmId);
-          }
-        }, 30000);
-        alarmDeleteTimeoutsRef.current.set(alarmId, timeout);
-      } else if (isRoutineOrTaskAlarm) {
-        console.log('⏭️ Skipping auto-delete for routine/task alarm:', alarm.title);
+      // For one-time task alarms, disable them immediately when stopped
+      // This prevents them from being re-scheduled when tasks are loaded/fetched
+      if (isTaskAlarm && isOneTimeAlarm) {
+        console.log('🛑 Disabling one-time task alarm to prevent re-scheduling:', alarm.title);
+        try {
+          await updateAlarm(alarmId, { enabled: false });
+          console.log('✅ One-time task alarm disabled successfully');
+        } catch (error) {
+          console.error('❌ Failed to disable task alarm (non-critical):', error);
+          // Continue - alarm is already stopped locally
+        }
+        // Don't schedule auto-delete for task alarms - they're managed by tasks
+        return;
+      }
+      
+      // For routine alarms or other recurring alarms, keep them enabled
+      // The stopped marker will prevent immediate re-triggering
+      const hasPreviousFailure = autoDeleteFailuresRef.current.has(alarmId);
+      const shouldAttemptAutoDelete = !skipAutoDelete && !hasPreviousFailure;
+      
+      if (shouldAttemptAutoDelete) {
+        // Auto-delete one-time non-task alarms after 30 seconds
+        const isRoutineAlarm = alarm.title?.includes('Routine:');
+        const isRecurringAlarm = alarm.recurrenceRule && alarm.recurrenceRule !== 'none';
+        
+        // Only auto-delete one-time alarms that are NOT routine alarms
+        if (isOneTimeAlarm && !isRoutineAlarm && !isRecurringAlarm) {
+          const timeout = setTimeout(async () => {
+            try {
+              await deleteAlarm(alarmId);
+              console.log('✅ Auto-deleted one-time alarm after ringing:', alarmId);
+            } catch (error) {
+              // Silently handle errors - alarm might already be deleted or backend validation failed
+              console.error('❌ Auto-delete failed (non-critical):', error);
+              autoDeleteFailuresRef.current.add(alarmId);
+            }
+          }, 30000);
+          alarmDeleteTimeoutsRef.current.set(alarmId, timeout);
+        } else if (isRoutineAlarm || isRecurringAlarm) {
+          console.log('⏭️ Skipping auto-delete for routine/recurring alarm:', alarm.title);
+        }
       }
     }
 
     setIsStopping(false);
-  }, [alarms, deleteAlarm]);
+  }, [alarms, deleteAlarm, updateAlarm]);
 
   // Listen for native alarm events (snooze/stop from notification buttons)
   // This must be in a separate useEffect that runs after handleStopAlarm is defined
@@ -718,12 +763,23 @@ export const AlarmsScreen: React.FC = () => {
     const snoozeSubscription = eventEmitter.addListener('AlarmSnooze', async (event: { alarmId: string; action: string }) => {
       console.log('🔔 AlarmSnooze event received in AlarmsScreen:', event.alarmId);
       try {
+        // Extract original alarm ID (remove _snooze suffix if this is a snooze alarm)
+        const originalAlarmId = event.alarmId.replace(/_snooze_\d+$/, '').replace(/_snooze$/, '');
+        
         // Stop the alarm immediately (should already be stopped by native, but ensure it)
         await reliableAlarmService.stopAlarm();
         
-        // Handle snooze via store
+        // Cancel the original alarm to prevent double ringing
+        try {
+          await reliableAlarmService.cancelAlarm(originalAlarmId);
+          console.log(`✅ Cancelled original alarm: ${originalAlarmId}`);
+        } catch (error) {
+          console.warn(`⚠️ Failed to cancel original alarm:`, error);
+        }
+        
+        // Handle snooze via store (use original alarm ID)
         const { snoozeAlarm: snoozeAlarmFn } = useAlarmStore.getState();
-        await snoozeAlarmFn(event.alarmId, 5);
+        await snoozeAlarmFn(originalAlarmId, 5);
         console.log('✅ Alarm snoozed via notification button');
       } catch (error) {
         console.error('❌ Failed to handle snooze event:', error);
@@ -733,20 +789,41 @@ export const AlarmsScreen: React.FC = () => {
     const stopSubscription = eventEmitter.addListener('AlarmStop', async (event: { alarmId: string; action: string }) => {
       console.log('🔔 AlarmStop event received in AlarmsScreen:', event.alarmId);
       try {
+        // Extract original alarm ID (remove _snooze suffix if this is a snooze alarm)
+        const originalAlarmId = event.alarmId?.replace(/_snooze_\d+$/, '').replace(/_snooze$/, '') || event.alarmId;
+        
         // Stop alarm using the same handler as in-app stop
-        // This ensures all cleanup happens properly
-        if (event.alarmId) {
-          await handleStopAlarm(event.alarmId);
+        // This ensures all cleanup happens properly, including snooze alarms
+        if (originalAlarmId) {
+          await handleStopAlarm(originalAlarmId);
         } else {
-          // Fallback: just clear UI state if no alarmId
-          setActiveAlarmId(null);
-          setPendingAlarm(null);
-          setIsStopping(false);
+          // Fallback: try to stop by matching active alarm
+          const { alarms } = useAlarmStore.getState();
+          const activeAlarm = alarms.find(a => 
+            a.id === activeAlarmId || 
+            a.id.startsWith(`${activeAlarmId}_snooze_`) ||
+            a.id === event.alarmId ||
+            a.id.startsWith(`${event.alarmId}_snooze_`)
+          );
+          
+          if (activeAlarm) {
+            const alarmToStop = activeAlarm.id.includes('_snooze_') 
+              ? activeAlarm.id.replace(/_snooze_\d+$/, '').replace(/_snooze$/, '')
+              : activeAlarm.id;
+            await handleStopAlarm(alarmToStop);
+          } else {
+            // Last resort: just clear UI state
+            setActiveAlarmId(null);
+            setPendingAlarm(null);
+            setIsStopping(false);
+            await reliableAlarmService.stopAlarm();
+          }
         }
         
         // Also clear any AsyncStorage state
         await AsyncStorage.removeItem('active_alarm').catch(() => {});
         await AsyncStorage.removeItem('pending_alarm_id').catch(() => {});
+        await AsyncStorage.removeItem('pending_snooze_alarm_id').catch(() => {});
         
         console.log('✅ Alarm stop event handled - UI and state cleared');
       } catch (error) {
@@ -755,6 +832,7 @@ export const AlarmsScreen: React.FC = () => {
         setActiveAlarmId(null);
         setPendingAlarm(null);
         setIsStopping(false);
+        await reliableAlarmService.stopAlarm().catch(() => {});
       }
     });
 

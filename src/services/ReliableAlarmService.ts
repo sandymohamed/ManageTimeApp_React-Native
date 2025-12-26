@@ -106,7 +106,51 @@ export class ReliableAlarmService {
       await AsyncStorage.removeItem(`alarm_notif_${alarmId}`);
       await AsyncStorage.removeItem(`alarm_timer_${alarmId}`);
 
-      logger.info('✅ Alarm canceled successfully');
+      logger.info(`✅ Alarm canceled successfully: ${alarmId}`);
+      
+      // Also cancel any snooze alarms for this alarm
+      // Get all storage keys and find snooze alarms
+      try {
+        const keys = await AsyncStorage.getAllKeys();
+        const snoozeKeys = keys.filter(key => 
+          (key.includes(`alarm_${alarmId}_snooze_`) || 
+           key.includes(`alarm_${alarmId}_snooze`)) &&
+          !key.includes('_notif_') && 
+          !key.includes('_timer_')
+        );
+        
+        logger.info(`🔍 Found ${snoozeKeys.length} snooze alarm storage keys for ${alarmId}`);
+        
+        for (const key of snoozeKeys) {
+          try {
+            const alarmData = await AsyncStorage.getItem(key);
+            if (alarmData) {
+              const parsed = JSON.parse(alarmData);
+              if (parsed.id && (parsed.id.includes('_snooze_') || parsed.id.includes('_snooze'))) {
+                logger.info(`🗑️ Cancelling snooze alarm: ${parsed.id}`);
+                await nativeAlarmBridge.cancelAlarm(parsed.id);
+                await AsyncStorage.removeItem(key);
+                // Also clean up notification and timer keys for this snooze alarm
+                await AsyncStorage.removeItem(`alarm_notif_${parsed.id}`).catch(() => {});
+                await AsyncStorage.removeItem(`alarm_timer_${parsed.id}`).catch(() => {});
+                logger.info(`✅ Cancelled and cleaned up snooze alarm: ${parsed.id}`);
+              }
+            } else {
+              // If no data, extract ID from key and cancel anyway
+              const extractedId = key.replace('alarm_', '');
+              if (extractedId && extractedId.includes('_snooze')) {
+                await nativeAlarmBridge.cancelAlarm(extractedId);
+                await AsyncStorage.removeItem(key);
+                logger.info(`✅ Cancelled snooze alarm from key: ${extractedId}`);
+              }
+            }
+          } catch (error) {
+            logger.warn(`⚠️ Error cancelling snooze alarm from storage key ${key}:`, error);
+          }
+        }
+      } catch (error) {
+        logger.warn(`⚠️ Error checking for snooze alarms:`, error);
+      }
     } catch (error) {
       logger.error('❌ Error canceling alarm:', error);
     }

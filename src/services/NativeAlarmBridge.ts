@@ -75,18 +75,36 @@ class NativeAlarmBridge {
       const timestamp = alarmTime.getTime();
 
       // Ensure alarm time is in the future
-      if (timestamp <= Date.now()) {
-        logger.warn('⚠️ Alarm time is in the past, calculating next occurrence');
+      const now = Date.now();
+      if (timestamp <= now) {
+        logger.warn(`⚠️ Alarm time is in the past: ${alarmTime.toISOString()}, now: ${new Date(now).toISOString()}, diff: ${(now - timestamp) / 1000}s`);
+        
         // For recurring alarms, calculate next occurrence
-        if (alarm.recurrenceRule && alarm.recurrenceRule !== 'none') {
+        if (alarm.recurrenceRule && alarm.recurrenceRule !== 'none' && alarm.recurrenceRule !== null) {
           const nextTime = this.calculateNextOccurrence(alarmTime, alarm.recurrenceRule);
+          logger.info(`📅 Recalculating recurring alarm to next occurrence: ${nextTime.toISOString()}`);
           return this.scheduleAlarm({ ...alarm, time: nextTime.toISOString() });
         } else {
-          logger.warn('⚠️ One-time alarm in the past, skipping');
-          return;
+          // For one-time alarms (snooze alarms), ensure they're at least 10 seconds in the future
+          // Sometimes there's a small timing issue
+          const minFutureTime = now + 10000; // 10 seconds minimum
+          if (timestamp < minFutureTime) {
+            logger.warn(`⚠️ One-time alarm too close to now or in past, adjusting to ${new Date(minFutureTime).toISOString()}`);
+            return this.scheduleAlarm({ ...alarm, time: new Date(minFutureTime).toISOString() });
+          }
+          // If it's very close but still valid, allow it
+          logger.info(`✅ Alarm time is very close to now but still valid`);
         }
       }
 
+      logger.info(`📅 Calling native AlarmModule.scheduleAlarm`, {
+        alarmId: alarm.id,
+        timestamp,
+        title: alarm.title,
+        recurrenceRule: alarm.recurrenceRule || 'none',
+        timeUntilAlarm: Math.floor((timestamp - Date.now()) / 1000) + ' seconds',
+      });
+      
       await AlarmModule.scheduleAlarm(
         alarm.id,
         timestamp,
@@ -95,7 +113,14 @@ class NativeAlarmBridge {
         alarm.recurrenceRule || null
       );
 
-      logger.info(`✅ Native alarm scheduled: ${alarm.title} at ${alarmTime.toISOString()}`);
+      logger.info(`✅ Native alarm scheduled successfully`, {
+        alarmId: alarm.id,
+        title: alarm.title,
+        time: alarmTime.toISOString(),
+        timestamp,
+        recurrenceRule: alarm.recurrenceRule || 'none',
+        timeUntilAlarm: Math.floor((timestamp - Date.now()) / 1000) + ' seconds',
+      });
     } catch (error) {
       logger.error('❌ Failed to schedule native alarm:', error);
       throw error;
@@ -118,6 +143,17 @@ class NativeAlarmBridge {
       logger.error('❌ Failed to cancel native alarm:', error);
       throw error;
     }
+  }
+
+  /**
+   * Cancel all alarms matching a pattern (for canceling snooze alarms)
+   * This is a helper method to cancel multiple alarms with similar IDs
+   */
+  async cancelAlarmPattern(pattern: string): Promise<void> {
+    // This method might not be available in the native module
+    // If not, individual cancel calls should be made instead
+    // For now, we'll just log - the caller should handle individual cancellations
+    logger.info(`⚠️ Pattern cancellation requested for: ${pattern} (not implemented, using individual cancels)`);
   }
 
   /**

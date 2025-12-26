@@ -25,6 +25,7 @@ import {
   RoutineFrequency,
 } from '@/types/routine';
 import { useNotification } from '@/contexts/NotificationContext';
+import { useAlarmStore } from '@/store/alarmStore';
 
 const RoutineCreateScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -174,6 +175,21 @@ const RoutineCreateScreen: React.FC = () => {
 
       // Backend automatically creates one task with routine title and description
       const routine = await routineService.createRoutine(routineData);
+
+      // Fetch alarms after routine creation to schedule native alarms
+      // This ensures routine alarms (created on backend) are scheduled on the device
+      // Add a small delay to ensure backend has finished creating alarms
+      setTimeout(async () => {
+        try {
+          console.log('🔄 Fetching alarms after routine creation...');
+          const { fetchAlarms } = useAlarmStore.getState();
+          await fetchAlarms(1, 1000, true); // Fetch enabled alarms only (limit 1000 to get all)
+          console.log('✅ Alarms fetched and scheduled after routine creation');
+        } catch (alarmError) {
+          console.error('❌ Failed to fetch alarms after routine creation:', alarmError);
+          // Don't block routine creation if alarm fetch fails
+        }
+      }, 2000); // Wait 2 seconds for backend to finish creating alarms
 
       showSuccess(t('routines.routineCreated'));
       navigation.goBack();
@@ -366,6 +382,9 @@ const RoutineCreateScreen: React.FC = () => {
                 <Text variant="titleMedium" style={styles.sectionTitle}>
                   Day of Month (1-31)
                 </Text>
+                {/* todo: this enforce the box to always contain number but 
+                if user delete the default value to add new one it enforce number 1 so give the user chance to clear value and add new 
+                value and add the check that umber is between 1-31 when submit */}
                 <TextInput
                   label="Day"
                   value={selectedDay.toString()}

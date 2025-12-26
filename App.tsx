@@ -58,12 +58,19 @@ const App: React.FC = () => {
     initializeAuth();
   }, [initializeAuth]);
 
-  // Initialize push notifications when user is authenticated
+  // Initialize push notifications and fetch alarms when user is authenticated
   useEffect(() => {
     if (isInitialized && isAuthenticated && user) {
       console.log('🔔 App: Initializing push notifications...');
       pushNotificationService.initialize().catch((error) => {
         console.error('Failed to initialize push notifications:', error);
+      });
+      
+      // Fetch and schedule all alarms (including task/routine alarms) on app startup
+      const { useAlarmStore } = require('./src/store/alarmStore');
+      console.log('⏰ App: Fetching alarms to schedule native alarms...');
+      useAlarmStore.getState().fetchAlarms(1, 100, true).catch((error: any) => {
+        console.error('Failed to fetch alarms on app startup:', error);
       });
     }
   }, [isInitialized, isAuthenticated, user]);

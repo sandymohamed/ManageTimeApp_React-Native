@@ -96,8 +96,27 @@ export const useTaskStore = create<TaskStore>()(
         try {
           set({ isLoading: true, error: null });
 
-          const response = await taskService.getTasks(params);
+          // When fetching all tasks (no specific filter), use a high limit to get all tasks
+          // This ensures regular tasks aren't hidden by pagination
+          const fetchParams = { ...params };
+          if (!params?.goalId && !params?.projectId && !params?.assigneeId && !params?.limit) {
+            // Fetching all tasks - use a high limit (1000 should be enough for most users)
+            fetchParams.limit = 1000;
+            fetchParams.page = 1;
+          }
+
+          logger.info('Fetching tasks with params:', fetchParams);
+          const response = await taskService.getTasks(fetchParams);
           const serverTasks = response;
+          
+          logger.info(`Fetched ${serverTasks.length} tasks from server`, {
+            totalTasks: serverTasks.length,
+            withGoalId: serverTasks.filter(t => t.goalId).length,
+            withoutGoalId: serverTasks.filter(t => !t.goalId).length,
+            withProjectId: serverTasks.filter(t => t.projectId).length,
+            regularTasks: serverTasks.filter(t => !t.goalId && !t.projectId).length,
+            taskIds: serverTasks.map(t => ({ id: t.id, title: t.title, goalId: t.goalId, projectId: t.projectId })).slice(0, 10),
+          });
 
           // Sort tasks by order field
           const sortedServerTasks = serverTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -134,8 +153,13 @@ export const useTaskStore = create<TaskStore>()(
             });
           } else {
             // No filter: server tasks are the source of truth for user's tasks
-            // Only keep server tasks (don't merge with local-only tasks when fetching all tasks)
-            // This prevents showing tasks from previous accounts
+            // IMPORTANT: Replace ALL tasks with server tasks when fetching all tasks
+            // This ensures we have the complete list from the server
+            logger.info(`Fetching ALL tasks (no filter) - replacing ${currentTasks.length} existing tasks with ${sortedServerTasks.length} server tasks`, {
+              regularTasksInStore: currentTasks.filter(t => !t.goalId && !t.projectId).length,
+              regularTasksFromServer: sortedServerTasks.filter(t => !t.goalId && !t.projectId).length,
+            });
+            
             set({
               tasks: sortedServerTasks,
               filteredTasks: sortedServerTasks,
@@ -145,6 +169,16 @@ export const useTaskStore = create<TaskStore>()(
 
           // Apply current filters
           get().applyFilters();
+          
+          // Fetch and schedule alarms after tasks are loaded (so task alarms are scheduled)
+          try {
+            const { useAlarmStore } = require('./alarmStore');
+            useAlarmStore.getState().fetchAlarms(1, 100, true).catch((error: any) => {
+              logger.error('Failed to fetch alarms after tasks loaded:', error);
+            });
+          } catch (error) {
+            // Ignore if alarmStore is not available
+          }
         } catch (error: any) {
           logger.error('Fetch tasks error:', error);
           set({
@@ -413,18 +447,32 @@ export const useTaskStore = create<TaskStore>()(
       },
 
       clearFilters: () => {
+        const clearedFilter = {};
         set({
-          filter: {},
+          filter: clearedFilter,
           searchQuery: '',
           sortBy: 'order',
           sortOrder: 'asc',
         });
+        // Force re-apply filters with empty filter to ensure all tasks are shown
         get().applyFilters();
+        logger.info('Filters cleared - all tasks should be visible');
       },
 
       // Apply filters to tasks
       applyFilters: () => {
         const { tasks, filter, searchQuery, sortBy, sortOrder = "asc" } = get();
+
+        logger.info('Applying filters:', {
+          totalTasks: tasks.length,
+          filter,
+          searchQuery,
+          sortBy,
+          sortOrder,
+          regularTasks: tasks.filter(t => !t.goalId && !t.projectId).length,
+          goalTasks: tasks.filter(t => t.goalId).length,
+          projectTasks: tasks.filter(t => t.projectId).length,
+        });
 
         let filtered = [...tasks];
 
@@ -451,9 +499,15 @@ export const useTaskStore = create<TaskStore>()(
           filtered = filtered.filter(task => task.projectId === filter.projectId);
         }
 
-        // Apply goal filter
-        if (filter.goalId) {
+        // Apply goal filter - only if goalId is explicitly set (not null/undefined)
+        // Note: goalId can be null for regular tasks, so we need to check for explicit value
+        // IMPORTANT: Do NOT filter out tasks without goalId - they are regular tasks!
+        if (filter.goalId !== undefined && filter.goalId !== null) {
           filtered = filtered.filter(task => task.goalId === filter.goalId);
+          logger.info(`Filtered by goalId ${filter.goalId}: ${filtered.length} tasks`);
+        } else {
+          // No goalId filter - include ALL tasks (regular tasks, goal tasks, project tasks)
+          logger.info(`No goalId filter - keeping all ${filtered.length} tasks`);
         }
 
         // Apply assignee filter
@@ -515,6 +569,13 @@ export const useTaskStore = create<TaskStore>()(
             return (a.order || 0) - (b.order || 0);
           });
         }
+
+        logger.info('Final filtered tasks after applying all filters:', {
+          totalFiltered: filtered.length,
+          regularTasks: filtered.filter(t => !t.goalId && !t.projectId).length,
+          goalTasks: filtered.filter(t => t.goalId).length,
+          projectTasks: filtered.filter(t => t.projectId).length,
+        });
 
         set({ filteredTasks: filtered });
       },

@@ -638,7 +638,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   timeChipText: {
     fontSize: 10,
-    lineHeight: 8,
+    lineHeight: 12,
     fontWeight: '600',
   },
   milestoneActions: {
