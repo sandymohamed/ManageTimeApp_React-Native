@@ -649,6 +649,20 @@ export const AlarmsScreen: React.FC = () => {
     const { skipAutoDelete = false } = options;
     console.log('🛑 Stopping alarm:', alarmId);
 
+    // Check if this is a snooze alarm being stopped
+    const isSnoozeAlarm = alarmId.includes('_snooze_') || alarmId.endsWith('_snooze');
+    let originalAlarmId = alarmId;
+    
+    if (isSnoozeAlarm) {
+      // Extract original alarm ID from snooze alarm ID
+      // Format: {originalId}_snooze_{timestamp}
+      const match = alarmId.match(/^(.*?)_snooze_/);
+      if (match) {
+        originalAlarmId = match[1];
+        console.log(`🔍 Detected snooze alarm: ${alarmId}, original alarm: ${originalAlarmId}`);
+      }
+    }
+
     // Force stop immediately regardless of state
     setIsStopping(true);
     setActiveAlarmId(null);
@@ -664,7 +678,7 @@ export const AlarmsScreen: React.FC = () => {
       // Continue with cleanup even if native stop fails
     }
     
-    // Cancel the scheduled notification
+    // Cancel the scheduled notification for the stopped alarm (snooze or original)
     notificationService.cancelAlarm(alarmId);
     
     // Also cancel the scheduled alarm via ReliableAlarmService
@@ -675,23 +689,32 @@ export const AlarmsScreen: React.FC = () => {
       console.error('❌ Error cancelling scheduled alarm:', error);
     }
     
-    // CRITICAL: Cancel ALL snooze alarms for this alarm
-    // Snooze alarms have IDs like: ${alarmId}_snooze_${timestamp}
+    // CRITICAL: If this is a snooze alarm being stopped, delete it from store
+    if (isSnoozeAlarm) {
+      console.log(`🗑️ Removing snooze alarm ${alarmId} from store...`);
+      deleteAlarm(alarmId).catch((error) => {
+        console.error('❌ Error deleting snooze alarm from store:', error);
+      });
+    }
+    
+    // CRITICAL: Cancel ALL snooze alarms for the ORIGINAL alarm
+    // This handles both cases: stopping original alarm or stopping snooze alarm
+    // Snooze alarms have IDs like: ${originalAlarmId}_snooze_${timestamp}
     try {
-      const allAlarms = alarms.filter(a => a.id.startsWith(`${alarmId}_snooze_`));
-      console.log(`🛑 Found ${allAlarms.length} snooze alarms to cancel for ${alarmId}`);
+      const allSnoozeAlarms = alarms.filter(a => a.id.startsWith(`${originalAlarmId}_snooze_`));
+      console.log(`🛑 Found ${allSnoozeAlarms.length} snooze alarms to cancel for original alarm ${originalAlarmId}`);
       
-      for (const snoozeAlarm of allAlarms) {
+      for (const snoozeAlarm of allSnoozeAlarms) {
         try {
           await reliableAlarmService.cancelAlarm(snoozeAlarm.id);
           notificationService.cancelAlarm(snoozeAlarm.id);
-          console.log(`✅ Cancelled snooze alarm: ${snoozeAlarm.id}`);
+          // Also delete snooze alarms from store
+          deleteAlarm(snoozeAlarm.id).catch(() => {});
+          console.log(`✅ Cancelled and deleted snooze alarm: ${snoozeAlarm.id}`);
         } catch (error) {
           console.error(`❌ Error cancelling snooze alarm ${snoozeAlarm.id}:`, error);
         }
       }
-      
-      // ReliableAlarmService.cancelAlarm already handles snooze alarm cleanup from storage
     } catch (error) {
       console.error('❌ Error cancelling snooze alarms:', error);
     }
@@ -706,9 +729,14 @@ export const AlarmsScreen: React.FC = () => {
       console.error('Error cleaning alarm state:', error);
     }
     
-    // Mark this alarm as stopped for this occurrence (prevents re-ringing)
+    // Mark both the stopped alarm AND original alarm as stopped (prevents re-ringing)
     // This prevents the alarm from firing again in the current minute window
     stoppedAlarmsThisOccurrenceRef.current.set(alarmId, Date.now());
+    // Also mark original alarm if this was a snooze alarm
+    if (isSnoozeAlarm && originalAlarmId !== alarmId) {
+      stoppedAlarmsThisOccurrenceRef.current.set(originalAlarmId, Date.now());
+      console.log(`✅ Marked original alarm ${originalAlarmId} as stopped (was snoozed)`);
+    }
     
     // DON'T clear fired alarms ref entries when stopping - we want to prevent re-firing
     // The firedAlarmsRef entries will be cleared automatically after the timeout

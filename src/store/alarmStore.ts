@@ -103,8 +103,22 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         return backendAlarm;
       });
       
-      // Add back all local snooze alarms (they're not in backend, so they need to be preserved)
-      const allAlarms = [...mergedAlarms, ...localSnoozeAlarms];
+      // Add back only ACTIVE (enabled, future time) local snooze alarms
+      // Remove snooze alarms that have already passed or are disabled
+      const now = Date.now();
+      const activeSnoozeAlarms = localSnoozeAlarms.filter(snoozeAlarm => {
+        if (!snoozeAlarm.enabled) return false;
+        const snoozeTime = new Date(snoozeAlarm.time).getTime();
+        // Keep snooze alarms that are more than 30 seconds in the future
+        // This removes past snooze alarms that should have fired already
+        return snoozeTime > now + 30000;
+      });
+      
+      if (activeSnoozeAlarms.length < localSnoozeAlarms.length) {
+        console.log(`🧹 Removed ${localSnoozeAlarms.length - activeSnoozeAlarms.length} expired/disabled snooze alarms`);
+      }
+      
+      const allAlarms = [...mergedAlarms, ...activeSnoozeAlarms];
       
       set({
         alarms: allAlarms,
@@ -144,14 +158,32 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       // BUT: Skip scheduling alarms that are in the past (for one-time alarms)
       // This prevents re-scheduling alarms that were already stopped
       // Include both merged alarms (from backend) and local snooze alarms
+      // Note: 'now' is already declared above (line 108)
       const enabledAlarms = allAlarms.filter(a => {
         if (!a.enabled) return false;
+        
+        // Check if this alarm was recently stopped (within last 5 minutes)
+        // This prevents re-scheduling alarms that were just stopped
+        // We check both the alarm ID and any snooze alarm patterns
+        const wasRecentlyStopped = currentState.alarms.find(localAlarm => {
+          if (localAlarm.id === a.id) {
+            // Check if there's a stopped marker in the stoppedAlarmsThisOccurrence (from AlarmsScreen)
+            // Since we can't access that directly, we check if the alarm is disabled locally
+            // and enabled on backend (indicates it was stopped)
+            return localAlarm.enabled === false && a.enabled === true;
+          }
+          return false;
+        });
+        
+        if (wasRecentlyStopped) {
+          console.log(`⏭️ Skipping recently-stopped alarm: ${a.title} (was disabled locally)`);
+          return false;
+        }
         
         // For one-time alarms (including snooze alarms), only schedule if time is in the future
         const isOneTime = !a.recurrenceRule || a.recurrenceRule === 'none';
         if (isOneTime) {
           const alarmTime = new Date(a.time).getTime();
-          const now = Date.now();
           // For snooze alarms, use 10 seconds buffer (they're more precise)
           // For regular one-time alarms, use 30 seconds buffer
           const isSnoozeAlarm = a.id.includes('_snooze_') || a.id.endsWith('_snooze');
@@ -451,21 +483,43 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         };
       });
       
-      // IMPORTANT: Disable the original alarm locally to prevent double ringing
-      // This prevents the original alarm from ringing again while snooze is active
-      // For recurring alarms, we'll re-enable them when snooze alarm fires/expires
-      try {
-        set((state) => ({
-          alarms: state.alarms.map(a => 
-            a.id === id ? { ...a, enabled: false } : a
-          ),
-        }));
-        console.log(`✅ Disabled original alarm ${id} after snooze to prevent double ringing`);
-        
-        // Also cancel the original alarm natively to be safe
-        await reliableAlarmService.cancelAlarm(id);
-      } catch (error) {
-        console.warn(`⚠️ Failed to disable/cancel original alarm:`, error);
+      // IMPORTANT: For one-time alarms, disable them completely when snoozed
+      // For recurring alarms, only cancel the current occurrence (they'll fire next time)
+      const isRecurring = alarm.recurrenceRule && alarm.recurrenceRule !== 'none';
+      
+      if (!isRecurring) {
+        // One-time alarms: Disable completely when snoozed (they've already fired)
+        try {
+          set((state) => ({
+            alarms: state.alarms.map(a => 
+              a.id === id ? { ...a, enabled: false } : a
+            ),
+          }));
+          console.log(`✅ Disabled one-time original alarm ${id} after snooze (already fired)`);
+          
+          // Also cancel the original alarm natively
+          await reliableAlarmService.cancelAlarm(id);
+          
+          // Try to disable on backend too (non-blocking)
+          const { isAuthenticated } = useAuthStore.getState();
+          if (isAuthenticated) {
+            try {
+              await alarmService.updateAlarm(id, { enabled: false });
+            } catch (error) {
+              console.warn('⚠️ Failed to disable alarm on backend (non-critical):', error);
+            }
+          }
+        } catch (error) {
+          console.warn(`⚠️ Failed to disable/cancel original alarm:`, error);
+        }
+      } else {
+        // Recurring alarms: Just cancel current occurrence, keep enabled for next time
+        try {
+          await reliableAlarmService.cancelAlarm(id);
+          console.log(`✅ Cancelled recurring alarm ${id} current occurrence (will fire next schedule)`);
+        } catch (error) {
+          console.warn(`⚠️ Failed to cancel recurring alarm occurrence:`, error);
+        }
       }
       
       console.log(`✅ Snooze alarm added to store: ${snoozeAlarm.id}`);
