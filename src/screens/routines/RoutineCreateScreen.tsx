@@ -50,7 +50,7 @@ const RoutineCreateScreen: React.FC = () => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedTime, setSelectedTime] = useState<Date>(new Date());
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
-  const [selectedDay, setSelectedDay] = useState<number>(1);
+  const [selectedDay, setSelectedDay] = useState<string>('1');
   const [reminderValue, setReminderValue] = useState<string>('');
   const [reminderUnit, setReminderUnit] = useState<'hours' | 'days' | 'weeks'>('hours');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -71,13 +71,21 @@ const RoutineCreateScreen: React.FC = () => {
     const defaultUnit = frequency === 'DAILY' ? 'hours' : 'days';
     setReminderUnit(defaultUnit);
     
+    let dayValue: number | undefined = undefined;
+    if (frequency === 'MONTHLY' && selectedDay) {
+      const parsedDay = parseInt(selectedDay, 10);
+      if (!isNaN(parsedDay) && parsedDay >= 1 && parsedDay <= 31) {
+        dayValue = parsedDay;
+      }
+    }
+    
     setFormData({
       ...formData,
       frequency,
       schedule: {
         ...formData.schedule,
         days: frequency === 'WEEKLY' ? selectedDays : undefined,
-        day: frequency === 'MONTHLY' ? selectedDay : undefined,
+        day: dayValue,
       },
     });
   };
@@ -149,8 +157,11 @@ const RoutineCreateScreen: React.FC = () => {
       newErrors.days = t('validation.daysRequired');
     }
 
-    if (formData.frequency === 'MONTHLY' && (!selectedDay || selectedDay < 1 || selectedDay > 31)) {
-      newErrors.day = t('routines.dayRequired') || 'Please select a valid day of month (1-31)';
+    if (formData.frequency === 'MONTHLY') {
+      const day = parseInt(selectedDay, 10);
+      if (!selectedDay || selectedDay.trim() === '' || isNaN(day) || day < 1 || day > 31) {
+        newErrors.day = t('routines.dayRequired') || 'Please select a valid day of month (1-31)';
+      }
     }
 
 
@@ -382,21 +393,29 @@ const RoutineCreateScreen: React.FC = () => {
                 <Text variant="titleMedium" style={styles.sectionTitle}>
                   Day of Month (1-31)
                 </Text>
-                {/* todo: this enforce the box to always contain number but 
-                if user delete the default value to add new one it enforce number 1 so give the user chance to clear value and add new 
-                value and add the check that umber is between 1-31 when submit */}
                 <TextInput
                   label="Day"
-                  value={selectedDay.toString()}
+                  value={selectedDay}
                   onChangeText={(text) => {
+                    // Allow any text input (including empty string) so user can clear and type freely
+                    setSelectedDay(text);
+                    // Parse and update formData only if it's a valid number
                     const day = parseInt(text, 10);
                     if (!isNaN(day) && day >= 1 && day <= 31) {
-                      setSelectedDay(day);
                       setFormData({
                         ...formData,
                         schedule: {
                           ...formData.schedule,
                           day,
+                        },
+                      });
+                    } else {
+                      // Clear day from formData if invalid
+                      setFormData({
+                        ...formData,
+                        schedule: {
+                          ...formData.schedule,
+                          day: undefined,
                         },
                       });
                     }

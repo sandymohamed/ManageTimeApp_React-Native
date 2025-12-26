@@ -223,22 +223,24 @@ export const AlarmsScreen: React.FC = () => {
                            stoppedDate.getMonth() === now.getMonth() &&
                            stoppedDate.getFullYear() === now.getFullYear();
           
-          // Only prevent if:
-          // 1. Stopped within the last 2 minutes AND
-          // 2. We're in the same minute AND  
-          // 3. It's the same day
-          // This prevents re-ringing in the same minute after stopping, but allows next day
-          if (timeSinceStop < 2 * 60000 && isSameMinute && isSameDay) {
-            if (alarm.title.includes('Routine:')) {
-              console.log(`🚫 Routine alarm ${alarm.id} was stopped in same minute today, skipping re-fire`);
+          // For recurring alarms: if stopped, prevent re-ringing for 24 hours
+          // This prevents the alarm from ringing again until user explicitly re-enables it or 24h passes
+          // For one-time alarms: prevent re-ringing for 2 minutes in same minute window
+          const isRecurringAlarm = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none' && alarm.recurrenceRule !== null);
+          const preventDuration = isRecurringAlarm ? 24 * 60 * 60 * 1000 : 2 * 60 * 1000; // 24 hours for recurring, 2 min for one-time
+          
+          if (timeSinceStop < preventDuration) {
+            if (isRecurringAlarm) {
+              console.log(`🚫 Recurring alarm ${alarm.id} was stopped ${Math.floor(timeSinceStop / 60000)} minutes ago, preventing re-fire for 24h`);
+              return; // Don't fire - was recently stopped (within 24 hours for recurring)
+            } else if (isSameMinute && isSameDay) {
+              console.log(`🚫 One-time alarm ${alarm.id} was stopped in same minute today, skipping re-fire`);
+              return; // Don't fire - was recently stopped in same minute today
             }
-            return; // Don't fire - was recently stopped in same minute today
           } else {
-            // Clear the stopped marker if it's old, different minute, or different day
+            // Clear the stopped marker if prevention period has passed
             stoppedAlarmsThisOccurrenceRef.current.delete(alarm.id);
-            if (alarm.title.includes('Routine:')) {
-              console.log(`🧹 Cleared stopped marker for routine alarm ${alarm.id} (old/different minute/day)`);
-            }
+            console.log(`🧹 Cleared stopped marker for alarm ${alarm.id} (prevention period expired: ${isRecurringAlarm ? '24h' : '2min'})`);
           }
         }
         
@@ -714,18 +716,33 @@ export const AlarmsScreen: React.FC = () => {
         return;
       }
       
-      // For routine alarms or other recurring alarms, keep them enabled
-      // The stopped marker will prevent immediate re-triggering
-      const hasPreviousFailure = autoDeleteFailuresRef.current.has(alarmId);
-      const shouldAttemptAutoDelete = !skipAutoDelete && !hasPreviousFailure;
+      // For routine/recurring alarms, user can choose to disable them when stopping
+      // However, for now we'll keep them enabled but prevent immediate re-triggering
+      const isRoutineAlarm = alarm.title?.includes('Routine:');
+      const isRecurringAlarm = alarm.recurrenceRule && alarm.recurrenceRule !== 'none' && alarm.recurrenceRule !== null;
       
-      if (shouldAttemptAutoDelete) {
-        // Auto-delete one-time non-task alarms after 30 seconds
-        const isRoutineAlarm = alarm.title?.includes('Routine:');
-        const isRecurringAlarm = alarm.recurrenceRule && alarm.recurrenceRule !== 'none';
+      // If user explicitly stopped a recurring/routine alarm, prevent it from ringing again for 24 hours
+      // This prevents the annoying behavior where stopped alarms keep ringing at next occurrence
+      if (isRoutineAlarm || isRecurringAlarm) {
+        console.log(`⏭️ Recurring/routine alarm stopped - marking to prevent re-triggering for 24 hours:`, alarm.title);
+        // Set a longer stopped marker (24 hours) to prevent re-triggering
+        // This prevents the alarm from ringing again until user explicitly re-enables it or 24h passes
+        stoppedAlarmsThisOccurrenceRef.current.set(alarmId, Date.now());
         
-        // Only auto-delete one-time alarms that are NOT routine alarms
-        if (isOneTimeAlarm && !isRoutineAlarm && !isRecurringAlarm) {
+        // Clear the stopped marker after 24 hours (for recurring alarms that should continue)
+        setTimeout(() => {
+          stoppedAlarmsThisOccurrenceRef.current.delete(alarmId);
+          console.log(`🧹 Cleared stopped marker for recurring alarm after 24h: ${alarm.title}`);
+        }, 24 * 60 * 60 * 1000); // 24 hours
+        
+        // Don't disable the alarm in database - it should continue working for future occurrences
+        // But the stopped marker prevents it from ringing again for 24 hours
+      } else {
+        // For one-time non-task alarms, auto-delete after 30 seconds
+        const hasPreviousFailure = autoDeleteFailuresRef.current.has(alarmId);
+        const shouldAttemptAutoDelete = !skipAutoDelete && !hasPreviousFailure;
+        
+        if (shouldAttemptAutoDelete) {
           const timeout = setTimeout(async () => {
             try {
               await deleteAlarm(alarmId);
@@ -737,8 +754,6 @@ export const AlarmsScreen: React.FC = () => {
             }
           }, 30000);
           alarmDeleteTimeoutsRef.current.set(alarmId, timeout);
-        } else if (isRoutineAlarm || isRecurringAlarm) {
-          console.log('⏭️ Skipping auto-delete for routine/recurring alarm:', alarm.title);
         }
       }
     }

@@ -13,6 +13,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { TextInput, Button, Card, Title, Paragraph } from 'react-native-paper';
 import { theme } from '@/utils/theme';
 import { useTranslation } from 'react-i18next';
+import { useProjectStore } from '@/store/projectStore';
+import { ProjectStatus } from '@/types/project';
 
 type ProjectEditScreenRouteProp = RouteProp<{ ProjectEdit: { projectId: string } }, 'ProjectEdit'>;
 type ProjectEditScreenNavigationProp = StackNavigationProp<any, 'ProjectEdit'>;
@@ -23,8 +25,7 @@ interface ProjectData {
   description: string;
   startDate: string;
   endDate: string;
-  status: 'planning' | 'active' | 'completed' | 'on-hold';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: ProjectStatus;
   color: string;
 }
 
@@ -33,6 +34,7 @@ const ProjectEditScreen: React.FC = () => {
   const route = useRoute<ProjectEditScreenRouteProp>();
   const { t } = useTranslation();
   const { projectId } = route.params;
+  const { currentProject, fetchProject, updateProject, deleteProject, isLoading } = useProjectStore();
 
   const [projectData, setProjectData] = useState<ProjectData>({
     id: projectId,
@@ -40,47 +42,55 @@ const ProjectEditScreen: React.FC = () => {
     description: '',
     startDate: '',
     endDate: '',
-    status: 'planning',
-    priority: 'medium',
+    status: ProjectStatus.PLANNING,
     color: '#1976D2',
   });
 
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Load project data
+    // Load project data when component mounts or projectId changes
+    const loadProjectData = async () => {
+      try {
+        setLoading(true);
+        await fetchProject(projectId);
+      } catch (error) {
+        console.error('Error loading project:', error);
+        Alert.alert(t('common.error'), t('projects.loadError'));
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     loadProjectData();
-  }, [projectId]);
+  }, [projectId, fetchProject]);
 
-  const loadProjectData = async () => {
-    try {
-      setLoading(true);
-      // const project = await projectService.getProject(projectId);
-      // setProjectData(project);
-      
-      // Mock data for now
+  useEffect(() => {
+    // Update form when currentProject is loaded
+    if (currentProject && currentProject.id === projectId) {
       setProjectData({
-        id: projectId,
-        name: 'Sample Project',
-        description: 'This is a sample project description',
-        startDate: '2024-01-01',
-        endDate: '2024-12-31',
-        status: 'active',
-        priority: 'high',
-        color: '#1976D2',
+        id: currentProject.id,
+        name: currentProject.name || '',
+        description: currentProject.description || '',
+        startDate: currentProject.startDate || '',
+        endDate: currentProject.endDate || '',
+        status: currentProject.status || ProjectStatus.PLANNING,
+        color: currentProject.color || '#1976D2',
       });
-    } catch (error) {
-      console.error('Error loading project:', error);
-      Alert.alert(t('common.error'), t('projects.loadError'));
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [currentProject, projectId]);
 
   const handleSave = async () => {
     try {
       setLoading(true);
-      // await projectService.updateProject(projectId, projectData);
+      await updateProject(projectId, {
+        name: projectData.name,
+        description: projectData.description,
+        startDate: projectData.startDate || undefined,
+        endDate: projectData.endDate || undefined,
+        status: projectData.status,
+        color: projectData.color,
+      });
       
       Alert.alert(t('common.success'), t('projects.projectUpdated'), [
         {
@@ -111,7 +121,7 @@ const ProjectEditScreen: React.FC = () => {
           onPress: async () => {
             try {
               setLoading(true);
-              // await projectService.deleteProject(projectId);
+              await deleteProject(projectId);
               
               Alert.alert(t('common.success'), t('projects.projectDeleted'), [
                 {
@@ -181,22 +191,14 @@ const ProjectEditScreen: React.FC = () => {
               />
             </View>
 
-            <View style={styles.row}>
-              <TextInput
-                label="Status"
-                value={projectData.status}
-                onChangeText={(text) => setProjectData({ ...projectData, status: text as any })}
-                style={[styles.input, styles.halfInput]}
-                mode="outlined"
-              />
-              <TextInput
-                label="Priority"
-                value={projectData.priority}
-                onChangeText={(text) => setProjectData({ ...projectData, priority: text as any })}
-                style={[styles.input, styles.halfInput]}
-                mode="outlined"
-              />
-            </View>
+            <TextInput
+              label="Status"
+              value={projectData.status}
+              onChangeText={(text) => setProjectData({ ...projectData, status: text as ProjectStatus })}
+              style={styles.input}
+              mode="outlined"
+              placeholder="PLANNING, ACTIVE, ON_HOLD, DONE, CANCELLED, ARCHIVED"
+            />
 
             <TextInput
               label="Color"
@@ -213,8 +215,8 @@ const ProjectEditScreen: React.FC = () => {
           <Button
             mode="contained"
             onPress={handleSave}
-            loading={loading}
-            disabled={loading}
+            loading={loading || isLoading}
+            disabled={loading || isLoading}
             style={styles.saveButton}
           >
             Save Changes
@@ -223,8 +225,8 @@ const ProjectEditScreen: React.FC = () => {
           <Button
             mode="outlined"
             onPress={handleDelete}
-            loading={loading}
-            disabled={loading}
+            loading={loading || isLoading}
+            disabled={loading || isLoading}
             style={styles.deleteButton}
             buttonColor="transparent"
             textColor="#D32F2F"
