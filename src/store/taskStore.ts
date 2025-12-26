@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { taskService } from '@/services/taskService';
-import { taskAlarmService } from '@/services/taskAlarmService';
 import { Task, CreateTaskData, UpdateTaskData, TaskFilter, TaskPriority } from '@/types/task';
 import { logger } from '@/utils/logger';
 
@@ -230,16 +229,9 @@ export const useTaskStore = create<TaskStore>()(
 
           const task = await taskService.createTask(filteredData);
 
-          // Create alarm if task has time
-          if (taskAlarmService.shouldHaveAlarm(task)) {
-            try {
-              await taskAlarmService.createAlarmForTask(task);
-              logger.info(`Created alarm for task: ${task.title}`);
-            } catch (alarmError) {
-              logger.error('Failed to create alarm for task:', alarmError);
-              // Don't fail the task creation if alarm creation fails
-            }
-          }
+          // NOTE: Alarm creation is handled by the backend in scheduleTaskDueDateNotifications
+          // which creates an alarm with linkedTaskId. Frontend should not create duplicate alarms.
+          // The backend will create an alarm with title "Task Due: {taskTitle}" when dueDate and dueTime are provided.
 
           set((state) => ({
             tasks: [task, ...state.tasks],
@@ -269,18 +261,9 @@ export const useTaskStore = create<TaskStore>()(
 
           const task = await taskService.updateTask(id, filteredData);
 
-          // Update alarm if task has time or if time was removed
-          if (taskAlarmService.shouldHaveAlarm(task)) {
-            try {
-              // For now, we'll create a new alarm if one doesn't exist
-              // In a real app, you'd want to track alarm IDs in task metadata
-              await taskAlarmService.createAlarmForTask(task);
-              logger.info(`Updated alarm for task: ${task.title}`);
-            } catch (alarmError) {
-              logger.error('Failed to update alarm for task:', alarmError);
-              // Don't fail the task update if alarm update fails
-            }
-          }
+          // NOTE: Alarm updates are handled by the backend in scheduleTaskDueDateNotifications
+          // which automatically deletes existing alarms for the task and creates new ones when
+          // dueDate or dueTime changes. Frontend should not create duplicate alarms.
 
           set((state) => ({
             tasks: state.tasks.map(t => t.id === id ? task : t),
