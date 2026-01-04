@@ -240,6 +240,26 @@ export const useTaskStore = create<TaskStore>()(
 
           // Apply current filters
           get().applyFilters();
+
+          // Refresh alarms after task creation if task has dueDate
+          // This ensures newly created alarms from the backend are fetched
+          if (task.dueDate) {
+            try {
+              // Import alarm store dynamically to avoid circular dependency
+              const { useAlarmStore } = await import('./alarmStore');
+              // Use setTimeout to delay refresh slightly, giving backend time to create alarm
+              setTimeout(() => {
+                // Fetch with high limit and enabled=true to get all enabled alarms including the new one
+                useAlarmStore.getState().fetchAlarms(1, 1000, true).catch(err => {
+                  logger.warn('Failed to refresh alarms after task creation:', err);
+                  // Don't throw - this is a background operation
+                });
+              }, 1000); // Wait 1 second for backend to process
+            } catch (error) {
+              logger.warn('Failed to refresh alarms after task creation:', error);
+              // Don't throw - alarm refresh failure shouldn't break task creation
+            }
+          }
         } catch (error: any) {
           logger.error('Create task error:', error);
           set({
@@ -264,6 +284,26 @@ export const useTaskStore = create<TaskStore>()(
           // NOTE: Alarm updates are handled by the backend in scheduleTaskDueDateNotifications
           // which automatically deletes existing alarms for the task and creates new ones when
           // dueDate or dueTime changes. Frontend should not create duplicate alarms.
+
+          // Refresh alarms if dueDate or dueTime was updated
+          const shouldRefreshAlarms = data.dueDate !== undefined || data.dueTime !== undefined;
+          if (shouldRefreshAlarms) {
+            try {
+              // Import alarm store dynamically to avoid circular dependency
+              const { useAlarmStore } = await import('./alarmStore');
+              // Use setTimeout to delay refresh slightly, giving backend time to update alarm
+              setTimeout(() => {
+                // Fetch with high limit and enabled=true to get all enabled alarms including the updated one
+                useAlarmStore.getState().fetchAlarms(1, 1000, true).catch(err => {
+                  logger.warn('Failed to refresh alarms after task update:', err);
+                  // Don't throw - this is a background operation
+                });
+              }, 1000); // Wait 1 second for backend to process
+            } catch (error) {
+              logger.warn('Failed to refresh alarms after task update:', error);
+              // Don't throw - alarm refresh failure shouldn't break task update
+            }
+          }
 
           set((state) => ({
             tasks: state.tasks.map(t => t.id === id ? task : t),

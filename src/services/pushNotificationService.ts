@@ -447,12 +447,16 @@ class PushNotificationService {
                     AsyncStorage.setItem('pending_alarm_id', existingAlarm.id).catch(() => {});
                   } else {
                     // No existing alarm - ring reminder notification
-                    this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data);
+                    this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data).catch(err => {
+                      logger.error('Failed to ring reminder notification:', err);
+                    });
                     logger.info(`✅ ${notificationType} ringing immediately with notification`);
                   }
                 } catch (checkError) {
                   logger.error('Failed to check for existing alarm, ringing reminder anyway:', checkError);
-                  this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data);
+                  this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data).catch(err => {
+                    logger.error('Failed to ring reminder notification:', err);
+                  });
                 }
               } else {
                 // Not a DUE_DATE_REMINDER with taskId, or couldn't determine taskId
@@ -473,8 +477,10 @@ class PushNotificationService {
                   logger.warn('Failed to check alarm enabled state, proceeding to ring:', checkError);
                 }
                 // Ring normally
-                this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data);
-                logger.info(`✅ ${notificationType} ringing immediately with notification`);
+                this.ringAlarmNotification(alarmIdToUse, alarmTitle, alarmTimeStr, notificationType, data).catch(err => {
+                  logger.error('Failed to ring reminder notification:', err);
+                });
+              logger.info(`✅ ${notificationType} ringing immediately with notification`);
               }
             }
             
@@ -527,12 +533,16 @@ class PushNotificationService {
                   AsyncStorage.setItem('pending_alarm_id', existingAlarm.id).catch(() => {});
                 } else {
                   logger.info(`🔔 ${notificationType} received without alarm time - ringing immediately`);
-                  this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data);
+                  this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data).catch(err => {
+                    logger.error('Failed to ring reminder notification:', err);
+                  });
                 }
               } catch (checkError) {
                 logger.error('Failed to check for existing alarm, ringing reminder anyway:', checkError);
                 logger.info(`🔔 ${notificationType} received without alarm time - ringing immediately`);
-                this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data);
+                this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data).catch(err => {
+                  logger.error('Failed to ring reminder notification:', err);
+                });
               }
             } else {
               // Check if the alarm itself is disabled before ringing
@@ -553,7 +563,9 @@ class PushNotificationService {
               }
               logger.info(`🔔 ${notificationType} received without alarm time - ringing immediately`);
               // Ring immediately with alarm notification
-              this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data);
+              this.ringAlarmNotification(alarmIdToUse, alarmTitle, undefined, notificationType, data).catch(err => {
+                logger.error('Failed to ring reminder notification:', err);
+              });
             }
           } else {
             logger.info(`📝 No alarm time provided, storing as pending: ${alarmIdToUse}`);
@@ -586,8 +598,24 @@ class PushNotificationService {
   /**
    * Ring alarm notification with sound for routine/task reminders
    */
-  private ringAlarmNotification(alarmId: string, alarmTitle: string, alarmTimeStr?: string, notificationType?: string, data?: any): void {
+  private async ringAlarmNotification(alarmId: string, alarmTitle: string, alarmTimeStr?: string, notificationType?: string, data?: any): Promise<void> {
     try {
+      // CRITICAL: Check if alarm is stopped before ringing
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      try {
+        const stoppedAlarms = await AsyncStorage.getItem('stopped_alarms');
+        if (stoppedAlarms) {
+          const stoppedSet = new Set(JSON.parse(stoppedAlarms));
+          if (stoppedSet.has(alarmId)) {
+            logger.info(`⏭️ Skipping ring - alarm is stopped: ${alarmTitle}`, { alarmId });
+            return; // Don't ring stopped alarms
+          }
+        }
+      } catch (error) {
+        logger.warn('⚠️ Failed to check stopped alarms list:', error);
+        // Continue with ringing if check fails (safer than blocking)
+      }
+
       // Format alarm time for display
       let alarmTimeDisplay = '';
       if (alarmTimeStr) {
@@ -603,7 +631,7 @@ class PushNotificationService {
       
       PushNotification.localNotification({
         id: `alarm-${alarmId}-${Date.now()}`,
-        title: `⏰ ${alarmTitle}${alarmTimeDisplay ? ` (${alarmTimeDisplay})` : ''}`,
+        title: `${alarmTitle}${alarmTimeDisplay ? ` (${alarmTimeDisplay})` : ''}`,
         message: alarmMessage,
         playSound: true,
         soundName: 'alarm', // References alarm.mp3 in android/app/src/main/res/raw/alarm.mp3

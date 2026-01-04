@@ -35,7 +35,7 @@ export class NativeAlarmService {
       
       const alarmDetails: any = {
         id: alarmId,
-        title: `⏰ ${alarm.title}`,
+        title: `${alarm.title}`,
         message: `Alarm at ${alarmTime.toLocaleTimeString()}`,
         channel: 'alarm_channel',
         ticker: 'Alarm Notification Ticker',
@@ -64,20 +64,10 @@ export class NativeAlarmService {
         button_text_dismiss: 'Dismiss',
       };
 
-      logger.info('📅 Scheduling native alarm:', {
-        alarmId: alarm.id,
-        notificationId: alarmId,
-        fireDate: alarmTime.toISOString(),
-        scheduleType,
-        intervalValue,
-        intervalType,
-        timeUntilAlarm: Math.floor((alarmTime.getTime() - Date.now()) / 1000) + ' seconds',
-      });
-      
+  
       RNAlarmNotification.scheduleAlarm(alarmDetails);
-      logger.info('✅ Native alarm scheduled successfully');
     } catch (error) {
-      logger.error('❌ Failed to schedule native alarm:', error);
+      logger.error(' Failed to schedule native alarm:', error);
       // Don't throw - fallback to push notifications
     }
   }

@@ -229,6 +229,156 @@ class NativeAlarmBridge {
   }
 
   /**
+   * Snooze an alarm by rescheduling it for a later time
+   * CRITICAL: This reschedules the SAME alarm ID, not creating a new alarm
+   * This prevents sound channel conflicts and ID duplication issues
+   * 
+   * @param alarmId - The alarm ID to snooze (same ID is reused)
+   * @param snoozeMinutes - Number of minutes to snooze (default: 5)
+   * @param alarmTitle - Alarm title (for rescheduling)
+   * @param toneUrl - Alarm ringtone URI (for rescheduling)
+   * @param recurrenceRule - Alarm recurrence rule (for rescheduling, typically null for snooze)
+   */
+  async snoozeAlarm(
+    alarmId: string,
+    snoozeMinutes: number = 5,
+    alarmTitle: string,
+    toneUrl: string | null = null,
+    recurrenceRule: string | null = null
+  ): Promise<void> {
+    if (Platform.OS !== 'android' || !AlarmModule) {
+      logger.warn('⚠️ Native AlarmModule not available');
+      return;
+    }
+
+    try {
+      const now = Date.now();
+      const snoozeTime = now + (snoozeMinutes * 60 * 1000);
+      
+      // Check if native module has snooze method (preferred)
+      if (AlarmModule.snooze && typeof AlarmModule.snooze === 'function') {
+        logger.info(`🔔 Snoozing alarm ${alarmId} for ${snoozeMinutes} minutes using native snooze method`);
+        await AlarmModule.snooze(alarmId, snoozeTime, snoozeMinutes);
+        logger.info(`✅ Alarm ${alarmId} snoozed successfully until ${new Date(snoozeTime).toISOString()}`);
+      } else {
+        // Fallback: Cancel and reschedule (less ideal but works)
+        logger.info(`🔔 Snoozing alarm ${alarmId} for ${snoozeMinutes} minutes (fallback: cancel + reschedule)`);
+        
+        // Cancel the current alarm
+        await this.cancelAlarm(alarmId);
+        
+        // Reschedule the same alarm ID with new time
+        await AlarmModule.scheduleAlarm(
+          alarmId,  // SAME alarm ID (critical for stable PendingIntent)
+          snoozeTime,
+          alarmTitle,
+          toneUrl,
+          recurrenceRule
+        );
+        
+        logger.info(`✅ Alarm ${alarmId} rescheduled (snoozed) until ${new Date(snoozeTime).toISOString()}`);
+      }
+    } catch (error) {
+      logger.error(`❌ Failed to snooze alarm ${alarmId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel ALL alarms (first-launch cleanup)
+   * This removes any legacy alarms from previous installations
+   */
+  async cancelAllAlarms(): Promise<void> {
+    if (Platform.OS !== 'android' || !AlarmModule) {
+      logger.warn('⚠️ Native AlarmModule not available');
+      return;
+    }
+
+    try {
+      if (AlarmModule.cancelAllAlarms && typeof AlarmModule.cancelAllAlarms === 'function') {
+        await AlarmModule.cancelAllAlarms();
+        logger.info('✅ All native alarms cancelled (cleanup)');
+      } else {
+        logger.warn('⚠️ cancelAllAlarms method not available in native module');
+        // Note: Individual cancellation will happen during fetchAlarms
+      }
+    } catch (error) {
+      logger.error('❌ Failed to cancel all alarms:', error);
+      // Don't throw - this is cleanup, not critical
+    }
+  }
+
+  /**
+   * Check if exact alarm permission is granted (Android 12+)
+   */
+  async canScheduleExactAlarms(): Promise<boolean> {
+    if (Platform.OS !== 'android' || !AlarmModule) return true;
+    if (Platform.Version < 31) return true; // Android 11 and below
+
+    try {
+      if (AlarmModule.canScheduleExactAlarms && typeof AlarmModule.canScheduleExactAlarms === 'function') {
+        return await AlarmModule.canScheduleExactAlarms();
+      }
+      return true; // Assume granted if method doesn't exist
+    } catch (error) {
+      logger.error('❌ Error checking exact alarm permission:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Open exact alarm permission settings (Android 12+)
+   */
+  async openExactAlarmSettings(): Promise<void> {
+    if (Platform.OS !== 'android' || !AlarmModule) return;
+    if (Platform.Version < 31) return;
+
+    try {
+      if (AlarmModule.openExactAlarmSettings && typeof AlarmModule.openExactAlarmSettings === 'function') {
+        await AlarmModule.openExactAlarmSettings();
+      } else {
+        logger.warn('⚠️ openExactAlarmSettings method not available');
+      }
+    } catch (error) {
+      logger.error('❌ Error opening exact alarm settings:', error);
+    }
+  }
+
+  /**
+   * Check if battery optimization is disabled for this app
+   */
+  async isIgnoringBatteryOptimizations(): Promise<boolean> {
+    if (Platform.OS !== 'android' || !AlarmModule) return true;
+
+    try {
+      if (AlarmModule.isIgnoringBatteryOptimizations && typeof AlarmModule.isIgnoringBatteryOptimizations === 'function') {
+        return await AlarmModule.isIgnoringBatteryOptimizations();
+      }
+      return true; // Assume optimized if method doesn't exist
+    } catch (error) {
+      logger.error('❌ Error checking battery optimization:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Request battery optimization exemption
+   */
+  async requestIgnoreBatteryOptimizations(): Promise<void> {
+    if (Platform.OS !== 'android' || !AlarmModule) return;
+
+    try {
+      if (AlarmModule.requestIgnoreBatteryOptimizations && typeof AlarmModule.requestIgnoreBatteryOptimizations === 'function') {
+        await AlarmModule.requestIgnoreBatteryOptimizations();
+      } else {
+        logger.warn('⚠️ requestIgnoreBatteryOptimizations method not available');
+      }
+    } catch (error) {
+      logger.error('❌ Error requesting battery optimization exemption:', error);
+    }
+  }
+
+  /**
    * Calculate next occurrence for recurring alarms
    */
   private calculateNextOccurrence(alarmTime: Date, recurrenceRule: string): Date {

@@ -167,124 +167,9 @@ export const AlarmsScreen: React.FC = () => {
   // Use ref for handleAlarmFired to avoid dependency issues
   const handleAlarmFiredRef = useRef<((alarm: Alarm) => void) | null>(null);
 
-  // Check alarms that should have fired
-  const checkAlarmsThatShouldHaveFired = React.useCallback(() => {
-    const now = new Date();
-    const routineAlarms = alarms.filter(a => a.enabled && a.title?.includes('Routine:'));
-    if (routineAlarms.length > 0) {
-      console.log(`🔍 Checking ${routineAlarms.length} routine alarms at ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`);
-    }
-    alarms.forEach((alarm) => {
-      if (!alarm.enabled) return;
-      
-      // Don't process if we're currently stopping alarms
-      if (isStopping) return;
-
-      const alarmTime = new Date(alarm.time);
-      const isRecurring = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none');
-      
-      // Don't check if alarm is already active (prevents loops)
-      if (activeAlarmId === alarm.id) {
-        return;
-      }
-      
-      // Check if alarm should fire
-      let shouldFire = false;
-      if (isRecurring) {
-        // For recurring alarms, check if current time matches alarm time (within 1 minute window)
-        // Fire if we're at the exact minute (any second within that minute)
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
-        const alarmMinutes = alarmTime.getHours() * 60 + alarmTime.getMinutes();
-        // Fire only at the exact minute (not before or after)
-        shouldFire = currentMinutes === alarmMinutes;
-        
-        // Debug log for routine alarms
-        if (alarm.title.includes('Routine:')) {
-          console.log(`🔍 Checking routine alarm "${alarm.title}": current=${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}, alarm=${alarmTime.getHours()}:${alarmTime.getMinutes()}, shouldFire=${shouldFire}`);
-        }
-      } else {
-        // For one-time alarms (including snooze alarms), check if time has passed
-        // Use a wider window for snooze alarms (5 minutes) since they're more precise
-        const isSnoozeAlarm = alarm.id.includes('_snooze_') || alarm.id.endsWith('_snooze');
-        const timeDiff = now.getTime() - alarmTime.getTime();
-        const windowMs = isSnoozeAlarm ? 5 * 60 * 1000 : 60000; // 5 min for snooze, 1 min for regular
-        shouldFire = timeDiff >= 0 && timeDiff <= windowMs;
-        
-        // Log snooze alarm detection for debugging
-        if (isSnoozeAlarm && shouldFire) {
-          console.log(`🔔 Snooze alarm detected: ${alarm.title}, timeDiff: ${Math.floor(timeDiff/1000)}s`);
-        }
-      }
-
-      if (shouldFire) {
-        const minuteKey = getAlarmMinuteKey(alarm.id, alarmTime, isRecurring);
-        
-        // Check if this alarm was already stopped for this occurrence
-        // Only prevent re-ringing if stopped within the same minute window
-        const stoppedTime = stoppedAlarmsThisOccurrenceRef.current.get(alarm.id);
-        if (stoppedTime) {
-          const timeSinceStop = now.getTime() - stoppedTime;
-          const stoppedDate = new Date(stoppedTime);
-          const stoppedMinutes = stoppedDate.getHours() * 60 + stoppedDate.getMinutes();
-          const currentMinutes = now.getHours() * 60 + now.getMinutes();
-          const isSameMinute = currentMinutes === stoppedMinutes;
-          const isSameDay = stoppedDate.getDate() === now.getDate() && 
-                           stoppedDate.getMonth() === now.getMonth() &&
-                           stoppedDate.getFullYear() === now.getFullYear();
-          
-          // For recurring alarms: if stopped, prevent re-ringing for 24 hours
-          // This prevents the alarm from ringing again until user explicitly re-enables it or 24h passes
-          // For one-time alarms: prevent re-ringing for 2 minutes in same minute window
-          const isRecurringAlarm = !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none' && alarm.recurrenceRule !== null);
-          const preventDuration = isRecurringAlarm ? 24 * 60 * 60 * 1000 : 2 * 60 * 1000; // 24 hours for recurring, 2 min for one-time
-          
-          if (timeSinceStop < preventDuration) {
-            if (isRecurringAlarm) {
-              console.log(`🚫 Recurring alarm ${alarm.id} was stopped ${Math.floor(timeSinceStop / 60000)} minutes ago, preventing re-fire for 24h`);
-              return; // Don't fire - was recently stopped (within 24 hours for recurring)
-            } else if (isSameMinute && isSameDay) {
-              console.log(`🚫 One-time alarm ${alarm.id} was stopped in same minute today, skipping re-fire`);
-              return; // Don't fire - was recently stopped in same minute today
-            }
-          } else {
-            // Clear the stopped marker if prevention period has passed
-            stoppedAlarmsThisOccurrenceRef.current.delete(alarm.id);
-            console.log(`🧹 Cleared stopped marker for alarm ${alarm.id} (prevention period expired: ${isRecurringAlarm ? '24h' : '2min'})`);
-          }
-        }
-        
-        // Only fire if we haven't fired for this minute key
-        // This prevents multiple fires in the same minute window
-        if (!firedAlarmsRef.current.has(minuteKey)) {
-          console.log(`✅ Firing alarm: ${alarm.title} at ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`);
-          firedAlarmsRef.current.add(minuteKey);
-          if (handleAlarmFiredRef.current) {
-            handleAlarmFiredRef.current(alarm);
-          }
-          
-          // For recurring alarms, clear the key after 2 minutes to allow next occurrence
-          // For one-time alarms, clear after 5 minutes
-          const clearTimeout = isRecurring ? 2 * 60 * 1000 : 5 * 60 * 1000;
-          setTimeout(() => {
-            firedAlarmsRef.current.delete(minuteKey);
-          }, clearTimeout);
-        }
-      }
-    });
-  }, [alarms, activeAlarmId, isStopping]);
-
-  // Register alarm check function with global alarm engine
-  useEffect(() => {
-    const { registerAlarmCheckFunction, unregisterAlarmCheckFunction } = require('@/services/GlobalAlarmEngine');
-    
-    // Register our check function with the global engine
-    registerAlarmCheckFunction(checkAlarmsThatShouldHaveFired);
-    
-    // Cleanup: unregister when component unmounts (optional, engine handles missing function gracefully)
-    return () => {
-      unregisterAlarmCheckFunction();
-    };
-  }, [checkAlarmsThatShouldHaveFired]);
+  // REMOVED: JS polling for alarm detection
+  // Android AlarmManager now owns all alarm ringing
+  // JS only handles UI updates via native events
 
   // Timer countdown with background support using BackgroundTimer
   const startTimerCountdown = (timer: Timer) => {
@@ -398,7 +283,7 @@ export const AlarmsScreen: React.FC = () => {
         backgroundTimerRef.current = null;
         backgroundRemainingRef.current = null;
 
-        checkAlarmsThatShouldHaveFired();
+        // REMOVED: JS alarm checking - Android AlarmManager handles all alarm firing
       }
     });
 
@@ -437,15 +322,30 @@ export const AlarmsScreen: React.FC = () => {
             }
           }
           
-          // ONLY trigger if alarm exists AND is enabled
-          if (alarm && alarm.enabled) {
-            console.log('🎯 Triggering alarm from push notification:', alarm.title);
-            handleAlarmFired(alarm);
-            // Don't remove pending_alarm_id here - let Tasks/Routines screens handle it when they check
+          // CRITICAL: DO NOT trigger alarm ringing from JS
+          // Android AlarmManager + AlarmPlayerService handles ALL alarm ringing
+          // JS only restores UI state if alarm is already ringing (from native event)
+          // Check if alarm is actually ringing (active_alarm exists)
+          const activeAlarmStr = await AsyncStorage.getItem('active_alarm');
+          if (alarm && alarm.enabled && activeAlarmStr) {
+            // Alarm is already ringing (triggered by Android), just restore UI state
+            try {
+              const activeAlarm = JSON.parse(activeAlarmStr);
+              if (activeAlarm.id === alarm.id) {
+                console.log('🔄 Restoring UI state for already-ringing alarm:', alarm.title);
+                setActiveAlarmId(alarm.id);
+                setPendingAlarm(alarm);
+                // Don't call handleAlarmFired - Android is already handling ringing
+              }
+            } catch (e) {
+              console.log('⚠️ Invalid active_alarm JSON, ignoring');
+            }
           } else {
-            console.log('🧹 Ignoring pending alarm - not found or disabled:', pendingAlarmId);
-            // Only remove if alarm doesn't exist
-            await AsyncStorage.removeItem('pending_alarm_id').catch(() => {});
+            console.log('🧹 Ignoring pending alarm - not found, disabled, or not ringing:', pendingAlarmId);
+            // Clear pending if alarm doesn't exist or isn't enabled
+            if (!alarm || !alarm.enabled) {
+              await AsyncStorage.removeItem('pending_alarm_id').catch(() => {});
+            }
           }
         }
         
@@ -588,52 +488,34 @@ export const AlarmsScreen: React.FC = () => {
     }
   }, [timers]);
 
-  // Schedule alarms when alarms are loaded or enabled - using ReliableAlarmService
-  useEffect(() => {
-    if (alarms.length > 0) {
-      alarms.forEach(alarm => {
-        if (alarm.enabled) {
-          try {
-            // Schedule alarm with native Android AlarmManager (works even when app is closed)
-            // This is the primary mechanism for reliable alarm ringing
-            reliableAlarmService.scheduleAlarm(alarm).then(() => {
-              console.log(`✅ Alarm scheduled via ReliableAlarmService: ${alarm.title}`, {
-                alarmId: alarm.id,
-                alarmTime: alarm.time,
-                isRecurring: !!(alarm.recurrenceRule && alarm.recurrenceRule !== 'none'),
-                isRoutine: alarm.title?.includes('Routine:'),
-                isTask: alarm.title?.includes('Task:'),
-              });
-            }).catch((error) => {
-              console.error(`❌ Failed to schedule alarm ${alarm.id}:`, error);
-            });
-          } catch (error) {
-            console.error(`❌ Failed to schedule alarm ${alarm.id}:`, error);
-          }
-        } else {
-          // Cancel alarm if disabled
-          try {
-            reliableAlarmService.cancelAlarm(alarm.id);
-            notificationService.cancelAlarm(alarm.id);
-          } catch (error) {
-            console.error(`Failed to cancel alarm ${alarm.id}:`, error);
-          }
-        }
-      });
-    }
-  }, [alarms]);
+  // REMOVED: Automatic alarm scheduling on alarms array change
+  // This was causing stopped alarms to be re-scheduled
+  // Alarms are now scheduled ONLY by fetchAlarms() in alarmStore
+  // This ensures proper state management and prevents re-scheduling stopped alarms
 
-  // Check for active alarm on app open
+  // Check for active alarm on app open - ONLY restore UI, don't trigger ringing
   useEffect(() => {
     const checkActiveAlarm = async () => {
       try {
-        const activeAlarmId = await AsyncStorage.getItem('active_alarm_id');
-        if (activeAlarmId) {
-          console.log('🔔 Found active alarm on app open:', activeAlarmId);
-          const alarm = alarms.find(a => a.id === activeAlarmId);
-          if (alarm) {
-            console.log('🔔 Continuing active alarm:', alarm.title);
-            handleAlarmFired(alarm);
+        const activeAlarmStr = await AsyncStorage.getItem('active_alarm');
+        if (activeAlarmStr) {
+          try {
+            const activeAlarm = JSON.parse(activeAlarmStr);
+            const alarm = alarms.find(a => a.id === activeAlarm.id && a.enabled);
+            if (alarm) {
+              // Alarm is already ringing (from Android), just restore UI state
+              console.log('🔄 Restoring UI state for active alarm:', alarm.title);
+              setActiveAlarmId(alarm.id);
+              setPendingAlarm(alarm);
+              // DO NOT call handleAlarmFired - Android is already handling ringing
+            } else {
+              // Alarm not found or disabled, clear active state
+              console.log('🧹 Clearing orphaned active alarm state');
+              await AsyncStorage.removeItem('active_alarm').catch(() => {});
+            }
+          } catch (e) {
+            console.log('⚠️ Invalid active_alarm JSON, clearing');
+            await AsyncStorage.removeItem('active_alarm').catch(() => {});
           }
         }
       } catch (error) {
@@ -667,6 +549,18 @@ export const AlarmsScreen: React.FC = () => {
     setIsStopping(true);
     setActiveAlarmId(null);
     setPendingAlarm(null);
+    
+    // CRITICAL: Mark alarm as stopped in AsyncStorage to prevent re-scheduling
+    // This persists across app restarts and fetchAlarms calls
+    try {
+      const stoppedAlarms = await AsyncStorage.getItem('stopped_alarms');
+      const stoppedSet = stoppedAlarms ? new Set(JSON.parse(stoppedAlarms)) : new Set<string>();
+      stoppedSet.add(alarmId);
+      await AsyncStorage.setItem('stopped_alarms', JSON.stringify(Array.from(stoppedSet)));
+      console.log('✅ Marked alarm as stopped in AsyncStorage:', alarmId);
+    } catch (error) {
+      console.error('❌ Failed to mark alarm as stopped:', error);
+    }
     
     // CRITICAL: Stop the native alarm service FIRST to stop sound/vibration
     console.log('🛑 Stopping native alarm service...');
@@ -974,37 +868,10 @@ export const AlarmsScreen: React.FC = () => {
       console.error('❌ Error storing active alarm state:', error);
     });
 
-    // CRITICAL: For snooze alarms detected via JavaScript polling, manually trigger ringing
-    // Native alarm system may not fire snooze alarms reliably since they're created locally
-    if (isSnoozeAlarm) {
-      console.log('🔔 Snooze alarm detected - manually triggering ringing...');
-      try {
-        PushNotification.localNotification({
-          channelId: Platform.OS === 'android' ? 'alarm-channel-v2' : undefined,
-          title: `⏰ ${alarm.title}`,
-          message: 'Time to wake up!',
-          playSound: true,
-          soundName: 'alarm',
-          vibrate: true,
-          vibration: 1000,
-          priority: 'max',
-          importance: 5 as any,
-          allowWhileIdle: true,
-          ongoing: true,
-          autoCancel: false,
-          userInfo: {
-            alarmId: alarm.id,
-            type: 'ALARM_TRIGGER',
-            title: alarm.title,
-            time: alarm.time,
-            notificationType: 'ALARM_TRIGGER',
-          },
-        });
-        console.log('✅ Snooze alarm ringing triggered manually');
-      } catch (error) {
-        console.error('❌ Failed to trigger snooze alarm ring:', error);
-      }
-    }
+    // REMOVED: Manual ringing trigger
+    // Android AlarmManager + AlarmPlayerService now handles ALL alarm ringing
+    // JS only updates UI state
+    // This is called from native AlarmFired event when Android fires the alarm
 
     if (!isAlarmViewActive) {
       setPendingAlarm(alarm);

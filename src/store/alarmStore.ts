@@ -4,6 +4,7 @@ import { alarmService } from '@/services/alarmApiService';
 import { notificationService } from '@/services/notificationService';
 import { reliableAlarmService } from '@/services/ReliableAlarmService';
 import { useAuthStore } from '@/store/authStore';
+import { logger } from '@/utils/logger';
 
 interface AlarmState {
   // State
@@ -22,7 +23,7 @@ interface AlarmState {
   };
 
   // Actions
-  fetchAlarms: (page?: number, limit?: number, enabled?: boolean) => Promise<void>;
+  fetchAlarms: (page?: number, limit?: number, enabled?: boolean, retryCount?: number) => Promise<void>;
   fetchTimers: (page?: number, limit?: number) => Promise<void>;
   createAlarm: (data: CreateAlarmData) => Promise<Alarm>;
   updateAlarm: (id: string, data: UpdateAlarmData) => Promise<Alarm>;
@@ -73,7 +74,10 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
   },
 
   // Alarm actions
-  fetchAlarms: async (page = 1, limit = 20, enabled) => {
+  fetchAlarms: async (page = 1, limit = 20, enabled, retryCount = 0) => {
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds
+    
     try {
       set({ loading: true, error: null });
       const response = await alarmService.getAlarms(page, limit, enabled);
@@ -159,8 +163,28 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
       // This prevents re-scheduling alarms that were already stopped
       // Include both merged alarms (from backend) and local snooze alarms
       // Note: 'now' is already declared above (line 108)
+      
+      // CRITICAL: Check AsyncStorage for stopped alarms to prevent re-scheduling
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      let stoppedAlarmsSet = new Set<string>();
+      try {
+        const stoppedAlarms = await AsyncStorage.getItem('stopped_alarms');
+        if (stoppedAlarms) {
+          stoppedAlarmsSet = new Set(JSON.parse(stoppedAlarms));
+          console.log(`🔍 Found ${stoppedAlarmsSet.size} stopped alarms in AsyncStorage`);
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to read stopped alarms from AsyncStorage:', error);
+      }
+      
       const enabledAlarms = allAlarms.filter(a => {
         if (!a.enabled) return false;
+        
+        // CRITICAL: Skip alarms that are marked as stopped in AsyncStorage
+        if (stoppedAlarmsSet.has(a.id)) {
+          console.log(`⏭️ Skipping stopped alarm: ${a.title} (marked as stopped in AsyncStorage)`);
+          return false;
+        }
         
         // Check if this alarm was recently stopped (within last 5 minutes)
         // This prevents re-scheduling alarms that were just stopped
@@ -217,10 +241,25 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         }
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch alarms';
+      const isNetworkError = errorMessage.includes('Network connection failed') || 
+                            errorMessage.includes('Network Error') ||
+                            (error as any)?.code === 'NETWORK_ERROR';
+      
+      // Retry on network errors
+      if (isNetworkError && retryCount < maxRetries) {
+        logger.warn(`Network error fetching alarms, retrying... (${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay * (retryCount + 1)));
+        return get().fetchAlarms(page, limit, enabled, retryCount + 1);
+      }
+      
       set({
-        error: error instanceof Error ? error.message : 'Failed to fetch alarms',
+        error: errorMessage,
         loading: false,
       });
+      
+      // Don't throw - allow app to continue even if alarm fetch fails
+      logger.error('Failed to fetch alarms after retries:', error);
     }
   },
 
@@ -309,12 +348,30 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         loading: false,
       }));
 
+      // CRITICAL: If alarm is re-enabled, remove from stopped alarms list
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      if (alarm.enabled) {
+        try {
+          const stoppedAlarms = await AsyncStorage.getItem('stopped_alarms');
+          if (stoppedAlarms) {
+            const stoppedSet = new Set(JSON.parse(stoppedAlarms));
+            stoppedSet.delete(id);
+            await AsyncStorage.setItem('stopped_alarms', JSON.stringify(Array.from(stoppedSet)));
+            console.log('✅ Removed alarm from stopped list (re-enabled):', id);
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to remove alarm from stopped list:', error);
+        }
+      }
+
       // Reschedule the alarm if it was updated
       reliableAlarmService.cancelAlarm(id).catch((error) => {
         console.error('Failed to cancel native alarm:', error);
       });
       if (alarm.enabled) {
-        notificationService.scheduleAlarm(alarm);
+        // Use fetchAlarms to properly schedule (respects stopped alarms, past alarms, etc.)
+        // Don't schedule directly here - let fetchAlarms handle it
+        console.log('📅 Alarm updated - will be scheduled on next fetchAlarms call');
       }
 
       return alarm;
@@ -348,6 +405,20 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
     }
 
     inFlightAlarmDeletes.add(id);
+
+    // CRITICAL: Remove from stopped alarms list when deleting
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    try {
+      const stoppedAlarms = await AsyncStorage.getItem('stopped_alarms');
+      if (stoppedAlarms) {
+        const stoppedSet = new Set(JSON.parse(stoppedAlarms));
+        stoppedSet.delete(id);
+        await AsyncStorage.setItem('stopped_alarms', JSON.stringify(Array.from(stoppedSet)));
+        console.log('✅ Removed alarm from stopped list (deleted):', id);
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to remove alarm from stopped list:', error);
+    }
 
     try {
       set({ loading: true, error: null });
@@ -383,15 +454,36 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
         alarms: state.alarms.map((a) => (a.id === id ? { ...a, enabled: newEnabledState } : a)),
       }));
 
+      // CRITICAL: Manage stopped alarms list
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      try {
+        const stoppedAlarms = await AsyncStorage.getItem('stopped_alarms');
+        const stoppedSet = stoppedAlarms ? new Set(JSON.parse(stoppedAlarms)) : new Set<string>();
+        
+        if (newEnabledState) {
+          // Re-enabling: Remove from stopped list
+          stoppedSet.delete(id);
+          await AsyncStorage.setItem('stopped_alarms', JSON.stringify(Array.from(stoppedSet)));
+          console.log('✅ Removed alarm from stopped list (toggled on):', id);
+        } else {
+          // Disabling: Add to stopped list
+          stoppedSet.add(id);
+          await AsyncStorage.setItem('stopped_alarms', JSON.stringify(Array.from(stoppedSet)));
+          console.log('✅ Added alarm to stopped list (toggled off):', id);
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to update stopped alarms list:', error);
+      }
+
       // Cancel or schedule alarm immediately based on new state
       reliableAlarmService.cancelAlarm(id).catch((error) => {
         console.error('Failed to cancel native alarm:', error);
       });
       
       if (newEnabledState) {
-        reliableAlarmService.scheduleAlarm({ ...alarm, enabled: newEnabledState }).catch((error) => {
-          console.error('Failed to schedule native alarm:', error);
-        });
+        // Use fetchAlarms to properly schedule (respects stopped alarms, past alarms, etc.)
+        // Don't schedule directly here - let fetchAlarms handle it
+        console.log('📅 Alarm toggled on - will be scheduled on next fetchAlarms call');
       }
 
       // Update backend (non-blocking - local state already updated)
@@ -424,132 +516,45 @@ export const useAlarmStore = create<AlarmState>((set, get) => ({
 
       console.log(`😴 Snoozing alarm ${id} for ${duration} minutes`);
 
-      // Cancel current alarm
-      await reliableAlarmService.cancelAlarm(id);
-
-      // Calculate snooze time (default 5 minutes) - ensure it's at least 1 minute in the future
+      // CRITICAL NEW ARCHITECTURE: Snooze = reschedule SAME alarm ID
+      // This prevents sound channel conflicts and ID duplication
+      // Android owns the alarm ringing, JS only updates the time
+      
       const now = Date.now();
-      const snoozeTime = new Date(now + Math.max(duration * 60 * 1000, 60000)); // At least 1 minute
+      const snoozeTime = new Date(now + (duration * 60 * 1000));
       
       console.log(`📅 Snooze alarm will ring at: ${snoozeTime.toISOString()}`);
       
-      // First, cancel any existing snooze alarms for this alarm to prevent duplicates
-      const existingSnoozeAlarms = get().alarms.filter(a => a.id.startsWith(`${id}_snooze_`));
-      for (const existingSnooze of existingSnoozeAlarms) {
-        try {
-          await reliableAlarmService.cancelAlarm(existingSnooze.id);
-          console.log(`🗑️ Cancelled existing snooze alarm: ${existingSnooze.id}`);
-        } catch (error) {
-          console.warn(`⚠️ Failed to cancel existing snooze alarm:`, error);
-        }
-      }
+      // Use native snooze method (reschedules same alarm ID)
+      const { nativeAlarmBridge } = await import('@/services/NativeAlarmBridge');
       
-      // Create snooze alarm with all required fields
-      // IMPORTANT: Snooze alarms are ALWAYS one-time, no recurrence
-      const snoozeAlarm: Alarm = {
-        ...alarm,
-        id: `${id}_snooze_${Date.now()}`,
-        title: `${alarm.title} (Snooze)`,
-        time: snoozeTime.toISOString(),
-        recurrenceRule: undefined, // Snooze is ALWAYS one-time (undefined, not 'none')
-        enabled: true, // Ensure enabled
-        // Ensure all required fields are present
-        userId: alarm.userId || '',
-        createdAt: alarm.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        timezone: alarm.timezone || 'UTC',
-        // Clear any linked task IDs - snooze is a standalone alarm
-        linkedTaskId: undefined,
-      };
-
-      // Verify snooze time is in the future
-      if (snoozeTime.getTime() <= now) {
-        console.error(`❌ Snooze time is in the past: ${snoozeTime.toISOString()}`);
-        throw new Error('Snooze time must be in the future');
-      }
-
-      // Schedule snooze alarm using native Android AlarmManager
-      console.log(`📅 Scheduling snooze alarm: ${snoozeAlarm.id} at ${snoozeTime.toISOString()}`);
-      await reliableAlarmService.scheduleAlarm(snoozeAlarm);
-      console.log(`✅ Snooze alarm scheduled successfully`);
-
-      // Add snooze alarm to store so it's tracked
-      // This ensures the alarm is visible in the alarms list and can be managed
-      set((state) => {
-        // Remove any existing snooze alarms for this alarm to avoid duplicates
-        const filteredAlarms = state.alarms.filter(a => !a.id.startsWith(`${id}_snooze_`));
-        return {
-          alarms: [snoozeAlarm, ...filteredAlarms],
-        };
-      });
+      await nativeAlarmBridge.snoozeAlarm(
+        id,  // SAME alarm ID (critical!)
+        duration,
+        alarm.title,
+        alarm.toneUrl || null,
+        null  // Snooze is always one-time (no recurrence)
+      );
       
-      // IMPORTANT: For one-time alarms, disable them completely when snoozed
-      // For recurring alarms, only cancel the current occurrence (they'll fire next time)
-      const isRecurring = alarm.recurrenceRule && alarm.recurrenceRule !== 'none';
+      // Update alarm time in local store (UI needs to show new time)
+      set((state) => ({
+        alarms: state.alarms.map(a => 
+          a.id === id ? { 
+            ...a, 
+            time: snoozeTime.toISOString(),
+            updatedAt: new Date().toISOString(),
+          } : a
+        ),
+      }));
       
-      if (!isRecurring) {
-        // One-time alarms: Disable completely when snoozed (they've already fired)
-        try {
-          set((state) => ({
-            alarms: state.alarms.map(a => 
-              a.id === id ? { ...a, enabled: false } : a
-            ),
-          }));
-          console.log(`✅ Disabled one-time original alarm ${id} after snooze (already fired)`);
-          
-          // Also cancel the original alarm natively
-          await reliableAlarmService.cancelAlarm(id);
-          
-          // Try to disable on backend too (non-blocking)
-          const { isAuthenticated } = useAuthStore.getState();
-          if (isAuthenticated) {
-            try {
-              await alarmService.updateAlarm(id, { enabled: false });
-            } catch (error) {
-              console.warn('⚠️ Failed to disable alarm on backend (non-critical):', error);
-            }
-          }
-        } catch (error) {
-          console.warn(`⚠️ Failed to disable/cancel original alarm:`, error);
-        }
-      } else {
-        // Recurring alarms: Just cancel current occurrence, keep enabled for next time
-        try {
-          await reliableAlarmService.cancelAlarm(id);
-          console.log(`✅ Cancelled recurring alarm ${id} current occurrence (will fire next schedule)`);
-        } catch (error) {
-          console.warn(`⚠️ Failed to cancel recurring alarm occurrence:`, error);
-        }
-      }
-      
-      console.log(`✅ Snooze alarm added to store: ${snoozeAlarm.id}`);
-      console.log('💤 Snooze alarm details:', {
-        id: snoozeAlarm.id,
-        originalId: id,
-        time: snoozeTime.toLocaleString(),
-        duration: `${duration} minutes`,
-      });
+      console.log(`✅ Alarm ${id} snoozed successfully - same ID rescheduled to ${snoozeTime.toISOString()}`);
 
       // If authenticated, sync snooze to backend (non-blocking)
-      // IMPORTANT: Only sync if the original alarm exists in backend (not a snooze alarm)
-      // Snooze alarms are local-only and shouldn't be synced to backend
       const { isAuthenticated } = useAuthStore.getState();
       if (isAuthenticated) {
-        // Check if this is a snooze alarm being snoozed (shouldn't happen, but handle gracefully)
-        const isSnoozeAlarm = id.includes('_snooze_') || id.endsWith('_snooze');
-        if (!isSnoozeAlarm) {
-          // Only sync if it's the original alarm (not a snooze alarm)
-          alarmService.snoozeAlarm(id, duration).catch((error) => {
-            // Non-blocking: Don't fail snooze if backend sync fails
-            // This can happen if:
-            // 1. Alarm was deleted from backend but exists locally
-            // 2. Network issues
-            // 3. Backend temporarily unavailable
-            console.warn('⚠️ Failed to sync snooze to backend (non-critical):', error);
-          });
-        } else {
-          console.log('ℹ️ Skipping backend sync for snooze alarm (local-only)');
-        }
+        alarmService.snoozeAlarm(id, duration).catch((error) => {
+          console.warn('⚠️ Failed to sync snooze to backend (non-critical):', error);
+        });
       }
     } catch (error) {
       console.error('❌ Failed to snooze alarm:', error);

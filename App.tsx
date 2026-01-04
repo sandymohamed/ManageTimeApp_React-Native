@@ -75,30 +75,17 @@ const App: React.FC = () => {
     }
   }, [isInitialized, isAuthenticated, user]);
 
-  // STEP 2: Start/stop global alarm engine based on app state
+  // First launch setup (cleanup + permissions)
   useEffect(() => {
-    const { startAlarmEngine, stopAlarmEngine } = require('./src/services/GlobalAlarmEngine');
-    
-    // Start engine when app is active
-    startAlarmEngine();
-
-    // Listen to app state changes
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
-        // App came to foreground - start alarm checking
-        startAlarmEngine();
-      } else if (nextAppState.match(/inactive|background/)) {
-        // App went to background - stop alarm checking (alarms will still ring via Notifee triggers)
-        // Actually, we might want to keep it running in background too for reliability
-        // Let's keep it running for now, only stop when app is terminated
+    const runFirstLaunchSetup = async () => {
+      const { firstLaunchService } = require('./src/services/FirstLaunchService');
+      const isFirst = await firstLaunchService.isFirstLaunch();
+      if (isFirst) {
+        console.log('🆕 First launch detected - running setup...');
+        await firstLaunchService.runFirstLaunchSetup();
       }
-    });
-
-    return () => {
-      // Cleanup: stop engine when app unmounts/terminates
-      stopAlarmEngine();
-      subscription.remove();
     };
+    runFirstLaunchSetup();
   }, []);
 
   if (!isInitialized || isLoading) {
